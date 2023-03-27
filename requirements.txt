@@ -1,0 +1,3 @@
+numpy>=1.18.0
+gymnasium>=0.26
+pygame>=2.2.0
