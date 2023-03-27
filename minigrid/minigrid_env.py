@@ -593,15 +593,11 @@ class MiniGridEnv(gym.Env):
         cells the agent can actually see.
         if agent_view_size is None, self.agent_view_size is used
         """
-
         topX, topY, botX, botY = self.get_view_exts(agent_view_size)
-
         agent_view_size = agent_view_size or self.agent_view_size
 
         grid = self.grid.slice(topX, topY, agent_view_size, agent_view_size)
-
-        for i in range(self.agent_dir + 1):
-            grid = grid.rotate_left()
+        grid = grid.rotate_left(self.agent_dir + 1)
 
         # Process occluders and visibility
         # Note that this incurs some performance cost

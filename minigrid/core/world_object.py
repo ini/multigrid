@@ -11,7 +11,6 @@ from minigrid.core.constants import (
     IDX_TO_OBJECT,
     OBJECT_TO_IDX,
     STATE_TO_IDX,
-    IDX_TO_STATE,
 )
 from minigrid.utils.rendering import (
     fill_coords,
@@ -21,7 +20,7 @@ from minigrid.utils.rendering import (
 )
 
 from .array import (
-    Empty,
+    empty,
     contents,
     can_overlap,
     can_pickup,
@@ -47,9 +46,9 @@ def world_obj_from_array(array: np.ndarray) -> WorldObj:
         'lava': Lava,
     }
 
-    if OBJECT_TO_IDX[array[0]] == 'empty':
+    if IDX_TO_OBJECT[array[0]] == 'empty':
         return None
-    elif OBJECT_TO_IDX[array[0]] in OBJECT_TO_CLS:
+    elif IDX_TO_OBJECT[array[0]] in OBJECT_TO_CLS:
         cls = OBJECT_TO_CLS[IDX_TO_OBJECT[array[0]]]
         return cls.from_array(array)
     raise ValueError(f'Unknown object index: {array[0]}')
@@ -57,19 +56,19 @@ def world_obj_from_array(array: np.ndarray) -> WorldObj:
 
 class WorldObj:
     """
-    Base class for grid world objects
+    Base class for grid world objects.
     """
 
     def __init__(self, type: str, color: str):
         assert type in OBJECT_TO_IDX, type
         assert color in COLOR_TO_IDX, color
-        self.array = Empty()
+        self.array = empty()
         self.array[0] = OBJECT_TO_IDX[type]
         self.array[1] = COLOR_TO_IDX[color]
 
     @classmethod
     def from_array(cls, array: np.ndarray):
-        obj = cls.__new__()
+        obj = cls.__new__(cls)
         obj.array = array
         return obj
 
@@ -88,12 +87,15 @@ class WorldObj:
     @property
     def contains(self):
         array = contents(self.array)
-        if OBJECT_TO_IDX[array[0]] != 'empty':
-            return self.__class__
+        if IDX_TO_OBJECT[array[0]] != 'empty':
+            return world_obj_from_array(array)
 
     @contains.setter
     def contains(self, value):
-        self.array[4:] = value.array[:4]
+        if value is None:
+            self.array[4:] = empty()[:4]
+        else:
+            self.array[4:] = value.array[:4]
 
     def can_overlap(self) -> bool:
         """Can the agent overlap with this?"""
@@ -114,17 +116,18 @@ class WorldObj:
     def toggle(self, env: MiniGridEnv, pos: tuple[int, int]) -> bool:
         """Method to trigger/toggle an action this object performs"""
         original_array = self.array.copy()
-        toggle(self.array)
+        carrying_array = empty() if env.carrying is None else env.carrying.array 
+        toggle(self.array, carrying_array)
         return np.all(self.array == original_array)
 
     def encode(self) -> tuple[int, int, int]:
         """Encode the a description of this object as a 3-tuple of integers"""
-        return self.array[:3]
+        return tuple(self.array[:3])
 
     @staticmethod
     def decode(type_idx: int, color_idx: int, state: int) -> WorldObj | None:
         """Create an object from a 3-tuple state description"""
-        array = Empty()
+        array = empty()
         array[:3] = type_idx, color_idx, state
         return world_obj_from_array(array)
 
@@ -193,7 +196,7 @@ class Door(WorldObj):
 
     @property
     def is_open(self):
-        return STATE_TO_IDX[self.array[2]] == 'open'
+        return self.array[2] == STATE_TO_IDX['open']
 
     @is_open.setter
     def is_open(self, value):

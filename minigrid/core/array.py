@@ -1,34 +1,43 @@
-def Empty() -> np.ndarray[int]:
-    return np.array([
-        OBJECT_TO_IDX['empty'], 0, 0, 0,
-        OBJECT_TO_IDX['empty'], 0, 0, 0,
-    ])
-
-
 """
-Base class for grid world objects.
+Module for underlying array-encoded representation of gridworld objects.
 
-Uses the following encoding:
-----------------------------
-0: object type
-1: object color
-2: object state
-3: object ID
-4: contained object type
-5: contained object color
-6: contained object state
-7: contained object ID
+Each world object is represented by an array,
+with the values at each index specified as follows:
+
+    * 0: object type
+    * 1: object color
+    * 2: object state
+    * 3: object ID
+    * 4: contained object type
+    * 5: contained object color
+    * 6: contained object state
+    * 7: contained object ID
+
+This module allows for vectorized operations over world object arrays.
+The underlying behavioral logic for each object type is contained here.
 """
+import numpy as np
+from .constants import OBJECT_TO_IDX, STATE_TO_IDX
+
+
 
 ARRAY_DIM = 8
+EMPTY = np.array([
+    OBJECT_TO_IDX['empty'], 0, 0, 0,
+    OBJECT_TO_IDX['empty'], 0, 0, 0,
+])
+
+def empty() -> np.ndarray[int]:
+    return EMPTY.copy()
 
 def contents(array: np.ndarray[int]) -> np.ndarray[int]:
     x = np.zeros_like(array)
-    x[..., :4] = array[..., 4:]
-    x[..., 4:] = Empty()
+    n = ARRAY_DIM // 2
+    x[..., :n] = array[..., n:]
+    x[..., n:] = empty()[:n]
     return x
 
-def can_overlap(array: np.ndarray[int]) -> np.array[bool]:
+def can_overlap(array: np.ndarray[int]) -> np.ndarray[bool]:
     mask = (array[..., 0] == OBJECT_TO_IDX['empty'])
     mask |= (array[..., 0] == OBJECT_TO_IDX['goal'])
     mask |= (array[..., 0] == OBJECT_TO_IDX['floor'])
@@ -39,16 +48,16 @@ def can_overlap(array: np.ndarray[int]) -> np.array[bool]:
     )
     return mask
 
-def can_pickup(array: np.ndarray[int]) -> np.array[bool]:
+def can_pickup(array: np.ndarray[int]) -> np.ndarray[bool]:
     mask = (array[..., 0] == OBJECT_TO_IDX['key'])
     mask |= (array[..., 0] == OBJECT_TO_IDX['ball'])
     mask |= (array[..., 0] == OBJECT_TO_IDX['box'])
     return mask
 
-def can_contain(array: np.ndarray[int]) -> np.array[bool]:
+def can_contain(array: np.ndarray[int]) -> np.ndarray[bool]:
     return (array[..., 0] == OBJECT_TO_IDX['box'])
 
-def see_behind(array: np.ndarray[int]) -> np.array[bool]:
+def see_behind(array: np.ndarray[int]) -> np.ndarray[bool]:
     neg_mask = (array[..., 0] == OBJECT_TO_IDX['wall'])
     neg_mask |= (
         (array[..., 0] == OBJECT_TO_IDX['door'])
@@ -56,7 +65,7 @@ def see_behind(array: np.ndarray[int]) -> np.array[bool]:
     )
     return ~neg_mask
 
-def toggle(self, array: np.ndarray[int], carrying: np.ndarray):
+def toggle(array: np.ndarray[int], carrying: np.ndarray):
     # Handle doors
     is_door = (array[..., 0] == OBJECT_TO_IDX['door'])
     is_open = is_door & (array[..., 2] == STATE_TO_IDX['open'])
@@ -73,84 +82,31 @@ def toggle(self, array: np.ndarray[int], carrying: np.ndarray):
 
     # Handle boxes
     is_box = (array[..., 0] == OBJECT_TO_IDX['box'])
-    array[is_box] = MyWorldObj.contents(array[is_box]) # replace the box by its contents
+    array[is_box] = contents(array[is_box]) # replace the box by its contents
 
-def render(self, array: np.ndarray[int], img: np.ndarray):
-    # TODO: vectorize all of this
+def get_vis_mask(array: np.ndarray[int], agent_pos: tuple[int, int]):
+    width, height = array.shape[:2]
+    see_behind_mask = see_behind(array)
+    vis_mask = np.zeros((width, height), dtype=bool)
+    vis_mask[agent_pos] = True
 
-    if array[..., 0] == OBJECT_TO_IDX['goal']:
-        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[array[..., 1]])
+    for j in reversed(range(0, height)):
+        for i in range(0, width - 1):
+            if not vis_mask[i, j] or see_behind_mask[i, j]:
+                continue
 
-    elif array[..., 0] == OBJECT_TO_IDX['floor']:
-        # Give the floor a pale color
-        color = COLORS[array[..., 1]] / 2
-        fill_coords(img, point_in_rect(0.031, 1, 0.031, 1), color)
+            vis_mask[i + 1, j] = True
+            if j > 0:
+                vis_mask[i + 1, j - 1] = True
+                vis_mask[i, j - 1] = True
 
-    elif array[..., 0] == OBJECT_TO_IDX['lava']:
-        c = (255, 128, 0)
+        for i in reversed(range(1, width)):
+            if not vis_mask[i, j] or see_behind_mask[i, j]:
+                continue
 
-        # Background color
-        fill_coords(img, point_in_rect(0, 1, 0, 1), c)
+            vis_mask[i - 1, j] = True
+            if j > 0:
+                vis_mask[i - 1, j - 1] = True
+                vis_mask[i, j - 1] = True
 
-        # Little waves
-        for i in range(3):
-            ylo = 0.3 + 0.2 * i
-            yhi = 0.4 + 0.2 * i
-            fill_coords(img, point_in_line(0.1, ylo, 0.3, yhi, r=0.03), (0, 0, 0))
-            fill_coords(img, point_in_line(0.3, yhi, 0.5, ylo, r=0.03), (0, 0, 0))
-            fill_coords(img, point_in_line(0.5, ylo, 0.7, yhi, r=0.03), (0, 0, 0))
-            fill_coords(img, point_in_line(0.7, yhi, 0.9, ylo, r=0.03), (0, 0, 0))
-
-    elif array[..., 0] == OBJECT_TO_IDX['wall']:
-        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[array[..., 1]])
-    
-    elif array[..., 0] == OBJECT_TO_IDX['door']:
-        c = COLORS[array[..., 1]]
-
-        if array[..., 2] == STATE_TO_IDX['open']:
-            fill_coords(img, point_in_rect(0.88, 1.00, 0.00, 1.00), c)
-            fill_coords(img, point_in_rect(0.92, 0.96, 0.04, 0.96), (0, 0, 0))
-            return
-
-        # Door frame and door
-        if array[..., 2] == STATE_TO_IDX['locked']:
-            fill_coords(img, point_in_rect(0.00, 1.00, 0.00, 1.00), c)
-            fill_coords(img, point_in_rect(0.06, 0.94, 0.06, 0.94), 0.45 * np.array(c))
-
-            # Draw key slot
-            fill_coords(img, point_in_rect(0.52, 0.75, 0.50, 0.56), c)
-        else:
-            fill_coords(img, point_in_rect(0.00, 1.00, 0.00, 1.00), c)
-            fill_coords(img, point_in_rect(0.04, 0.96, 0.04, 0.96), (0, 0, 0))
-            fill_coords(img, point_in_rect(0.08, 0.92, 0.08, 0.92), c)
-            fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), (0, 0, 0))
-
-            # Draw door handle
-            fill_coords(img, point_in_circle(cx=0.75, cy=0.50, r=0.08), c)
-    
-    elif array[..., 0] == OBJECT_TO_IDX['key']:
-        c = COLORS[array[..., 1]]
-
-        # Vertical quad
-        fill_coords(img, point_in_rect(0.50, 0.63, 0.31, 0.88), c)
-
-        # Teeth
-        fill_coords(img, point_in_rect(0.38, 0.50, 0.59, 0.66), c)
-        fill_coords(img, point_in_rect(0.38, 0.50, 0.81, 0.88), c)
-
-        # Ring
-        fill_coords(img, point_in_circle(cx=0.56, cy=0.28, r=0.190), c)
-        fill_coords(img, point_in_circle(cx=0.56, cy=0.28, r=0.064), (0, 0, 0))
-
-    elif array[..., 0] == OBJECT_TO_IDX['ball']:
-        fill_coords(img, point_in_circle(0.5, 0.5, 0.31), COLORS[array[..., 1]])
-
-    elif array[..., 0] == OBJECT_TO_IDX['box']:
-        c = COLORS[array[..., 1]]
-
-        # Outline
-        fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), c)
-        fill_coords(img, point_in_rect(0.18, 0.82, 0.18, 0.82), (0, 0, 0))
-
-        # Horizontal slit
-        fill_coords(img, point_in_rect(0.16, 0.84, 0.47, 0.53), c)
+        return vis_mask
