@@ -1,24 +1,26 @@
 from __future__ import annotations
 
+import gymnasium as gym
 import hashlib
 import math
-from abc import abstractmethod
-from typing import Any, Iterable, SupportsFloat, TypeVar
-
-import gymnasium as gym
 import numpy as np
 import pygame
 import pygame.freetype
+
+from abc import abstractmethod
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
+from typing import Any, Iterable, SupportsFloat, TypeVar
 
-from minigrid.core.actions import Actions
-from minigrid.core.constants import COLOR_NAMES, DIR_TO_VEC, TILE_PIXELS
-from minigrid.core.grid import Grid
-from minigrid.core.mission import MissionSpace
-from minigrid.core.world_object import Point, WorldObj
+from .core.actions import Actions
+from .core.constants import COLOR_NAMES, DIR_TO_VEC, TILE_PIXELS
+from .core.grid import Grid
+from .core.mission import MissionSpace
+from .core.world_object import Point, WorldObj
+from .utils.misc import get_view_exts
 
 T = TypeVar("T")
+
 
 
 class MiniGridEnv(gym.Env):
@@ -392,9 +394,8 @@ class MiniGridEnv(gym.Env):
         Get the direction vector for the agent, pointing in the direction
         of forward movement.
         """
-
         assert (
-            self.agent_dir >= 0 and self.agent_dir < 4
+            0 <= self.agent_dir < 4
         ), f"Invalid agent_dir: {self.agent_dir} is not within range(0, 4)"
         return DIR_TO_VEC[self.agent_dir]
 
@@ -403,17 +404,16 @@ class MiniGridEnv(gym.Env):
         """
         Get the vector pointing to the right of the agent.
         """
-
         dx, dy = self.dir_vec
         return np.array((-dy, dx))
 
     @property
-    def front_pos(self):
+    def front_pos(self) -> tuple[int, int]:
         """
         Get the position of the cell that is right in front of the agent
         """
-
-        return self.agent_pos + self.dir_vec
+        dx, dy = self.dir_vec
+        return (self.agent_pos[0] + dx, self.agent_pos[1] + dy)
 
     def get_view_coords(self, i, j):
         """
@@ -441,39 +441,6 @@ class MiniGridEnv(gym.Env):
         vy = -(dx * lx + dy * ly)
 
         return vx, vy
-
-    def get_view_exts(self, agent_view_size=None):
-        """
-        Get the extents of the square set of tiles visible to the agent
-        Note: the bottom extent indices are not included in the set
-        if agent_view_size is None, use self.agent_view_size
-        """
-
-        agent_view_size = agent_view_size or self.agent_view_size
-
-        # Facing right
-        if self.agent_dir == 0:
-            topX = self.agent_pos[0]
-            topY = self.agent_pos[1] - agent_view_size // 2
-        # Facing down
-        elif self.agent_dir == 1:
-            topX = self.agent_pos[0] - agent_view_size // 2
-            topY = self.agent_pos[1]
-        # Facing left
-        elif self.agent_dir == 2:
-            topX = self.agent_pos[0] - agent_view_size + 1
-            topY = self.agent_pos[1] - agent_view_size // 2
-        # Facing up
-        elif self.agent_dir == 3:
-            topX = self.agent_pos[0] - agent_view_size // 2
-            topY = self.agent_pos[1] - agent_view_size + 1
-        else:
-            assert False, "invalid agent direction"
-
-        botX = topX + agent_view_size
-        botY = topY + agent_view_size
-
-        return topX, topY, botX, botY
 
     def relative_coords(self, x, y):
         """
@@ -531,9 +498,7 @@ class MiniGridEnv(gym.Env):
 
         # Rotate left
         if action == self.actions.left:
-            self.agent_dir -= 1
-            if self.agent_dir < 0:
-                self.agent_dir += 4
+            self.agent_dir = (self.agent_dir - 1) % 4
 
         # Rotate right
         elif action == self.actions.right:
@@ -542,7 +507,7 @@ class MiniGridEnv(gym.Env):
         # Move forward
         elif action == self.actions.forward:
             if fwd_cell is None or fwd_cell.can_overlap():
-                self.agent_pos = tuple(fwd_pos)
+                self.agent_pos = fwd_pos
             if fwd_cell is not None and fwd_cell.type == "goal":
                 terminated = True
                 reward = self._reward()
@@ -567,7 +532,7 @@ class MiniGridEnv(gym.Env):
         # Toggle/activate an object
         elif action == self.actions.toggle:
             if fwd_cell:
-                fwd_cell.toggle(self, fwd_pos)
+                fwd_cell.toggle(self.carrying)
 
         # Done action (not used by default)
         elif action == self.actions.done:
@@ -593,8 +558,9 @@ class MiniGridEnv(gym.Env):
         cells the agent can actually see.
         if agent_view_size is None, self.agent_view_size is used
         """
-        topX, topY, botX, botY = self.get_view_exts(agent_view_size)
         agent_view_size = agent_view_size or self.agent_view_size
+        topX, topY, botX, botY = get_view_exts(
+            self.agent_dir, self.agent_pos, agent_view_size)
 
         grid = self.grid.slice(topX, topY, agent_view_size, agent_view_size)
         grid = grid.rotate_left(self.agent_dir + 1)
@@ -606,16 +572,13 @@ class MiniGridEnv(gym.Env):
                 agent_pos=(agent_view_size // 2, agent_view_size - 1)
             )
         else:
-            vis_mask = np.ones(shape=(grid.width, grid.height), dtype=bool)
+            vis_mask = np.ones((grid.width, grid.height), dtype=bool)
 
         # Make it so the agent sees what it's carrying
         # We do this by placing the carried object at the agent's position
         # in the agent's partially observable view
         agent_pos = grid.width // 2, grid.height - 1
-        if self.carrying:
-            grid.set(*agent_pos, self.carrying)
-        else:
-            grid.set(*agent_pos, None)
+        grid.set(*agent_pos, None)
 
         return grid, vis_mask
 

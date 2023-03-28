@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from minigrid.core.constants import COLOR_NAMES
-from minigrid.core.grid import Grid
-from minigrid.core.world_object import Ball, Box, Door, Key, WorldObj
-from minigrid.minigrid_env import MiniGridEnv
+from .constants import COLOR_NAMES
+from .grid import Grid
+from .world_object import Ball, Box, Door, Key, WorldObj
+
+from ..minigrid_env import MiniGridEnv
+
 
 
 def reject_next_to(env: MiniGridEnv, pos: tuple[int, int]):
@@ -13,7 +15,6 @@ def reject_next_to(env: MiniGridEnv, pos: tuple[int, int]):
     Function to filter out object positions that are right next to
     the agent's starting point
     """
-
     sx, sy = env.agent_pos
     x, y = pos
     d = abs(sx - x) + abs(sy - y)
@@ -21,6 +22,7 @@ def reject_next_to(env: MiniGridEnv, pos: tuple[int, int]):
 
 
 class Room:
+
     def __init__(self, top: tuple[int, int], size: tuple[int, int]):
         # Top-left corner and size (tuples)
         self.top = top

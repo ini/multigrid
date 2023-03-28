@@ -1,13 +1,14 @@
-from __future__ import annotations
-
 import math
-from typing import Any, Callable
-
 import numpy as np
 
-from minigrid.core.constants import OBJECT_TO_IDX, TILE_PIXELS
-from minigrid.core.world_object import Wall, WorldObj
-from minigrid.utils.rendering import (
+from typing import Any, Callable, Optional
+
+from .array import ARRAY_DIM, empty, get_vis_mask, rotate_left
+from .constants import OBJECT_TO_IDX, TILE_PIXELS
+from .world_object import Wall, WorldObj, world_obj_from_array
+
+from ..utils.misc import clip
+from ..utils.rendering import (
     downsample,
     fill_coords,
     highlight_img,
@@ -15,37 +16,35 @@ from minigrid.utils.rendering import (
     point_in_triangle,
     rotate_fn,
 )
-from .array import (
-    ARRAY_DIM,
-    empty,
-    get_vis_mask,
-)
-from .world_object import world_obj_from_array
 
 
 
-def clip(values, low, high):
-    return (max(low, min(high, v)) for v in values)
+### Constants
+
+WALL = Wall().array
 
 
+
+### Classes
 
 class Grid:
     """
-    Represent a grid and operations on it
+    Represent a grid and operations on it.
     """
 
     # Static cache of pre-renderer tiles
     tile_cache: dict[tuple[Any, ...], Any] = {}
 
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, fill: np.ndarray[int] = empty()):
         assert width >= 3
         assert height >= 3
         self.width: int = width
         self.height: int = height
-        self.grid: np.array[int] = np.zeros((width, height, ARRAY_DIM), dtype=int)
-        self.grid[...] = empty()
+        self.grid: np.array[int] = np.empty((width, height, ARRAY_DIM), dtype=int)
+        if fill is not None:
+            self.grid[...] = fill
 
-    def set(self, i: int, j: int, v: WorldObj | None):
+    def set(self, i: int, j: int, v: Optional[WorldObj]):
         assert (
             0 <= i < self.width
         ), f"column index {j} outside of grid of width {self.width}"
@@ -57,7 +56,7 @@ class Grid:
         else:
             self.grid[i, j] = v.array
 
-    def get(self, i: int, j: int) -> WorldObj | None:
+    def get(self, i: int, j: int) -> Optional[WorldObj]:
         assert 0 <= i < self.width
         assert 0 <= j < self.height
         assert self.grid is not None
@@ -67,7 +66,7 @@ class Grid:
         self,
         x: int,
         y: int,
-        length: int | None = None,
+        length: Optional[int] = None,
         obj_type: Callable[[], WorldObj] = Wall,
     ):
         length = self.width - x if length is None else length
@@ -77,7 +76,7 @@ class Grid:
         self,
         x: int,
         y: int,
-        length: int | None = None,
+        length: Optional[int] = None,
         obj_type: Callable[[], WorldObj] = Wall,
     ):
         length = self.height - y if length is None else length
@@ -89,27 +88,28 @@ class Grid:
         self.vert_wall(x, y, h)
         self.vert_wall(x + w - 1, y, h)
 
-    def rotate_left(self, k: int = 1) -> Grid:
+    def rotate_left(self, k: int = 1) -> 'Grid':
         """
         Rotate the grid to the left (counter-clockwise)
         """
-        new_grid_array = np.rot90(self.grid, k=k%4)
+        new_grid_array = rotate_left(self.grid, k=k%4)
         new_width, new_height = new_grid_array.shape[:2]
-        new_grid = Grid(new_width, new_height)
+        new_grid = Grid(new_width, new_height, fill=None)
         new_grid.grid = new_grid_array
         return new_grid
 
-    def slice(self, topX: int, topY: int, width: int, height: int) -> Grid:
+    def slice(self, topX: int, topY: int, width: int, height: int) -> 'Grid':
         """
         Get a subset of the grid
         """
-        x_min, x_max = clip((topX, topX + width), low=0, high=self.width)
-        y_min, y_max = clip((topY, topY + height), low=0, high=self.height)
+        x_min = clip(topX, low=0, high=self.width)
+        x_max = clip(topX + width, low=0, high=self.width)
+        y_min = clip(topY, low=0, high=self.height)
+        y_max = clip(topY + height, low=0, high=self.height)
         i_min, i_max = x_min - topX, x_max - topX
         j_min, j_max = y_min - topY, y_max - topY
 
-        grid = Grid(width, height)
-        grid.grid[...] = Wall().array
+        grid = Grid(width, height, fill=WALL.copy())
         grid.grid[i_min:i_max, j_min:j_max] = self.grid[x_min:x_max, y_min:y_max]
 
         return grid
@@ -117,8 +117,8 @@ class Grid:
     @classmethod
     def render_tile(
         cls,
-        obj: WorldObj | None,
-        agent_dir: int | None = None,
+        obj: Optional[WorldObj] = None,
+        agent_dir: Optional[int] = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
         subdivs: int = 3,
@@ -173,8 +173,8 @@ class Grid:
         self,
         tile_size: int,
         agent_pos: tuple[int, int],
-        agent_dir: int | None = None,
-        highlight_mask: np.ndarray | None = None,
+        agent_dir: Optional[int] = None,
+        highlight_mask: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Render this grid at a given scale
@@ -225,7 +225,7 @@ class Grid:
         return array
 
     @staticmethod
-    def decode(array: np.ndarray) -> tuple[Grid, np.ndarray]:
+    def decode(array: np.ndarray) -> tuple['Grid', np.ndarray]:
         """
         Decode an array grid encoding back into a grid
         """
@@ -244,6 +244,7 @@ class Grid:
         return grid, vis_mask
 
     def process_vis(self, agent_pos: tuple[int, int]) -> np.ndarray:
-        vis_mask = get_vis_mask(self.grid, agent_pos)
+        vis_mask = get_vis_mask(self.grid, *agent_pos)
+        #self.grid = _set_grid(self.grid, ~vis_mask, empty())
         self.grid[~vis_mask] = empty()
         return vis_mask

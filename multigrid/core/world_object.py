@@ -1,23 +1,5 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Tuple
-
 import numpy as np
-
-from minigrid.core.constants import (
-    COLOR_TO_IDX,
-    COLORS,
-    IDX_TO_COLOR,
-    IDX_TO_OBJECT,
-    OBJECT_TO_IDX,
-    STATE_TO_IDX,
-)
-from minigrid.utils.rendering import (
-    fill_coords,
-    point_in_circle,
-    point_in_line,
-    point_in_rect,
-)
+from typing import Optional
 
 from .array import (
     empty,
@@ -28,13 +10,29 @@ from .array import (
     see_behind,
     toggle,
 )
-if TYPE_CHECKING:
-    from minigrid.minigrid_env import MiniGridEnv
+from .constants import (
+    COLOR_TO_IDX,
+    COLORS,
+    IDX_TO_COLOR,
+    IDX_TO_OBJECT,
+    OBJECT_TO_IDX,
+    STATE_TO_IDX,
+)
+from ..utils.rendering import (
+    fill_coords,
+    point_in_circle,
+    point_in_line,
+    point_in_rect,
+)
 
-Point = Tuple[int, int]
+Point = tuple[int, int]
 
 
-def world_obj_from_array(array: np.ndarray) -> WorldObj:
+
+def world_obj_from_array(array: np.ndarray) -> Optional['WorldObj']:
+    """
+    Create a world object from array representation.
+    """
     OBJECT_TO_CLS = {
         'wall': Wall,
         'floor': Floor,
@@ -48,15 +46,29 @@ def world_obj_from_array(array: np.ndarray) -> WorldObj:
 
     if IDX_TO_OBJECT[array[0]] == 'empty':
         return None
-    elif IDX_TO_OBJECT[array[0]] in OBJECT_TO_CLS:
+
+    if IDX_TO_OBJECT[array[0]] in OBJECT_TO_CLS:
         cls = OBJECT_TO_CLS[IDX_TO_OBJECT[array[0]]]
         return cls.from_array(array)
+
     raise ValueError(f'Unknown object index: {array[0]}')
 
 
 class WorldObj:
     """
     Base class for grid world objects.
+
+    Attributes
+    ----------
+    array : np.ndarray[int] of shape (ARRAY_DIM,)
+        Underlying array-encoding representation
+    type : str
+        The name of the object type
+    color : str
+        The color of the object
+    contains : WorldObj or None
+        The object contained by this object, if any
+    
     """
 
     def __init__(self, type: str, color: str):
@@ -73,66 +85,97 @@ class WorldObj:
         return obj
 
     @property
-    def type(self):
+    def type(self) -> str:
+        """
+        The name of the object type.
+        """
         return IDX_TO_OBJECT[self.array[0]]
 
     @property
-    def color(self):
+    def color(self) -> str:
+        """
+        The color of the object.
+        """
         return IDX_TO_COLOR[self.array[1]]
 
     @color.setter
     def color(self, value):
+        """
+        Set the color of the object.
+        """
         self.array[1] = COLOR_TO_IDX[value]
 
     @property
-    def contains(self):
+    def contains(self) -> Optional['WorldObj']:
+        """
+        The object contained by this object, if any.
+        """
         array = contents(self.array)
         if IDX_TO_OBJECT[array[0]] != 'empty':
             return world_obj_from_array(array)
 
     @contains.setter
     def contains(self, value):
+        """
+        Set the contents of this object.
+        """
         if value is None:
             self.array[4:] = empty()[:4]
         else:
             self.array[4:] = value.array[:4]
 
     def can_overlap(self) -> bool:
-        """Can the agent overlap with this?"""
+        """
+        Can the agent overlap with this?
+        """
         return can_overlap(self.array)
 
     def can_pickup(self) -> bool:
-        """Can the agent pick this up?"""
+        """
+        Can the agent pick this up?
+        """
         return can_pickup(self.array)
 
     def can_contain(self) -> bool:
-        """Can this contain another object?"""
+        """
+        Can this contain another object?
+        """
         return can_contain(self.array)
 
     def see_behind(self) -> bool:
-        """Can the agent see behind this object?"""
+        """
+        Can the agent see behind this object?
+        """
         return see_behind(self.array)
 
-    def toggle(self, env: MiniGridEnv, pos: tuple[int, int]) -> bool:
-        """Method to trigger/toggle an action this object performs"""
+    def toggle(self, carrying: 'WorldObj') -> bool:
+        """
+        Method to trigger/toggle an action this object performs.
+        """
         original_array = self.array.copy()
-        carrying_array = empty() if env.carrying is None else env.carrying.array 
+        carrying_array = empty() if carrying is None else carrying.array 
         toggle(self.array, carrying_array)
         return np.all(self.array == original_array)
 
     def encode(self) -> tuple[int, int, int]:
-        """Encode the a description of this object as a 3-tuple of integers"""
+        """
+        Encode the a description of this object as a 3-tuple of integers.
+        """
         return tuple(self.array[:3])
 
     @staticmethod
-    def decode(type_idx: int, color_idx: int, state: int) -> WorldObj | None:
-        """Create an object from a 3-tuple state description"""
+    def decode(type_idx: int, color_idx: int, state: int) -> Optional['WorldObj']:
+        """
+        Create an object from a 3-tuple state description.
+        """
         array = empty()
         array[:3] = type_idx, color_idx, state
         return world_obj_from_array(array)
 
-    def render(self, r: np.ndarray) -> np.ndarray:
-        """Draw this object with the given renderer"""
+    def render(self, img: np.ndarray[int]):
+        """
+        Draw this object with the given renderer.
+        """
         raise NotImplementedError
 
 
@@ -141,19 +184,19 @@ class Goal(WorldObj):
     def __init__(self):
         super().__init__('goal', 'green')
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
 
 
 class Floor(WorldObj):
     """
-    Colored floor tile the agent can walk over
+    Colored floor tile the agent can walk over.
     """
 
     def __init__(self, color: str = 'blue'):
         super().__init__('floor', color)
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         # Give the floor a pale color
         color = COLORS[self.color] / 2
         fill_coords(img, point_in_rect(0.031, 1, 0.031, 1), color)
@@ -164,7 +207,7 @@ class Lava(WorldObj):
     def __init__(self):
         super().__init__('lava', 'red')
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         c = (255, 128, 0)
 
         # Background color
@@ -185,7 +228,7 @@ class Wall(WorldObj):
     def __init__(self, color: str = 'grey'):
         super().__init__('wall', color)
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
 
 
@@ -201,9 +244,9 @@ class Door(WorldObj):
     @is_open.setter
     def is_open(self, value):
         if value:
-            self.array[2] = STATE_TO_IDX['open']
+            self.array[2] = STATE_TO_IDX['open'] # set state to open
         elif not self.is_locked:
-            self.array[2] = STATE_TO_IDX['closed']
+            self.array[2] = STATE_TO_IDX['closed'] # closed (unless already locked)
 
     @property
     def is_locked(self):
@@ -212,11 +255,11 @@ class Door(WorldObj):
     @is_locked.setter
     def is_locked(self, value):
         if value:
-            self.array[2] = STATE_TO_IDX['locked']
+            self.array[2] = STATE_TO_IDX['locked'] # set state to locked
         elif not self.is_open:
-            self.array[2] = STATE_TO_IDX['closed']
+            self.array[2] = STATE_TO_IDX['closed'] # closed (unless already open)
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         c = COLORS[self.color]
 
         if self.is_open:
@@ -227,7 +270,8 @@ class Door(WorldObj):
         # Door frame and door
         if self.is_locked:
             fill_coords(img, point_in_rect(0.00, 1.00, 0.00, 1.00), c)
-            fill_coords(img, point_in_rect(0.06, 0.94, 0.06, 0.94), 0.45 * np.array(c))
+            fill_coords(
+                img, point_in_rect(0.06, 0.94, 0.06, 0.94), 0.45 * np.array(c))
 
             # Draw key slot
             fill_coords(img, point_in_rect(0.52, 0.75, 0.50, 0.56), c)
@@ -246,7 +290,7 @@ class Key(WorldObj):
     def __init__(self, color: str = 'blue'):
         super().__init__('key', color)
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         c = COLORS[self.color]
 
         # Vertical quad
@@ -266,17 +310,17 @@ class Ball(WorldObj):
     def __init__(self, color: str = 'blue'):
         super().__init__('ball', color)
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         fill_coords(img, point_in_circle(0.5, 0.5, 0.31), COLORS[self.color])
 
 
 class Box(WorldObj):
 
-    def __init__(self, color, contains: WorldObj | None = None):
+    def __init__(self, color, contains: Optional[WorldObj] = None):
         super().__init__('box', color)
         self.contains = contains
 
-    def render(self, img):
+    def render(self, img: np.ndarray[int]):
         c = COLORS[self.color]
 
         # Outline

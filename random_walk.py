@@ -1,4 +1,5 @@
-from minigrid.envs import LockedRoomEnv
+from multigrid.envs import LockedRoomEnvMultiGrid
+from minigrid.envs import LockedRoomEnvMiniGrid
 
 #import matplotlib; matplotlib.use('TkAgg')
 import time
@@ -7,11 +8,15 @@ def random_walk(num_episodes=1):
     """
     Visualize a trajectory where agents are taking random actions.
     """
-    env = LockedRoomEnv()
+    env_multi = LockedRoomEnvMultiGrid()
+    env_mini = LockedRoomEnvMiniGrid()
     #env = LockedRoomEnv(render_mode='human', screen_size=500)
 
     for episode in range(num_episodes):
-        obs, _ = env.reset()
+        obs_multi, _ = env_multi.reset(seed=0)
+        obs_mini, _ = env_multi.reset(seed=0)
+
+        print(obs_multi, obs_mini)
         truncated = False
         while not truncated:
             #env.render()
@@ -23,5 +28,6 @@ def random_walk(num_episodes=1):
 
 
 if __name__ == '__main__':
-    import cProfile
-    cProfile.run('random_walk(500)', sort='cumtime')
+    random_walk(1)
+    # import cProfile
+    # cProfile.run('random_walk(2000)', sort='cumtime')

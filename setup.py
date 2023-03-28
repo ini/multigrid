@@ -35,4 +35,4 @@ def get_description():
     return long_description
 
 
-setup(name="minigrid", version=get_version(), long_description=get_description())
+setup(name="multigrid", version=get_version(), long_description=get_description())
