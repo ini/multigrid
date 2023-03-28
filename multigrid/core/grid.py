@@ -243,8 +243,7 @@ class Grid:
 
         return grid, vis_mask
 
-    def process_vis(self, agent_pos: tuple[int, int]) -> np.ndarray:
+    def process_vis(self, agent_pos: tuple[int, int]) -> np.ndarray[bool]:
         vis_mask = get_vis_mask(self.grid, *agent_pos)
-        #self.grid = _set_grid(self.grid, ~vis_mask, empty())
         self.grid[~vis_mask] = empty()
         return vis_mask

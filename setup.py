@@ -11,7 +11,7 @@ CWD = pathlib.Path(__file__).absolute().parent
 
 def get_version():
     """Gets the minigrid version."""
-    path = CWD / "minigrid" / "__init__.py"
+    path = CWD / "multigrid" / "__init__.py"
     content = path.read_text()
 
     for line in content.splitlines():

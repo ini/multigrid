@@ -240,14 +240,14 @@ class MiniGridEnv(gym.Env):
 
     def _rand_int(self, low: int, high: int) -> int:
         """
-        Generate random integer in [low,high[
+        Generate random integer in [low,high]
         """
 
         return self.np_random.integers(low, high)
 
     def _rand_float(self, low: float, high: float) -> float:
         """
-        Generate random float in [low,high[
+        Generate random float in [low,high]
         """
 
         return self.np_random.uniform(low, high)

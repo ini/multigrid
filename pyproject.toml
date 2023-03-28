@@ -5,11 +5,11 @@ requires = ["setuptools >= 61.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "minigrid"
+name = "multigrid"
 description = "Minimalistic gridworld reinforcement learning environments."
 readme = "README.md"
-requires-python = ">= 3.7, < 3.11"
-authors = [{ name = "Farama Foundation", email = "contact@farama.org" }]
+requires-python = ">= 3.9"
+authors = [{ name = "Ini Oguntola", email = "ini@ini.io" }]
 license = { text = "MIT License" }
 keywords = ["Memory, Environment, Agent, RL, Gymnasium"]
 classifiers = [

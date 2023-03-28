@@ -232,9 +232,10 @@ def _set_grid(array, mask, value):
 def _get_see_behind_mask(
     array: np.ndarray[int],
     wall_idx: int, door_idx: int, open_idx: int) -> np.ndarray[bool]:
-    neg_mask = np.zeros(array.shape[:2], dtype=np.bool_)
-    for i in range(array.shape[0]):
-        for j in range(array.shape[1]):
+    width, height = array.shape[:2]
+    neg_mask = np.zeros((width, height), dtype=np.bool_)
+    for i in range(width):
+        for j in range(height):
             if array[i, j, 0] == wall_idx:
                 neg_mask[i, j] = True
             elif array[i, j, 0] == door_idx and array[i, j, 2] != open_idx:
@@ -266,4 +267,4 @@ def _get_vis_mask(
                     vis_mask[i - 1, j - 1] = True
                     vis_mask[i, j - 1] = True
 
-        return vis_mask
+    return vis_mask

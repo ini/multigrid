@@ -1,4 +1,5 @@
 import numpy as np
+
 from typing import Optional
 
 from .array import (
@@ -18,6 +19,7 @@ from .constants import (
     OBJECT_TO_IDX,
     STATE_TO_IDX,
 )
+#from ..utils.typing import Point
 from ..utils.rendering import (
     fill_coords,
     point_in_circle,
@@ -236,6 +238,8 @@ class Door(WorldObj):
 
     def __init__(self, color: str, is_open: bool = False, is_locked: bool = False):
         super().__init__('door', color)
+        self.is_open = is_open
+        self.is_locked = is_locked
 
     @property
     def is_open(self):
@@ -250,7 +254,7 @@ class Door(WorldObj):
 
     @property
     def is_locked(self):
-        return STATE_TO_IDX[self.array[2]] == 'locked'
+        return self.array[2] == STATE_TO_IDX['locked']
 
     @is_locked.setter
     def is_locked(self, value):
