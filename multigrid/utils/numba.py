@@ -21,7 +21,7 @@ WALL[0] = WALL_IDX
 ### Functions
 
 @nb.njit(cache=True)
-def gen_obs_grid(
+def gen_obs_grid2(
     grid_array: np.ndarray[int],
     carrying_array: np.ndarray[int],
     agent_dir: int,
@@ -124,7 +124,7 @@ def gen_obs_grid_encoding(
     img : np.ndarray[int] of shape (width, height, 3)
         Encoding for observed sub-grid
     """
-    obs_grid_result = gen_obs_grid(
+    obs_grid_result = gen_obs_grid2(
         grid_array,
         carrying_array,
         agent_dir,

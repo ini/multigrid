@@ -27,7 +27,8 @@ from ..utils.rendering import (
 )
 
 if TYPE_CHECKING:
-    from minigrid.minigrid_env import MiniGridEnv
+    from .agent import Agent
+    from ..minigrid_env import MiniGridEnv
 
 
 
@@ -171,7 +172,7 @@ class WorldObj:
         """
         return see_behind(self.array)
 
-    def toggle(self, env: 'MiniGridEnv', pos: tuple[int, int]) -> bool:
+    def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         """
         Method to trigger/toggle an action this object performs.
         """
@@ -179,7 +180,7 @@ class WorldObj:
 
     def encode(self) -> tuple[int, int, int]:
         """
-        Encode the a description of this object as a 3-tuple of integers.
+        Encode a description of this object as a 3-tuple of integers.
         """
         return tuple(self.array[:3])
 
@@ -312,10 +313,10 @@ class Door(WorldObj):
         elif not self.is_open:
             self.state = STATE_TO_IDX['closed'] # closed (unless already open)
 
-    def toggle(self, env: 'MiniGridEnv', pos: tuple[int, int]) -> bool:
+    def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         # If the player has the right key to open the door
         if self.is_locked:
-            if isinstance(env.carrying, Key) and env.carrying.color == self.color:
+            if isinstance(agent.carrying, Key) and agent.carrying.color == self.color:
                 self.is_locked = False
                 self.is_open = True
                 return True
@@ -394,7 +395,7 @@ class Box(WorldObj):
         super().__init__('box', color)
         self.contains = contains
 
-    def toggle(self, env: 'MiniGridEnv', pos: tuple[int, int]) -> bool:
+    def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         # Replace the box by its contents
         env.grid.set(pos[0], pos[1], self.contains)
         return True

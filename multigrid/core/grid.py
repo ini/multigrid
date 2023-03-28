@@ -1,20 +1,15 @@
-import math
 import numpy as np
-
 from typing import Any, Callable, Optional
 
 from .array import ARRAY_DIM, EMPTY
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
 from .world_object import Wall, WorldObj, world_obj_from_array
 
-from ..utils.numba import gen_obs_grid, gen_obs_grid_encoding
 from ..utils.rendering import (
     downsample,
     fill_coords,
     highlight_img,
     point_in_rect,
-    point_in_triangle,
-    rotate_fn,
 )
 
 
@@ -124,48 +119,10 @@ class Grid:
         self.vert_wall(x, y, h)
         self.vert_wall(x + w - 1, y, h)
 
-    def gen_obs_grid(
-        self,
-        agent_carrying: Optional[WorldObj],
-        agent_dir: int,
-        topX: int, topY: int,
-        width: int, height: int,
-        see_through_walls: bool,
-    ) -> tuple[np.ndarray[int], np.ndarray[bool]]:
-        obs_grid_result = gen_obs_grid(
-            self.grid,
-            EMPTY if agent_carrying is None else agent_carrying.array,
-            agent_dir,
-            topX, topY,
-            width, height,
-            see_through_walls,
-        )
-        grid_array = obs_grid_result[..., :-1]
-        vis_mask = obs_grid_result[..., -1].astype(bool)
-        return Grid.from_grid_array(grid_array), vis_mask
-    
-    def gen_obs_grid_encoding(
-        self,
-        agent_carrying: Optional[WorldObj],
-        agent_dir: int,
-        topX: int, topY: int,
-        width: int, height: int,
-        see_through_walls: bool,
-    ) -> tuple[np.ndarray[int], np.ndarray[bool]]:
-        return gen_obs_grid_encoding(
-            self.grid,
-            EMPTY if agent_carrying is None else agent_carrying.array,
-            agent_dir,
-            topX, topY,
-            width, height,
-            see_through_walls,
-        )
-
     @classmethod
     def render_tile(
         cls,
         obj: Optional[WorldObj] = None,
-        agent_dir: Optional[int] = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
         subdivs: int = 3,
@@ -173,9 +130,8 @@ class Grid:
         """
         Render a tile and cache the result
         """
-
         # Hash map lookup key for the cache
-        key: tuple[Any, ...] = (agent_dir, highlight, tile_size)
+        key: tuple[Any, ...] = (highlight, tile_size)
         key = obj.encode() + key if obj else key
 
         if key in cls.tile_cache:
@@ -192,18 +148,6 @@ class Grid:
         if obj is not None:
             obj.render(img)
 
-        # Overlay the agent on top
-        if agent_dir is not None:
-            tri_fn = point_in_triangle(
-                (0.12, 0.19),
-                (0.87, 0.50),
-                (0.12, 0.81),
-            )
-
-            # Rotate the agent based on its direction
-            tri_fn = rotate_fn(tri_fn, cx=0.5, cy=0.5, theta=0.5 * math.pi * agent_dir)
-            fill_coords(img, tri_fn, (255, 0, 0))
-
         # Highlight the cell if needed
         if highlight:
             highlight_img(img)
@@ -219,8 +163,6 @@ class Grid:
     def render(
         self,
         tile_size: int,
-        agent_pos: tuple[int, int],
-        agent_dir: Optional[int] = None,
         highlight_mask: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
@@ -243,11 +185,9 @@ class Grid:
             for i in range(0, self.width):
                 cell = self.get(i, j)
 
-                agent_here = np.array_equal(agent_pos, (i, j))
                 assert highlight_mask is not None
                 tile_img = Grid.render_tile(
                     cell,
-                    agent_dir=agent_dir if agent_here else None,
                     highlight=highlight_mask[i, j],
                     tile_size=tile_size,
                 )
