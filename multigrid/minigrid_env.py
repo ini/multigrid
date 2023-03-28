@@ -17,7 +17,7 @@ from .core.constants import COLOR_NAMES, DIR_TO_VEC, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import Point, WorldObj
-from .utils.misc import get_view_exts
+from .utils.misc import get_view_exts, front_pos
 
 T = TypeVar("T")
 
@@ -412,8 +412,7 @@ class MiniGridEnv(gym.Env):
         """
         Get the position of the cell that is right in front of the agent
         """
-        dx, dy = self.dir_vec
-        return (self.agent_pos[0] + dx, self.agent_pos[1] + dy)
+        return front_pos(self.agent_pos, self.agent_dir)
 
     def get_view_coords(self, i, j):
         """
@@ -532,7 +531,7 @@ class MiniGridEnv(gym.Env):
         # Toggle/activate an object
         elif action == self.actions.toggle:
             if fwd_cell:
-                fwd_cell.toggle(self.carrying)
+                fwd_cell.toggle(self, fwd_pos)
 
         # Done action (not used by default)
         elif action == self.actions.done:
@@ -562,35 +561,33 @@ class MiniGridEnv(gym.Env):
         topX, topY, botX, botY = get_view_exts(
             self.agent_dir, self.agent_pos, agent_view_size)
 
-        grid = self.grid.slice(topX, topY, agent_view_size, agent_view_size)
-        grid = grid.rotate_left(self.agent_dir + 1)
+        return self.grid.gen_obs_grid(
+            self.carrying,
+            self.agent_dir,
+            topX, topY,
+            agent_view_size, agent_view_size,
+            self.see_through_walls,
+        )
+    
+    def gen_obs_grid_encoding(self, agent_view_size=None):
+        agent_view_size = agent_view_size or self.agent_view_size
+        topX, topY, botX, botY = get_view_exts(
+            self.agent_dir, self.agent_pos, agent_view_size)
 
-        # Process occluders and visibility
-        # Note that this incurs some performance cost
-        if not self.see_through_walls:
-            vis_mask = grid.process_vis(
-                agent_pos=(agent_view_size // 2, agent_view_size - 1)
-            )
-        else:
-            vis_mask = np.ones((grid.width, grid.height), dtype=bool)
-
-        # Make it so the agent sees what it's carrying
-        # We do this by placing the carried object at the agent's position
-        # in the agent's partially observable view
-        agent_pos = grid.width // 2, grid.height - 1
-        grid.set(*agent_pos, None)
-
-        return grid, vis_mask
+        return self.grid.gen_obs_grid_encoding(
+            self.carrying,
+            self.agent_dir,
+            topX, topY,
+            agent_view_size, agent_view_size,
+            self.see_through_walls,
+        )
 
     def gen_obs(self):
         """
         Generate the agent's view (partially observable, low-resolution encoding)
         """
-
-        grid, vis_mask = self.gen_obs_grid()
-
         # Encode the partially observable view into a numpy array
-        image = grid.encode(vis_mask)
+        image = self.gen_obs_grid_encoding()
 
         # Observations are dictionaries containing:
         # - an image (partially observable view of the environment)

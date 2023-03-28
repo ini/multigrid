@@ -1,10 +1,15 @@
 import functools
+from ..core.constants import DIR_TO_VEC
 
 
 
 @functools.cache
-def clip(value: int, low: int, high: int):
-    return max(low, min(high, value))
+def front_pos(agent_pos: tuple[int, int], agent_dir: int):
+    """
+    Get the position in front of an agent.
+    """
+    dx, dy = DIR_TO_VEC[agent_dir]
+    return (agent_pos[0] + dx, agent_pos[1] + dy)
 
 @functools.cache
 def get_view_exts(agent_dir: int, agent_pos: tuple[int, int], agent_view_size: int):

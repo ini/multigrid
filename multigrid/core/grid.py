@@ -3,11 +3,11 @@ import numpy as np
 
 from typing import Any, Callable, Optional
 
-from .array import ARRAY_DIM, empty, get_vis_mask, rotate_left
+from .array import ARRAY_DIM, EMPTY
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
 from .world_object import Wall, WorldObj, world_obj_from_array
 
-from ..utils.misc import clip
+from ..utils.numba import gen_obs_grid, gen_obs_grid_encoding
 from ..utils.rendering import (
     downsample,
     fill_coords,
@@ -19,14 +19,6 @@ from ..utils.rendering import (
 
 
 
-### Constants
-
-WALL = Wall().array
-
-
-
-### Classes
-
 class Grid:
     """
     Represent a grid and operations on it.
@@ -35,14 +27,47 @@ class Grid:
     # Static cache of pre-renderer tiles
     tile_cache: dict[tuple[Any, ...], Any] = {}
 
-    def __init__(self, width: int, height: int, fill: np.ndarray[int] = empty()):
+    def __init__(self, width: int, height: int):
         assert width >= 3
         assert height >= 3
         self.width: int = width
         self.height: int = height
+        self.world_objects: dict[tuple[int, int], WorldObj] = {}
         self.grid: np.array[int] = np.empty((width, height, ARRAY_DIM), dtype=int)
-        if fill is not None:
-            self.grid[...] = fill
+        self.grid[...] = EMPTY
+
+    @staticmethod
+    def from_grid_array(array: np.ndarray[int]) -> 'Grid':
+        assert array.ndim == 3
+        grid = Grid.__new__(Grid)
+        grid.width, grid.height, _ = array.shape
+        grid.world_objects = {}
+        grid.grid = array
+        return grid
+
+    def __contains__(self, key: Any) -> bool:
+        if isinstance(key, WorldObj):
+            return key in self.world_objects.values()
+        elif isinstance(key, np.ndarray):
+            np.may_share_memory(key, self.grid)
+        elif isinstance(key, tuple):
+            for i in range(self.width):
+                for j in range(self.height):
+                    e = self.get(i, j)
+                    if e is None:
+                        continue
+                    if (e.color, e.type) == key:
+                        return True
+                    if key[0] is None and key[1] == e.type:
+                        return True
+        return False
+
+    def __eq__(self, other: 'Grid') -> bool:
+        return np.array_equal(self.grid, other.grid)
+
+    def copy(self) -> 'Grid':
+        from copy import deepcopy
+        return deepcopy(self)
 
     def set(self, i: int, j: int, v: Optional[WorldObj]):
         assert (
@@ -51,16 +76,27 @@ class Grid:
         assert (
             0 <= j < self.height
         ), f"row index {j} outside of grid of height {self.height}"
+
+        # Update world objects
+        prev_obj = self.world_objects.pop((i, j), None)
+        self.world_objects[i, j] = v
+        if prev_obj is not None:
+            prev_obj.array = prev_obj.array.copy()
+
+        # Update grid
         if v is None:
-            self.grid[i, j] = empty()
+            self.grid[i, j] = EMPTY
         else:
             self.grid[i, j] = v.array
+            v.array = self.grid[i, j]
 
     def get(self, i: int, j: int) -> Optional[WorldObj]:
         assert 0 <= i < self.width
         assert 0 <= j < self.height
         assert self.grid is not None
-        return world_obj_from_array(self.grid[i, j])
+        if (i, j) not in self.world_objects:
+            self.world_objects[i, j] = world_obj_from_array(self.grid[i, j])
+        return self.world_objects[i, j]
 
     def horz_wall(
         self,
@@ -70,7 +106,7 @@ class Grid:
         obj_type: Callable[[], WorldObj] = Wall,
     ):
         length = self.width - x if length is None else length
-        self.grid[x:x+length, y] = obj_type()
+        self.grid[x:x+length, y] = obj_type().array
 
     def vert_wall(
         self,
@@ -80,7 +116,7 @@ class Grid:
         obj_type: Callable[[], WorldObj] = Wall,
     ):
         length = self.height - y if length is None else length
-        self.grid[x, y:y+length] = obj_type()
+        self.grid[x, y:y+length] = obj_type().array
 
     def wall_rect(self, x: int, y: int, w: int, h: int):
         self.horz_wall(x, y, w)
@@ -88,31 +124,42 @@ class Grid:
         self.vert_wall(x, y, h)
         self.vert_wall(x + w - 1, y, h)
 
-    def rotate_left(self, k: int = 1) -> 'Grid':
-        """
-        Rotate the grid to the left (counter-clockwise)
-        """
-        new_grid_array = rotate_left(self.grid, k=k%4)
-        new_width, new_height = new_grid_array.shape[:2]
-        new_grid = Grid(new_width, new_height, fill=None)
-        new_grid.grid = new_grid_array
-        return new_grid
-
-    def slice(self, topX: int, topY: int, width: int, height: int) -> 'Grid':
-        """
-        Get a subset of the grid
-        """
-        x_min = clip(topX, low=0, high=self.width)
-        x_max = clip(topX + width, low=0, high=self.width)
-        y_min = clip(topY, low=0, high=self.height)
-        y_max = clip(topY + height, low=0, high=self.height)
-        i_min, i_max = x_min - topX, x_max - topX
-        j_min, j_max = y_min - topY, y_max - topY
-
-        grid = Grid(width, height, fill=WALL.copy())
-        grid.grid[i_min:i_max, j_min:j_max] = self.grid[x_min:x_max, y_min:y_max]
-
-        return grid
+    def gen_obs_grid(
+        self,
+        agent_carrying: Optional[WorldObj],
+        agent_dir: int,
+        topX: int, topY: int,
+        width: int, height: int,
+        see_through_walls: bool,
+    ) -> tuple[np.ndarray[int], np.ndarray[bool]]:
+        obs_grid_result = gen_obs_grid(
+            self.grid,
+            EMPTY if agent_carrying is None else agent_carrying.array,
+            agent_dir,
+            topX, topY,
+            width, height,
+            see_through_walls,
+        )
+        grid_array = obs_grid_result[..., :-1]
+        vis_mask = obs_grid_result[..., -1].astype(bool)
+        return Grid.from_grid_array(grid_array), vis_mask
+    
+    def gen_obs_grid_encoding(
+        self,
+        agent_carrying: Optional[WorldObj],
+        agent_dir: int,
+        topX: int, topY: int,
+        width: int, height: int,
+        see_through_walls: bool,
+    ) -> tuple[np.ndarray[int], np.ndarray[bool]]:
+        return gen_obs_grid_encoding(
+            self.grid,
+            EMPTY if agent_carrying is None else agent_carrying.array,
+            agent_dir,
+            topX, topY,
+            width, height,
+            see_through_walls,
+        )
 
     @classmethod
     def render_tile(
@@ -220,9 +267,9 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        array = np.zeros((self.width, self.height, 3), dtype=int)
-        array[vis_mask] = self.grid[vis_mask][..., :3]
-        return array
+        encoding = self.grid[..., :3].copy()
+        encoding[~vis_mask] = 0
+        return encoding
 
     @staticmethod
     def decode(array: np.ndarray) -> tuple['Grid', np.ndarray]:
@@ -242,8 +289,3 @@ class Grid:
                 vis_mask[i, j] = type_idx != OBJECT_TO_IDX["unseen"]
 
         return grid, vis_mask
-
-    def process_vis(self, agent_pos: tuple[int, int]) -> np.ndarray[bool]:
-        vis_mask = get_vis_mask(self.grid, *agent_pos)
-        self.grid[~vis_mask] = empty()
-        return vis_mask

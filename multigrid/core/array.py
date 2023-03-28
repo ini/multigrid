@@ -17,18 +17,17 @@ with the values at each index specified as follows:
 This module allows for vectorized operations over world object arrays.
 """
 import numpy as np
-import numba as nb
 from .constants import OBJECT_TO_IDX, STATE_TO_IDX
 
 
 
 ### Constants
 
-ARRAY_DIM = 8
 EMPTY = np.array([
     OBJECT_TO_IDX['empty'], 0, 0, 0,
     OBJECT_TO_IDX['empty'], 0, 0, 0,
 ])
+ARRAY_DIM = len(EMPTY)
 
 
 
@@ -139,132 +138,3 @@ def see_behind(array: np.ndarray[int]) -> np.ndarray[bool]:
         & (array[..., 2] != STATE_TO_IDX['open'])
     )
     return ~neg_mask
-
-def toggle(array: np.ndarray[int], carrying: np.ndarray):
-    """
-    Toggle the state of a grid object.
-
-    Parameters
-    ----------
-    array : np.ndarray[int] of shape (*, ARRAY_DIM)
-        Array corresponding to grid object(s)
-    carrying : np.ndarray[int] of shape (*, ARRAY_DIM)
-        Array corresponding to agent's currently carried object(s)
-    """
-    # Handle doors
-    is_door = (array[..., 0] == OBJECT_TO_IDX['door'])
-    is_open = is_door & (array[..., 2] == STATE_TO_IDX['open'])
-    is_closed = is_door & (array[..., 2] == STATE_TO_IDX['closed'])
-    is_locked = is_door & (array[..., 2] == STATE_TO_IDX['locked'])
-    can_unlock = (
-        is_locked
-        & (carrying[..., 0] == OBJECT_TO_IDX['key'])
-        & (carrying[..., 1] == array[..., 1])
-    )
-    array[is_open][..., 2] = STATE_TO_IDX['closed'] # open -> closed
-    array[is_closed][..., 2] = STATE_TO_IDX['open'] # closed -> open
-    array[can_unlock][..., 2] = STATE_TO_IDX['open'] # locked -> open
-
-    # Handle boxes
-    is_box = (array[..., 0] == OBJECT_TO_IDX['box'])
-    array[is_box] = contents(array[is_box]) # replace the box by its contents
-
-def get_vis_mask(array: np.ndarray[int], agent_x: int, agent_y: int):
-    """
-    Return boolean mask indicating which grid locations are visible to the agent.
-
-    Parameters
-    ----------
-    array : np.ndarray[int] of shape (width, height, ARRAY_DIM)
-        Array corresponding to grid object(s)
-    agent_pos : tuple[int, int]
-        Agent position
-
-    Returns
-    -------
-    vis_mask : np.ndarray[bool] of shape (width, height)
-        Boolean visibility mask
-    """
-    return _get_vis_mask(
-        array, agent_x, agent_y,
-        OBJECT_TO_IDX['wall'], OBJECT_TO_IDX['door'], STATE_TO_IDX['open'],
-    )
-
-@nb.njit(cache=True)
-def rotate_left(array: np.ndarray, k: int):
-    k %= 4
-    width, height = array.shape[:2]
-
-    if k % 2 == 0:
-        rotated_array = np.empty((width, height, array.shape[2]))
-    else:
-        rotated_array = np.empty((height, width, array.shape[2]))
-
-    for i in range(width):
-        for j in range(height):
-            if k == 0:
-                rotated_array[i, j] = array[i, j]
-            elif k == 1:
-                rotated_array[j, width - i - 1] = array[i, j]
-            elif k == 2:
-                rotated_array[width - i - 1, height - j - 1] = array[i, j]
-            elif k == 3:
-                rotated_array[height - j - 1, i] = array[i, j]
-
-    return rotated_array
-
-
-
-
-@nb.njit(cache=True)
-def _set_grid(array, mask, value):
-    for i in range(array.shape[0]):
-        for j in range(array.shape[1]):
-            if mask[i, j]:
-                array[i, j] = value
-    return array
-
-
-
-
-
-@nb.njit(cache=True)
-def _get_see_behind_mask(
-    array: np.ndarray[int],
-    wall_idx: int, door_idx: int, open_idx: int) -> np.ndarray[bool]:
-    width, height = array.shape[:2]
-    neg_mask = np.zeros((width, height), dtype=np.bool_)
-    for i in range(width):
-        for j in range(height):
-            if array[i, j, 0] == wall_idx:
-                neg_mask[i, j] = True
-            elif array[i, j, 0] == door_idx and array[i, j, 2] != open_idx:
-                neg_mask[i, j] = True
-
-    return ~neg_mask
-
-@nb.njit(cache=True)
-def _get_vis_mask(
-    array: np.ndarray, agent_x: int, agent_y: int,
-    wall_idx: int, door_idx: int, open_idx: int) -> np.ndarray[bool]:
-    width, height = array.shape[:2]
-    see_behind_mask = _get_see_behind_mask(array, wall_idx, door_idx, open_idx)
-    vis_mask = np.zeros((width, height), dtype=np.bool_)
-    vis_mask[agent_x, agent_y] = True
-
-    for j in range(height - 1, -1, -1):
-        for i in range(0, width - 1):
-            if vis_mask[i, j] and see_behind_mask[i, j]:
-                vis_mask[i + 1, j] = True
-                if j > 0:
-                    vis_mask[i + 1, j - 1] = True
-                    vis_mask[i, j - 1] = True
-
-        for i in range(width - 1, 0, -1):
-            if vis_mask[i, j] and see_behind_mask[i, j]:
-                vis_mask[i - 1, j] = True
-                if j > 0:
-                    vis_mask[i - 1, j - 1] = True
-                    vis_mask[i, j - 1] = True
-
-    return vis_mask

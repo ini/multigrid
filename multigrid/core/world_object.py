@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .array import (
     empty,
@@ -9,7 +9,6 @@ from .array import (
     can_pickup,
     can_contain,
     see_behind,
-    toggle,
 )
 from .constants import (
     COLOR_TO_IDX,
@@ -19,7 +18,7 @@ from .constants import (
     OBJECT_TO_IDX,
     STATE_TO_IDX,
 )
-#from ..utils.typing import Point
+Point = tuple[int, int] #from ..utils.typing import Point
 from ..utils.rendering import (
     fill_coords,
     point_in_circle,
@@ -27,7 +26,8 @@ from ..utils.rendering import (
     point_in_rect,
 )
 
-Point = tuple[int, int]
+if TYPE_CHECKING:
+    from minigrid.minigrid_env import MiniGridEnv
 
 
 
@@ -68,9 +68,10 @@ class WorldObj:
         The name of the object type
     color : str
         The color of the object
+    state : int
+        The state of the object
     contains : WorldObj or None
         The object contained by this object, if any
-    
     """
 
     def __init__(self, type: str, color: str):
@@ -80,8 +81,14 @@ class WorldObj:
         self.array[0] = OBJECT_TO_IDX[type]
         self.array[1] = COLOR_TO_IDX[color]
 
+    def __eq__(self, other: 'WorldObj') -> bool:
+        return np.array_equal(self.array, other.array)
+
     @classmethod
     def from_array(cls, array: np.ndarray):
+        """
+        Create a world object from array representation.
+        """
         obj = cls.__new__(cls)
         obj.array = array
         return obj
@@ -101,11 +108,25 @@ class WorldObj:
         return IDX_TO_COLOR[self.array[1]]
 
     @color.setter
-    def color(self, value):
+    def color(self, value: str):
         """
         Set the color of the object.
         """
         self.array[1] = COLOR_TO_IDX[value]
+
+    @property
+    def state(self) -> int:
+        """
+        The state of the object.
+        """
+        return self.array[2]
+
+    @state.setter
+    def state(self, value: int):
+        """
+        Set the state of the object.
+        """
+        self.array[2] = value
 
     @property
     def contains(self) -> Optional['WorldObj']:
@@ -128,13 +149,13 @@ class WorldObj:
 
     def can_overlap(self) -> bool:
         """
-        Can the agent overlap with this?
+        Can an agent overlap with this?
         """
         return can_overlap(self.array)
 
     def can_pickup(self) -> bool:
         """
-        Can the agent pick this up?
+        Can an agent pick this up?
         """
         return can_pickup(self.array)
 
@@ -146,18 +167,15 @@ class WorldObj:
 
     def see_behind(self) -> bool:
         """
-        Can the agent see behind this object?
+        Can an agent see behind this object?
         """
         return see_behind(self.array)
 
-    def toggle(self, carrying: 'WorldObj') -> bool:
+    def toggle(self, env: 'MiniGridEnv', pos: tuple[int, int]) -> bool:
         """
         Method to trigger/toggle an action this object performs.
         """
-        original_array = self.array.copy()
-        carrying_array = empty() if carrying is None else carrying.array 
-        toggle(self.array, carrying_array)
-        return np.all(self.array == original_array)
+        return False
 
     def encode(self) -> tuple[int, int, int]:
         """
@@ -182,6 +200,9 @@ class WorldObj:
 
 
 class Goal(WorldObj):
+    """
+    Goal object an agent may be searching for.
+    """
 
     def __init__(self):
         super().__init__('goal', 'green')
@@ -192,7 +213,7 @@ class Goal(WorldObj):
 
 class Floor(WorldObj):
     """
-    Colored floor tile the agent can walk over.
+    Colored floor tile an agent can walk over.
     """
 
     def __init__(self, color: str = 'blue'):
@@ -205,6 +226,9 @@ class Floor(WorldObj):
 
 
 class Lava(WorldObj):
+    """
+    Lava object an agent can fall onto.
+    """
 
     def __init__(self):
         super().__init__('lava', 'red')
@@ -226,6 +250,9 @@ class Lava(WorldObj):
 
 
 class Wall(WorldObj):
+    """
+    Wall object that agents cannot move through.
+    """
 
     def __init__(self, color: str = 'grey'):
         super().__init__('wall', color)
@@ -235,6 +262,16 @@ class Wall(WorldObj):
 
 
 class Door(WorldObj):
+    """
+    Door object that may be opened or closed. Locked doors require a key to open.
+
+    Attributes
+    ----------
+    is_open: bool
+        Whether the door is open
+    is_locked: bool
+        Whether the door is locked
+    """
 
     def __init__(self, color: str, is_open: bool = False, is_locked: bool = False):
         super().__init__('door', color)
@@ -242,26 +279,50 @@ class Door(WorldObj):
         self.is_locked = is_locked
 
     @property
-    def is_open(self):
-        return self.array[2] == STATE_TO_IDX['open']
+    def is_open(self) -> bool:
+        """
+        Whether the door is open.
+        """
+        return self.state == STATE_TO_IDX['open']
 
     @is_open.setter
-    def is_open(self, value):
+    def is_open(self, value: bool):
+        """
+        Set the door to be open or closed.
+        """
         if value:
-            self.array[2] = STATE_TO_IDX['open'] # set state to open
+            self.state = STATE_TO_IDX['open'] # set state to open
         elif not self.is_locked:
-            self.array[2] = STATE_TO_IDX['closed'] # closed (unless already locked)
+            self.state = STATE_TO_IDX['closed'] # closed (unless already locked)
 
     @property
-    def is_locked(self):
-        return self.array[2] == STATE_TO_IDX['locked']
+    def is_locked(self) -> bool:
+        """
+        Whether the door is locked.
+        """
+        return self.state == STATE_TO_IDX['locked']
 
     @is_locked.setter
-    def is_locked(self, value):
+    def is_locked(self, value: bool):
+        """
+        Set the door to be locked or unlocked.
+        """
         if value:
-            self.array[2] = STATE_TO_IDX['locked'] # set state to locked
+            self.state = STATE_TO_IDX['locked'] # set state to locked
         elif not self.is_open:
-            self.array[2] = STATE_TO_IDX['closed'] # closed (unless already open)
+            self.state = STATE_TO_IDX['closed'] # closed (unless already open)
+
+    def toggle(self, env: 'MiniGridEnv', pos: tuple[int, int]) -> bool:
+        # If the player has the right key to open the door
+        if self.is_locked:
+            if isinstance(env.carrying, Key) and env.carrying.color == self.color:
+                self.is_locked = False
+                self.is_open = True
+                return True
+            return False
+
+        self.is_open = not self.is_open
+        return True
 
     def render(self, img: np.ndarray[int]):
         c = COLORS[self.color]
@@ -290,6 +351,9 @@ class Door(WorldObj):
 
 
 class Key(WorldObj):
+    """
+    Key object that can be picked up and used to open locked doors.
+    """
 
     def __init__(self, color: str = 'blue'):
         super().__init__('key', color)
@@ -310,6 +374,9 @@ class Key(WorldObj):
 
 
 class Ball(WorldObj):
+    """
+    Ball object that can be picked up by agents.
+    """
 
     def __init__(self, color: str = 'blue'):
         super().__init__('ball', color)
@@ -319,10 +386,18 @@ class Ball(WorldObj):
 
 
 class Box(WorldObj):
+    """
+    Box object that may contain other objects.
+    """
 
-    def __init__(self, color, contains: Optional[WorldObj] = None):
+    def __init__(self, color: str, contains: Optional[WorldObj] = None):
         super().__init__('box', color)
         self.contains = contains
+
+    def toggle(self, env: 'MiniGridEnv', pos: tuple[int, int]) -> bool:
+        # Replace the box by its contents
+        env.grid.set(pos[0], pos[1], self.contains)
+        return True
 
     def render(self, img: np.ndarray[int]):
         c = COLORS[self.color]
