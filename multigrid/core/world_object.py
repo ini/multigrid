@@ -35,6 +35,11 @@ if TYPE_CHECKING:
 def world_obj_from_array(array: np.ndarray) -> Optional['WorldObj']:
     """
     Create a world object from array representation.
+
+    Parameters
+    ----------
+    array : np.ndarray[int] of shape (array_dim,)
+        Array representation of object
     """
     OBJECT_TO_CLS = {
         'wall': Wall,

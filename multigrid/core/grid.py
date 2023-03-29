@@ -166,9 +166,14 @@ class Grid:
         highlight_mask: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
-        Render this grid at a given scale
-        :param r: target renderer object
-        :param tile_size: tile size in pixels
+        Render this grid at a given scale.
+
+        Parameters
+        ----------
+        tile_size: int
+            Tile size (in pixels)
+        highlight_mask: np.ndarray
+            Boolean mask indicating which grid locations to highlight
         """
 
         if highlight_mask is None:
@@ -202,7 +207,7 @@ class Grid:
 
     def encode(self, vis_mask: np.ndarray | None = None) -> np.ndarray:
         """
-        Produce a compact numpy encoding of the grid
+        Produce a compact numpy encoding of the grid.
         """
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
@@ -214,7 +219,7 @@ class Grid:
     @staticmethod
     def decode(array: np.ndarray) -> tuple['Grid', np.ndarray]:
         """
-        Decode an array grid encoding back into a grid
+        Decode an array grid encoding back into a grid.
         """
         width, height, channels = array.shape
         assert channels == 3
@@ -226,6 +231,6 @@ class Grid:
                 type_idx, color_idx, state = array[i, j]
                 v = WorldObj.decode(type_idx, color_idx, state)
                 grid.set(i, j, v)
-                vis_mask[i, j] = type_idx != OBJECT_TO_IDX["unseen"]
+                vis_mask[i, j] = type_idx != OBJECT_TO_IDX['unseen']
 
         return grid, vis_mask

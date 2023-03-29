@@ -9,7 +9,6 @@ import numpy as np
 
 
 
-
 def random_walk(num_episodes=1, render=False):
     """
     Visualize a trajectory where agents are taking random actions.
@@ -18,7 +17,7 @@ def random_walk(num_episodes=1, render=False):
     if render:
         kwargs.update({'render_mode': 'human', 'screen_size': 500})
 
-    env = LockedRoomEnvMultiGrid(**kwargs)
+    env = RedBlueDoorEnv(**kwargs)
     for episode in range(num_episodes):
         obs, _ = env.reset(seed=episode)
         terminated, truncated = False, False
@@ -75,7 +74,7 @@ def compare(num_episodes=1):
 
 
 if __name__ == '__main__':
-    random_walk(1, render=True)
+    #random_walk(1, render=True)
     #compare(1000)
-    #import cProfile
-    #cProfile.run('random_walk(1000)', sort='cumtime')
+    import cProfile
+    cProfile.run('random_walk(1000)', sort='cumtime')

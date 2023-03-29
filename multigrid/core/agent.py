@@ -1,23 +1,16 @@
-from __future__ import annotations
-
-import gymnasium as gym
-import math
 import numpy as np
 
 from gymnasium import spaces
-from gymnasium.core import ActType, ObsType
 from typing import Optional
-
 
 from .actions import Actions
 from .array import EMPTY
-from .constants import COLORS, DIR_TO_VEC
+from .constants import COLORS, DIR_TO_VEC, IDX_TO_COLOR
 from .grid import Grid
 from .mission import MissionSpace
 from .world_object import WorldObj
 
-
-from ..utils.numba import gen_obs_grid2, gen_obs_grid_encoding
+from ..utils.numba import gen_obs_grid, gen_obs_grid_encoding
 from ..utils.misc import get_view_exts, front_pos
 from ..utils.rendering import (
     fill_coords,
@@ -39,8 +32,19 @@ class Agent(WorldObj):
         view_size: int = 7,
         see_through_walls: bool = False):
         """
+        Parameters
+        ----------
+        index : int
+            The index of the agent in the environment
+        mission_space : MissionSpace
+            The mission space for the agent
+        view_size : int
+            The size of the agent's view (must be odd)
+        see_through_walls : bool
+            Whether the agent can see through walls
         """
-        super().__init__('agent', 'red')
+        color = IDX_TO_COLOR[index % (max(IDX_TO_COLOR) + 1)]
+        super().__init__('agent', color)
         self.index = index
 
         # Actions are discrete integer values
@@ -53,14 +57,13 @@ class Agent(WorldObj):
 
         # Observations are dictionaries containing an
         # encoding of the grid and a textual 'mission' string
-        image_observation_space = spaces.Box(
-            low=0,
-            high=255,
-            shape=(view_size, view_size, 3),
-            dtype='uint8',
-        )
         self.observation_space = spaces.Dict({
-            'image': image_observation_space,
+            'image': spaces.Box(
+                low=0,
+                high=255,
+                shape=(view_size, view_size, 3),
+                dtype='uint8',
+            ),
             'direction': spaces.Discrete(len(DIR_TO_VEC)),
             'mission_space': mission_space,
         })
@@ -71,10 +74,13 @@ class Agent(WorldObj):
         self.dir: int = None
 
         # Current mission and carrying
-        self.mission = None
-        self.carrying = None
+        self.mission: str = None
+        self.carrying: Optional[WorldObj] = None
 
-    def reset(self, mission: str):
+    def reset(self, mission: str = 'maximize reward'):
+        """
+        Reset the agent before environment episode.
+        """
         self.mission = mission
         self.pos = (-1, -1)
         self.dir = -1
@@ -101,7 +107,7 @@ class Agent(WorldObj):
     @property
     def front_pos(self) -> tuple[int, int]:
         """
-        Get the position of the cell that is right in front of the agent
+        Get the position of the cell that is right in front of the agent.
         """
         return front_pos(self.pos, self.dir)
 
@@ -179,7 +185,7 @@ class Agent(WorldObj):
             Mask indicating which grid cells are visible to the agent
         """
         topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
-        obs_grid_result = gen_obs_grid2(
+        obs_grid_result = gen_obs_grid(
             grid.grid,
             EMPTY if self.carrying is None else self.carrying.array,
             self.dir,
@@ -191,33 +197,9 @@ class Agent(WorldObj):
         vis_mask = obs_grid_result[..., -1].astype(bool)
         return Grid.from_grid_array(grid_array), vis_mask
 
-    def gen_obs_grid_encoding(self, grid: Grid) -> np.ndarray[int]:
-        """
-        Generate the agent's view (partially observable, low-resolution encoding).
-
-        Parameters
-        ----------
-        grid : Grid
-            Environment grid
-        """
-        topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
-        return gen_obs_grid_encoding(
-            grid.grid,
-            EMPTY if self.carrying is None else self.carrying.array,
-            self.dir,
-            topX, topY,
-            self.view_size, self.view_size,
-            self.see_through_walls,
-        )
-
     def gen_obs(self, grid: Grid) -> dict:
         """
         Generate the agent's view (partially observable, low-resolution encoding).
-
-        Parameters
-        ----------
-        grid : Grid
-            Environment grid
 
         Returns
         -------
@@ -226,7 +208,15 @@ class Agent(WorldObj):
             * 'direction': agent's direction/orientation (acting as a compass)
             * 'mission': textual mission string (instructions for the agent)
         """
-        image = self.gen_obs_grid_encoding(grid)
+        topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
+        image = gen_obs_grid_encoding(
+            grid.grid,
+            EMPTY if self.carrying is None else self.carrying.array,
+            self.dir,
+            topX, topY,
+            self.view_size, self.view_size,
+            self.see_through_walls,
+        )
         obs = {'image': image, 'direction': self.dir, 'mission': self.mission}
         return obs
 
@@ -234,10 +224,16 @@ class Agent(WorldObj):
         """
         Encode the agent's state as a numpy array.
         """
-        return (10, 0, self.dir)
+        x = super().encode()
+        x[1] = self.index
+        x[2] = self.dir
+        return x
 
     def render(self, img: np.ndarray[int]):
-        c = COLORS['red']
+        """
+        Draw the agent.
+        """
+        c = COLORS[self.color]
         tri_fn = point_in_triangle(
             (0.12, 0.19),
             (0.87, 0.50),
@@ -245,5 +241,5 @@ class Agent(WorldObj):
         )
 
         # Rotate the agent based on its direction
-        tri_fn = rotate_fn(tri_fn, cx=0.5, cy=0.5, theta=0.5 * math.pi * self.dir)
+        tri_fn = rotate_fn(tri_fn, cx=0.5, cy=0.5, theta=0.5 * np.pi * self.dir)
         fill_coords(img, tri_fn, c)

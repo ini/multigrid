@@ -8,6 +8,7 @@ from ..core.array import EMPTY
 from ..core.constants import OBJECT_TO_IDX, STATE_TO_IDX
 
 
+
 ### Constants
 
 WALL_IDX = OBJECT_TO_IDX['wall']
@@ -21,7 +22,7 @@ WALL[0] = WALL_IDX
 ### Functions
 
 @nb.njit(cache=True)
-def gen_obs_grid2(
+def gen_obs_grid(
     grid_array: np.ndarray[int],
     carrying_array: np.ndarray[int],
     agent_dir: int,
@@ -58,8 +59,6 @@ def gen_obs_grid2(
     """
     array_dim = grid_array.shape[2]
     result = np.empty((width, height, array_dim + 1), dtype=np.int64)
-    agent_x = result.shape[0] // 2 # relative position within obs view
-    agent_y = result.shape[1] - 1 # relative position within obs view
 
     # Get subgrid corresponding to the agent's view
     subgrid = np.empty((width, height, array_dim), dtype=np.int64)
@@ -80,12 +79,12 @@ def gen_obs_grid2(
     if see_through_walls:
         result[:, :, -1] = np.ones(grid_array.shape[:2], dtype=np.bool_)
     else:
-        result[:, :, -1] = process_vis(result[:, :, :-1], agent_x, agent_y)
+        result[:, :, -1] = process_vis(result[:, :, :-1])
 
     # Make it so the agent sees what it's carrying
     # We do this by placing the carried object at the agent's position
     # in the agent's partially observable view
-    result[agent_x, agent_y, :-1] = carrying_array
+    result[width // 2, height - 1, :-1] = carrying_array
 
     return result
 
@@ -124,7 +123,7 @@ def gen_obs_grid_encoding(
     img : np.ndarray[int] of shape (width, height, 3)
         Encoding for observed sub-grid
     """
-    obs_grid_result = gen_obs_grid2(
+    obs_grid_result = gen_obs_grid(
         grid_array,
         carrying_array,
         agent_dir,
@@ -169,8 +168,7 @@ def get_see_behind_mask(grid_array: np.ndarray[int]) -> np.ndarray[bool]:
     return ~neg_mask
 
 @nb.njit(cache=True)
-def process_vis(
-    grid_array: np.ndarray[int], agent_x: int, agent_y: int) -> np.ndarray[bool]:
+def process_vis(grid_array: np.ndarray[int]) -> np.ndarray[bool]:
     """
     Generate a boolean mask indicating which grid locations are visible to the agent,
     and apply it to the given array.
@@ -179,10 +177,6 @@ def process_vis(
     ----------
     grid_array : np.ndarray[int] of shape (width, height, dim)
         Grid object array
-    agent_x : int
-        Agent x position
-    agent_y : int
-        Agent y position
 
     Returns
     -------
@@ -192,7 +186,7 @@ def process_vis(
     width, height = grid_array.shape[:2]
     see_behind_mask = get_see_behind_mask(grid_array)
     vis_mask = np.zeros((width, height), dtype=np.bool_)
-    vis_mask[agent_x, agent_y] = True
+    vis_mask[width // 2, height - 1] = True # agent relative position
 
     for j in range(height - 1, -1, -1):
         # Forward pass

@@ -82,6 +82,7 @@ class MiniGridEnv(gym.Env):
         # Environment configuration
         self.width = width
         self.height = height
+        self.grid = Grid(width, height)
 
         assert isinstance(
             max_steps, int
@@ -171,7 +172,6 @@ class MiniGridEnv(gym.Env):
         output = ""
 
         for j in range(self.grid.height):
-
             for i in range(self.grid.width):
                 if i == self.agent.pos[0] and j == self.agent.pos[1]:
                     output += 2 * AGENT_DIR_TO_STR[self.agent.dir]
