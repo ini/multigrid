@@ -7,7 +7,11 @@ from multigrid.envs import RedBlueDoorEnv
 
 import numpy as np
 
+num_actions = len(Actions)
 
+def item(x):
+    if isinstance(x, dict):
+        return x.items()
 
 def random_walk(num_episodes=1, render=False):
     """
@@ -16,22 +20,21 @@ def random_walk(num_episodes=1, render=False):
     kwargs = {}
     if render:
         kwargs.update({'render_mode': 'human', 'screen_size': 500})
-        #kwargs.update(num_agents=1)
 
-    env = RedBlueDoorEnv(**kwargs)
+    env = LockedRoomEnvMultiGrid(**kwargs, agents=5)
     for episode in range(num_episodes):
         obs, _ = env.reset(seed=episode)
         terminated = {agent_id: False for agent_id in env.agents}
         truncated = {agent_id: False for agent_id in env.agents}
-        done = all((terminated[agent_id] or truncated[agent_id]) for agent_id in env.agents)
-        while not done:
-            if render: env.render()
+        while not all(truncated.values()):
+            if render:
+                env.render()
             random_action = {
-                agent_id: env.action_space[agent_id].sample()
-                for agent_id in env.action_space
+                agent_id: env.np_random.integers(num_actions)
+                for agent_id in env.agents
             }
             obs, reward, terminated, truncated, _ = env.step(random_action)
-            done = all((terminated[agent_id] or truncated[agent_id]) for agent_id in env.agents)
+            #done = all((terminated[agent_id] or truncated[agent_id]) for agent_id in env.agents)
 
 
 def compare(num_episodes=1):
@@ -81,7 +84,7 @@ def compare(num_episodes=1):
 
 
 if __name__ == '__main__':
-    #random_walk(1, render=True)
+    random_walk(1, render=True)
     #compare(1000)
     import cProfile
     cProfile.run('random_walk(1000)', sort='cumtime')

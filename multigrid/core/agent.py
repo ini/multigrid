@@ -27,15 +27,15 @@ class Agent(WorldObj):
 
     def __init__(
         self,
-        index: int,
+        id: int,
         mission_space: MissionSpace,
         view_size: int = 7,
         see_through_walls: bool = False):
         """
         Parameters
         ----------
-        index : int
-            The index of the agent in the environment
+        id : int
+            Unique ID for the agent in the environment
         mission_space : MissionSpace
             The mission space for the agent
         view_size : int
@@ -43,9 +43,9 @@ class Agent(WorldObj):
         see_through_walls : bool
             Whether the agent can see through walls
         """
-        color = IDX_TO_COLOR[index % (max(IDX_TO_COLOR) + 1)]
+        color = IDX_TO_COLOR[id % (max(IDX_TO_COLOR) + 1)]
         super().__init__('agent', color)
-        self.index = index
+        self.id = id
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Actions))
@@ -69,19 +69,20 @@ class Agent(WorldObj):
         })
         self.see_through_walls = see_through_walls
 
-        # Current position and direction of the agent
+        # Current agent state
+        self.mission: str = None
+        self.terminated: bool = False
+        self.carrying: Optional[WorldObj] = None
         self.pos: np.ndarray | tuple[int, int] = None
         self.dir: int = None
-
-        # Current mission and carrying
-        self.mission: str = None
-        self.carrying: Optional[WorldObj] = None
 
     def reset(self, mission: str = 'maximize reward'):
         """
         Reset the agent before environment episode.
         """
         self.mission = mission
+        self.terminated = False
+        self.carrying = None
         self.pos = (-1, -1)
         self.dir = -1
 
@@ -171,7 +172,7 @@ class Agent(WorldObj):
         assert world_cell is not None
         return obs_cell is not None and obs_cell.type == world_cell.type
 
-    def gen_obs_grid(self, grid: Grid) -> tuple[Grid, np.ndarray[bool]]:
+    def gen_obs_grid(self, grid_array: np.ndarray[int]) -> tuple[Grid, np.ndarray[bool]]:
         """
         Generate the sub-grid observed by the agent.
 
@@ -184,7 +185,7 @@ class Agent(WorldObj):
         """
         topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
         obs_grid_result = gen_obs_grid(
-            grid.array,
+            grid_array,
             EMPTY if self.carrying is None else self.carrying.array,
             self.dir,
             topX, topY,
@@ -195,20 +196,20 @@ class Agent(WorldObj):
         vis_mask = obs_grid_result[..., -1].astype(bool)
         return Grid.from_grid_array(grid_array), vis_mask
 
-    def gen_obs(self, grid: Grid) -> dict:
+    def gen_obs(self, grid_array: np.ndarray[int]) -> dict:
         """
         Generate the agent's view (partially observable, low-resolution encoding).
 
         Returns
         -------
         obs : dict
-            * 'image': partially observable view of the environment
-            * 'direction': agent's direction/orientation (acting as a compass)
-            * 'mission': textual mission string (instructions for the agent)
+            - 'image': partially observable view of the environment
+            - 'direction': agent's direction/orientation (acting as a compass)
+            - 'mission': textual mission string (instructions for the agent)
         """
         topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
         image = gen_obs_grid_encoding(
-            grid.array,
+            grid_array,
             EMPTY if self.carrying is None else self.carrying.array,
             self.dir,
             topX, topY,
@@ -222,7 +223,7 @@ class Agent(WorldObj):
         """
         Encode the agent's state as a numpy array.
         """
-        return (OBJECT_TO_IDX[self.type], self.index, self.dir)
+        return (OBJECT_TO_IDX[self.type], self.id, self.dir)
 
     def render(self, img: np.ndarray[int]):
         """
