@@ -4,7 +4,7 @@ from ..core.constants import COLOR_NAMES
 from ..core.grid import Grid
 from ..core.mission import MissionSpace
 from ..core.world_object import Door, Goal, Key, Wall
-from ..minigrid_env import MiniGridEnv
+from ..multigrid_env import MultiGridEnv
 
 
 class LockedRoom:
@@ -21,7 +21,7 @@ class LockedRoom:
         return env._rand_pos(topX + 1, topX + sizeX - 1, topY + 1, topY + sizeY - 1)
 
 
-class LockedRoomEnv(MiniGridEnv):
+class LockedRoomEnv(MultiGridEnv):
 
     """
     ## Description

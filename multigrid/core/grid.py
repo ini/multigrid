@@ -28,23 +28,26 @@ class Grid:
         self.width: int = width
         self.height: int = height
         self.world_objects: dict[tuple[int, int], WorldObj] = {}
-        self.grid: np.array[int] = np.empty((width, height, ARRAY_DIM), dtype=int)
-        self.grid[...] = EMPTY
+        self.array: np.array[int] = np.empty((width, height, ARRAY_DIM), dtype=int)
+        self.array[...] = EMPTY
 
     @staticmethod
-    def from_grid_array(array: np.ndarray[int]) -> 'Grid':
-        assert array.ndim == 3
+    def from_grid_array(grid_array: np.ndarray[int]) -> 'Grid':
+        """
+        Create a grid from array representation.
+        """
+        assert grid_array.ndim == 3
         grid = Grid.__new__(Grid)
-        grid.width, grid.height, _ = array.shape
+        grid.width, grid.height, _ = grid_array.shape
         grid.world_objects = {}
-        grid.grid = array
+        grid.array = grid_array
         return grid
 
     def __contains__(self, key: Any) -> bool:
         if isinstance(key, WorldObj):
             return key in self.world_objects.values()
         elif isinstance(key, np.ndarray):
-            np.may_share_memory(key, self.grid)
+            np.may_share_memory(key, self.array)
         elif isinstance(key, tuple):
             for i in range(self.width):
                 for j in range(self.height):
@@ -58,13 +61,19 @@ class Grid:
         return False
 
     def __eq__(self, other: 'Grid') -> bool:
-        return np.array_equal(self.grid, other.grid)
+        return np.array_equal(self.array, other.array)
 
     def copy(self) -> 'Grid':
+        """
+        Return a copy of this grid object.
+        """
         from copy import deepcopy
         return deepcopy(self)
 
     def set(self, i: int, j: int, v: Optional[WorldObj]):
+        """
+        Set a world object at the given coordinates.
+        """
         assert (
             0 <= i < self.width
         ), f"column index {j} outside of grid of width {self.width}"
@@ -80,40 +89,48 @@ class Grid:
 
         # Update grid
         if v is None:
-            self.grid[i, j] = EMPTY
+            self.array[i, j] = EMPTY
         else:
-            self.grid[i, j] = v.array
-            v.array = self.grid[i, j]
+            self.array[i, j] = v.array
+            v.array = self.array[i, j]
 
     def get(self, i: int, j: int) -> Optional[WorldObj]:
+        """
+        Get the world object at the given coordinates.
+        """
         assert 0 <= i < self.width
         assert 0 <= j < self.height
-        assert self.grid is not None
+        assert self.array is not None
         if (i, j) not in self.world_objects:
-            self.world_objects[i, j] = world_obj_from_array(self.grid[i, j])
+            self.world_objects[i, j] = world_obj_from_array(self.array[i, j])
         return self.world_objects[i, j]
 
     def horz_wall(
         self,
-        x: int,
-        y: int,
+        x: int, y: int,
         length: Optional[int] = None,
-        obj_type: Callable[[], WorldObj] = Wall,
-    ):
+        obj_type: Callable[[], WorldObj] = Wall):
+        """
+        Create a horizontal wall.
+        """
         length = self.width - x if length is None else length
-        self.grid[x:x+length, y] = obj_type().array
+        self.array[x:x+length, y] = obj_type().array
 
     def vert_wall(
         self,
-        x: int,
-        y: int,
+        x: int, y: int,
         length: Optional[int] = None,
-        obj_type: Callable[[], WorldObj] = Wall,
-    ):
+        obj_type: Callable[[], WorldObj] = Wall):
+        """
+        Create a vertical wall.
+        """
         length = self.height - y if length is None else length
-        self.grid[x, y:y+length] = obj_type().array
+        self.array[x, y:y+length] = obj_type().array
 
     def wall_rect(self, x: int, y: int, w: int, h: int):
+        """
+        Create a walled rectangle.
+        """
         self.horz_wall(x, y, w)
         self.horz_wall(x, y + h - 1, w)
         self.vert_wall(x, y, h)
@@ -125,10 +142,9 @@ class Grid:
         obj: Optional[WorldObj] = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
-        subdivs: int = 3,
-    ) -> np.ndarray:
+        subdivs: int = 3) -> np.ndarray:
         """
-        Render a tile and cache the result
+        Render a tile and cache the result.
         """
         # Hash map lookup key for the cache
         key: tuple[Any, ...] = (highlight, tile_size)
@@ -163,8 +179,7 @@ class Grid:
     def render(
         self,
         tile_size: int,
-        highlight_mask: Optional[np.ndarray] = None,
-    ) -> np.ndarray:
+        highlight_mask: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Render this grid at a given scale.
 
@@ -212,7 +227,7 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        encoding = self.grid[..., :3].copy()
+        encoding = self.array[..., :3].copy()
         encoding[~vis_mask] = 0
         return encoding
 

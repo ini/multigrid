@@ -22,6 +22,59 @@ WALL[0] = WALL_IDX
 ### Functions
 
 @nb.njit(cache=True)
+def gen_obs_grid_encoding(
+    grid_array: np.ndarray[int],
+    carrying_array: np.ndarray[int],
+    agent_dir: int,
+    topX: int, topY: int,
+    width: int, height: int,
+    see_through_walls: bool) -> np.ndarray[int]:
+    """
+    Generate encoding for the sub-grid observed by an agent.
+
+    Parameters
+    ----------
+    grid_array : np.ndarray[int] of shape (width, height, dim)
+        Grid object array
+    carrying_array : np.ndarray[int] of shape (dim,)
+        Array representation for object being carried by agent
+    agent_dir : int
+        Direction the agent is facing
+    topX : int
+        Top-left x coordinate of the sub-grid
+    topY : int
+        Top-left y coordinate of the sub-grid
+    width : int
+        Width of the sub-grid
+    height : int
+        Height of the sub-grid
+    see_through_walls : bool
+        Whether the agent can see through walls
+
+    Returns
+    -------
+    img : np.ndarray[int] of shape (width, height, 3)
+        Encoding for observed sub-grid
+    """
+    obs_grid_result = gen_obs_grid(
+        grid_array,
+        carrying_array,
+        agent_dir,
+        topX, topY,
+        width, height,
+        see_through_walls
+    )
+
+    # Set masked locations to zero
+    vis_mask = obs_grid_result[..., -1]
+    for i in range(vis_mask.shape[0]):
+        for j in range(vis_mask.shape[1]):
+            if not vis_mask[i, j]:
+                obs_grid_result[i, j] = 0
+
+    return obs_grid_result[..., :3]
+
+@nb.njit(cache=True)
 def gen_obs_grid(
     grid_array: np.ndarray[int],
     carrying_array: np.ndarray[int],
@@ -87,59 +140,6 @@ def gen_obs_grid(
     result[width // 2, height - 1, :-1] = carrying_array
 
     return result
-
-@nb.njit(cache=True)
-def gen_obs_grid_encoding(
-    grid_array: np.ndarray[int],
-    carrying_array: np.ndarray[int],
-    agent_dir: int,
-    topX: int, topY: int,
-    width: int, height: int,
-    see_through_walls: bool) -> np.ndarray[int]:
-    """
-    Generate encoding for the sub-grid observed by an agent.
-
-    Parameters
-    ----------
-    grid_array : np.ndarray[int] of shape (width, height, dim)
-        Grid object array
-    carrying_array : np.ndarray[int] of shape (dim,)
-        Array representation for object being carried by agent
-    agent_dir : int
-        Direction the agent is facing
-    topX : int
-        Top-left x coordinate of the sub-grid
-    topY : int
-        Top-left y coordinate of the sub-grid
-    width : int
-        Width of the sub-grid
-    height : int
-        Height of the sub-grid
-    see_through_walls : bool
-        Whether the agent can see through walls
-
-    Returns
-    -------
-    img : np.ndarray[int] of shape (width, height, 3)
-        Encoding for observed sub-grid
-    """
-    obs_grid_result = gen_obs_grid(
-        grid_array,
-        carrying_array,
-        agent_dir,
-        topX, topY,
-        width, height,
-        see_through_walls
-    )
-
-    # Set masked locations to zero
-    vis_mask = obs_grid_result[..., -1]
-    for i in range(vis_mask.shape[0]):
-        for j in range(vis_mask.shape[1]):
-            if not vis_mask[i, j]:
-                obs_grid_result[i, j] = 0
-
-    return obs_grid_result[..., :3]
 
 @nb.njit(cache=True)
 def get_see_behind_mask(grid_array: np.ndarray[int]) -> np.ndarray[bool]:

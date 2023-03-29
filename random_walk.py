@@ -17,14 +17,20 @@ def random_walk(num_episodes=1, render=False):
     if render:
         kwargs.update({'render_mode': 'human', 'screen_size': 500})
 
-    env = RedBlueDoorEnv(**kwargs)
+    env = LockedRoomEnvMultiGrid(**kwargs)
     for episode in range(num_episodes):
         obs, _ = env.reset(seed=episode)
-        terminated, truncated = False, False
-        while not (terminated or truncated):
+        terminated = {agent.index: False for agent in env.agents}
+        truncated = {agent.index: False for agent in env.agents}
+        done = all((terminated[agent.index] or truncated[agent.index]) for agent in env.agents)
+        while not done:
             if render: env.render()
-            random_action = env.np_random.integers(env.action_space.n)
+            random_action = {
+                agent.index: env.np_random.integers(env.action_space.n)
+                for agent in env.agents
+            }
             obs, reward, terminated, truncated, _ = env.step(random_action)
+            done = all((terminated[agent.index] or truncated[agent.index]) for agent in env.agents)
 
 
 def compare(num_episodes=1):
@@ -74,7 +80,7 @@ def compare(num_episodes=1):
 
 
 if __name__ == '__main__':
-    #random_walk(1, render=True)
+    random_walk(1, render=True)
     #compare(1000)
-    import cProfile
-    cProfile.run('random_walk(1000)', sort='cumtime')
+    #import cProfile
+    #cProfile.run('random_walk(1000)', sort='cumtime')

@@ -5,7 +5,7 @@ from typing import Optional
 
 from .actions import Actions
 from .array import EMPTY
-from .constants import COLORS, DIR_TO_VEC, IDX_TO_COLOR
+from .constants import COLORS, DIR_TO_VEC, IDX_TO_COLOR, OBJECT_TO_IDX
 from .grid import Grid
 from .mission import MissionSpace
 from .world_object import WorldObj
@@ -174,8 +174,6 @@ class Agent(WorldObj):
     def gen_obs_grid(self, grid: Grid) -> tuple[Grid, np.ndarray[bool]]:
         """
         Generate the sub-grid observed by the agent.
-        This method also outputs a visibility mask telling us which grid
-        cells the agent can actually see.
 
         Returns
         -------
@@ -186,7 +184,7 @@ class Agent(WorldObj):
         """
         topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
         obs_grid_result = gen_obs_grid(
-            grid.grid,
+            grid.array,
             EMPTY if self.carrying is None else self.carrying.array,
             self.dir,
             topX, topY,
@@ -210,7 +208,7 @@ class Agent(WorldObj):
         """
         topX, topY, _, _ = get_view_exts(self.dir, self.pos, self.view_size)
         image = gen_obs_grid_encoding(
-            grid.grid,
+            grid.array,
             EMPTY if self.carrying is None else self.carrying.array,
             self.dir,
             topX, topY,
@@ -224,10 +222,7 @@ class Agent(WorldObj):
         """
         Encode the agent's state as a numpy array.
         """
-        x = super().encode()
-        x[1] = self.index
-        x[2] = self.dir
-        return x
+        return (OBJECT_TO_IDX[self.type], self.index, self.dir)
 
     def render(self, img: np.ndarray[int]):
         """
