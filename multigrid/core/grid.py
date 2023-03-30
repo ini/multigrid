@@ -1,9 +1,9 @@
 import numpy as np
+
 from typing import Any, Callable, Optional
 
-from .array import ARRAY_DIM, EMPTY
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
-from .world_object import Wall, WorldObj, world_obj_from_array
+from .world_object import Encodable, Wall, WorldObj, WorldObjState
 
 from ..utils.rendering import (
     downsample,
@@ -14,7 +14,7 @@ from ..utils.rendering import (
 
 
 
-class Grid:
+class Grid(Encodable):
     """
     Represent a grid and operations on it.
     """
@@ -23,31 +23,56 @@ class Grid:
     tile_cache: dict[tuple[Any, ...], Any] = {}
 
     def __init__(self, width: int, height: int):
+        """
+        Parameters
+        ----------
+        width : int
+            Width of the grid
+        height : int
+            Height of the grid
+        """
         assert width >= 3
         assert height >= 3
-        self.width: int = width
-        self.height: int = height
         self.world_objects: dict[tuple[int, int], WorldObj] = {}
-        self.array: np.array[int] = np.empty((width, height, ARRAY_DIM), dtype=int)
-        self.array[...] = EMPTY
+        self.state: WorldObjState = WorldObjState(width, height)
 
-    @staticmethod
-    def from_grid_array(grid_array: np.ndarray[int]) -> 'Grid':
+    @classmethod
+    def from_grid_state(cls, grid_state: WorldObjState) -> 'Grid':
         """
-        Create a grid from array representation.
+        Create a grid from a vectorized WorldObjState.
         """
-        assert grid_array.ndim == 3
-        grid = Grid.__new__(Grid)
-        grid.width, grid.height, _ = grid_array.shape
+        assert grid_state.ndim == 3
+        grid = cls.__new__(cls)
         grid.world_objects = {}
-        grid.array = grid_array
+        grid.state = grid_state
         return grid
+
+    @property
+    def width(self) -> int:
+        """
+        Width of the grid.
+        """
+        return self.state.shape[0]
+
+    @property
+    def height(self) -> int:
+        """
+        Height of the grid.
+        """
+        return self.state.shape[1]
+
+    @property
+    def grid(self) -> list[WorldObj]:
+        """
+        Return a list of all world objects in the grid.
+        """
+        return [self.get(i, j) for i in range(self.width) for j in range(self.height)]
 
     def __contains__(self, key: Any) -> bool:
         if isinstance(key, WorldObj):
             return key in self.world_objects.values()
         elif isinstance(key, np.ndarray):
-            np.may_share_memory(key, self.array)
+            np.may_share_memory(key, self.state)
         elif isinstance(key, tuple):
             for i in range(self.width):
                 for j in range(self.height):
@@ -61,7 +86,10 @@ class Grid:
         return False
 
     def __eq__(self, other: 'Grid') -> bool:
-        return np.array_equal(self.array, other.array)
+        return np.array_equal(self.state, other.state)
+
+    def __ne__(self, other: 'Grid') -> bool:
+        return not self == other
 
     def copy(self) -> 'Grid':
         """
@@ -70,7 +98,7 @@ class Grid:
         from copy import deepcopy
         return deepcopy(self)
 
-    def set(self, i: int, j: int, v: Optional[WorldObj]):
+    def set(self, i: int, j: int, v: Optional[Encodable]):
         """
         Set a world object at the given coordinates.
         """
@@ -84,15 +112,16 @@ class Grid:
         # Update world objects
         prev_obj = self.world_objects.pop((i, j), None)
         self.world_objects[i, j] = v
-        if prev_obj is not None:
-            prev_obj.array = prev_obj.array.copy()
+        if isinstance(prev_obj, WorldObj):
+            prev_obj.state = prev_obj.state.copy() # no longer references grid state
 
         # Update grid
         if v is None:
-            self.array[i, j] = EMPTY
+            self.state[i, j] = WorldObjState.empty()
         else:
-            self.array[i, j] = v.array
-            v.array = self.array[i, j]
+            self.state[i, j] = v.world_state() # copy object state to grid state
+            if isinstance(v, WorldObj):
+                v.state = self.state[i, j] # object state references grid state
 
     def get(self, i: int, j: int) -> Optional[WorldObj]:
         """
@@ -100,9 +129,9 @@ class Grid:
         """
         assert 0 <= i < self.width
         assert 0 <= j < self.height
-        assert self.array is not None
         if (i, j) not in self.world_objects:
-            self.world_objects[i, j] = world_obj_from_array(self.array[i, j])
+            self.world_objects[i, j] = WorldObj.from_state(self.state[i, j])
+
         return self.world_objects[i, j]
 
     def horz_wall(
@@ -114,7 +143,7 @@ class Grid:
         Create a horizontal wall.
         """
         length = self.width - x if length is None else length
-        self.array[x:x+length, y] = obj_type().array
+        self.state[x:x+length, y] = obj_type().state
 
     def vert_wall(
         self,
@@ -125,7 +154,7 @@ class Grid:
         Create a vertical wall.
         """
         length = self.height - y if length is None else length
-        self.array[x, y:y+length] = obj_type().array
+        self.state[x, y:y+length] = obj_type().state
 
     def wall_rect(self, x: int, y: int, w: int, h: int):
         """
@@ -220,6 +249,12 @@ class Grid:
 
         return img
 
+    def world_state(self) -> WorldObjState:
+        """
+        Get the `WorldObjState` for this object.
+        """
+        return self.state
+
     def encode(self, vis_mask: np.ndarray | None = None) -> np.ndarray:
         """
         Produce a compact numpy encoding of the grid.
@@ -227,7 +262,7 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        encoding = self.array[..., :3].copy()
+        encoding = self.state.encode().copy()
         encoding[~vis_mask] = 0
         return encoding
 

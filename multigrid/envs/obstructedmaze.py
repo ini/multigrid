@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from minigrid.core.constants import COLOR_NAMES, DIR_TO_VEC
-from minigrid.core.mission import MissionSpace
-from minigrid.core.roomgrid import RoomGrid
-from minigrid.core.world_object import Ball, Box, Key
+from ..core.constants import COLOR_NAMES, DIR_TO_VEC
+from ..core.mission import MissionSpace
+from ..core.roomgrid import RoomGrid
+from ..core.world_object import Ball, Box, Key
 
 
 class ObstructedMazeEnv(RoomGrid):

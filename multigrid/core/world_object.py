@@ -1,24 +1,14 @@
 import numpy as np
 
+from abc import ABC, abstractmethod
 from typing import Optional, TYPE_CHECKING
 
-from .array import (
-    empty,
-    contents,
-    can_overlap,
-    can_pickup,
-    can_contain,
-    see_behind,
-)
 from .constants import (
-    COLOR_TO_IDX,
-    COLORS,
-    IDX_TO_COLOR,
-    IDX_TO_OBJECT,
-    OBJECT_TO_IDX,
-    STATE_TO_IDX,
+    OBJECT_TO_IDX, IDX_TO_OBJECT,
+    COLOR_TO_IDX, IDX_TO_COLOR, COLORS,
+    STATE_TO_IDX, IDX_TO_STATE,
 )
-Point = tuple[int, int] #from ..utils.typing import Point
+
 from ..utils.rendering import (
     fill_coords,
     point_in_circle,
@@ -32,50 +22,286 @@ if TYPE_CHECKING:
 
 
 
-def world_obj_from_array(array: np.ndarray) -> Optional['WorldObj']:
+class Encodable(ABC):
     """
-    Create a world object from array representation.
+    Interface for objects that can be encoded as a 3-tuple of integers.
+    """
 
-    Parameters
+    @abstractmethod
+    def world_state(self) -> 'WorldObjState':
+        """
+        Get the `WorldObjState` for this object.
+        """
+        pass
+
+    def encode(self) -> tuple[int, int, int] | np.ndarray[int]:
+        """
+        Encode a description of this object as a 3-tuple of integers.
+        """
+        out = self.world_state().encode()
+        if out.ndim == 1:
+            out = tuple(out)
+        return out
+
+
+class WorldObjState(np.ndarray, Encodable):
+    """
+    State for a `WorldObj` grid object.
+
+    The state is a 4-dimensional array, indexed as follows:
+        * 0: object type
+        * 1: object color
+        * 2: object state (i.e. open/closed/locked)
+        * 3: WorldObjState of contained object (if any)
+
+    WorldObjState objects also support vectorized operations,
+    in which case the first (n - 1) dimensions represent a "batch" of states,
+    and the last dimension represents each index in a state array.
+
+    Attributes
     ----------
-    array : np.ndarray[int] of shape (array_dim,)
-        Array representation of object
+    type : str
+        The name of the object type
+    color : str
+        The name of the object color
+    state : str
+        The name of the object state (i.e. 'open', 'closed', or 'locked')
+    contains : WorldObjState
+        The WorldObjState of the object contained by this object
+
+    Examples
+    --------
+    Create a WorldObjState:
+
+    >>> state = WorldObjState(type='ball', color='blue')
+    >>> state
+    WorldObjState([6, 2, 0, 0])
+    >>> state.type
+    'ball'
+    >>> state.color
+    'blue'
+
+    Change attributes of a WorldObjState:
+    >>> state.color = 'green'
+    >>> state
+    WorldObjState([6, 1, 0, 0])
+    >>> state.color
+    'green'
+
+    Create a vectorized WorldObjState:
+
+    >>> grid_state = WorldObjState(2, 2)
+    >>> grid_state.type
+    array([['empty', 'empty'],
+           ['empty', 'empty']], dtype='<U6')
+
+    Vector operations on a WorldObjState:
+
+    >>> grid_state[:, 1].type = 'wall'
+    >>> grid_state.type
+    array([['empty', 'wall'],
+           ['empty', 'wall']], dtype='<U6')
     """
-    OBJECT_TO_CLS = {
-        'wall': Wall,
-        'floor': Floor,
-        'door': Door,
-        'key': Key,
-        'ball': Ball,
-        'box': Box,
-        'goal': Goal,
-        'lava': Lava,
-    }
+    dim = 4
+    encode_dim = 3
+    max_contain_depth = 2
+    _bases = [max(IDX_TO_OBJECT) + 1, max(IDX_TO_COLOR) + 1, len(IDX_TO_STATE) + 1]
+    _types = np.array(list(OBJECT_TO_IDX.keys()))
+    _colors = np.array(list(COLOR_TO_IDX.keys()))
+    _states = np.array(list(STATE_TO_IDX.keys()))
+    _object_to_idx = np.vectorize(OBJECT_TO_IDX.__getitem__)
+    _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
+    _state_to_idx = np.vectorize(STATE_TO_IDX.__getitem__)
+    _empty = None
 
-    if IDX_TO_OBJECT[array[0]] == 'empty':
-        return None
+    def __new__(cls, *dims: int, type: str = 'empty', color: Optional[str] = None):
+        """
+        Parameters
+        ----------
+        dims : int
+            Batch dimensions for vectorized WorldObjState
+        type : str, default='empty'
+            The name of the object type
+        color : str, optional
+            The name of the object color
+        """
+        obj = np.zeros(shape=dims+(cls.dim,), dtype=int).view(cls)
+        obj[..., 0] = OBJECT_TO_IDX[type]
+        if color is not None:
+            obj[..., 1] = COLOR_TO_IDX[color]
 
-    if IDX_TO_OBJECT[array[0]] in OBJECT_TO_CLS:
-        cls = OBJECT_TO_CLS[IDX_TO_OBJECT[array[0]]]
-        return cls.from_array(array)
+        return obj
 
-    raise ValueError(f'Unknown object index: {array[0]}')
+    @staticmethod
+    def empty() -> 'WorldObjState':
+        """
+        Return reference to a fixed empty WorldObjState object.
+        """
+        if WorldObjState._empty is None:
+            WorldObjState._empty = WorldObjState(type='empty')
+
+        return WorldObjState._empty
+
+    @classmethod
+    def from_int(cls, n: int):
+        """
+        Convert a mixed radix integer-encoding to a WorldObjState object.
+        """
+        bases = [*cls._bases, np.prod(cls._bases) ** cls.max_contain_depth]
+        n_arr = np.array(n)
+        x = cls(*n.shape)
+        for i in range(cls.dim):
+            x[..., i] = n_arr % bases[i]
+            n_arr //= bases[i]
+
+        x[np.array(n) == 0] = WorldObjState(type='empty')
+        return x
+
+    @classmethod
+    def from_array(cls, arr: np.ndarray[int]):
+        """
+        Convert a numpy array to a WorldObjState object.
+        """
+        assert arr.shape[-1] == cls.dim
+        return arr.view(cls)
+
+    @property
+    def type(self) -> str:
+        """
+        Return the name of the object type.
+        """
+        out = self._types[self[..., 0]]
+        return out.item() if out.ndim == 0 else out
+
+    @type.setter
+    def type(self, value: str):
+        """
+        Set the name of the object type.
+        """
+        self[..., 0] = self._object_to_idx(value)
+
+    @property
+    def color(self) -> str:
+        """
+        Return the name of the object color.
+        """
+        out = self._colors[self[..., 1]]
+        return out.item() if out.ndim == 0 else out
+
+    @color.setter
+    def color(self, value: str):
+        """
+        Set the name of the object color.
+        """
+        self[..., 1] = self._color_to_idx(value)
+
+    @property
+    def state(self) -> str:
+        """
+        Return the name of the object state (i.e. 'open', 'closed', or 'locked').
+        """
+        out = self._states[self[..., 2]]
+        return out.item() if out.ndim == 0 else out
+
+    @state.setter
+    def state(self, value: str):
+        """
+        Set the name of the object state (i.e. open/closed/locked).
+        """
+        self[..., 2] = self._state_to_idx(value)
+
+    @property
+    def contains(self) -> 'WorldObjState':
+        """
+        Return the state object contained by this object.
+        """
+        return self.__class__.from_int(self[..., 3])
+
+    @contains.setter
+    def contains(self, obj_state: 'WorldObjState'):
+        """
+        Set the object state contained by this object.
+        """
+        self[..., 3] = obj_state.to_int()
+
+    def can_overlap(self) -> bool:
+        """
+        Can an agent overlap with this?
+        """
+        mask = (self[..., 0] == OBJECT_TO_IDX['empty']) # can overlap empty
+        mask |= (self[..., 0] == OBJECT_TO_IDX['goal']) # can overlap goal
+        mask |= (self[..., 0] == OBJECT_TO_IDX['floor']) # can overlap floor
+        mask |= (self[..., 0] == OBJECT_TO_IDX['lava']) # can overlap lava
+        mask |= ( # can overlap open door
+            (self[..., 0] == OBJECT_TO_IDX['door']) # door
+            & (self[..., 2] == STATE_TO_IDX['open']) # and open
+        )
+        return mask
+
+    def can_pickup(self) -> bool:
+        """
+        Can an agent pick this up?
+        """
+        mask = (self[..., 0] == OBJECT_TO_IDX['key']) # can pickup key
+        mask |= (self[..., 0] == OBJECT_TO_IDX['ball']) # can pickup ball
+        mask |= (self[..., 0] == OBJECT_TO_IDX['box']) # can pickup box
+        return mask
+
+    def can_contain(self) -> bool:
+        """
+        Can this contain another object?
+        """
+        return (self[..., 0] == OBJECT_TO_IDX['box']) # only boxes can contain objects
+
+    def see_behind(self) -> bool:
+        """
+        Can an agent see behind this object?
+        """
+        neg_mask = (self[..., 0] == OBJECT_TO_IDX['wall']) # CANNOT see behind wall
+        neg_mask |= ( # CANNOT see behind non-open door
+            (self[..., 0] == OBJECT_TO_IDX['door']) # door
+            & (self[..., 2] != STATE_TO_IDX['open']) # and not open
+        )
+        return ~neg_mask
+
+    def world_state(self) -> 'WorldObjState':
+        """
+        Get the `WorldObjState` for this object.
+        """
+        return self
+
+    def encode(self) -> np.ndarray[int]:
+        """
+        Encode a description of this object state.
+        """
+        return self[..., :self.encode_dim]
+
+    def to_int(self):
+        """
+        Encode this object state as a mixed radix integer.
+        """
+        bases = [*self._bases, np.prod(self._bases) ** self.max_contain_depth]
+        base, n = 1, np.zeros(self.shape[:-1])
+        for i in range(self.dim):
+            n += (self[..., i] * base)
+            base *= bases[i]
+
+        n[n == OBJECT_TO_IDX['empty']] = 0
+        return n
 
 
-class WorldObj:
+class WorldObj(Encodable):
     """
     Base class for grid world objects.
 
     Attributes
     ----------
-    array : np.ndarray[int] of shape (ARRAY_DIM,)
-        Underlying array-encoding representation
+    state : WorldObjState
+        State for this object
     type : str
         The name of the object type
     color : str
         The color of the object
-    state : int
-        The state of the object
     contains : WorldObj or None
         The object contained by this object, if any
     """
@@ -83,99 +309,100 @@ class WorldObj:
     def __init__(self, type: str, color: str):
         assert type in OBJECT_TO_IDX, type
         assert color in COLOR_TO_IDX, color
-        self.array = empty()
-        self.array[0] = OBJECT_TO_IDX[type]
-        self.array[1] = COLOR_TO_IDX[color]
+        self.state = WorldObjState(type=type, color=color)
 
     def __eq__(self, other: 'WorldObj') -> bool:
-        return np.array_equal(self.array, other.array)
+        return (
+            np.array_equal(self.state, other.state)
+            and np.may_share_memory(self.state, other.state)
+        )
 
-    @classmethod
-    def from_array(cls, array: np.ndarray):
+    @staticmethod
+    def from_state(state: WorldObjState) -> 'WorldObj':
         """
-        Create a world object from array representation.
+        Create a world object from the given state.
         """
-        obj = cls.__new__(cls)
-        obj.array = array
-        return obj
+        assert state.ndim == 1
+        object_idx_to_class = {
+            2: Wall,
+            3: Floor,
+            4: Door,
+            5: Key,
+            6: Ball,
+            7: Box,
+            8: Goal,
+            9: Lava,
+        }
+
+        if state[0] == OBJECT_TO_IDX['empty']:
+            return None
+
+        elif state[0] in object_idx_to_class:
+            cls = object_idx_to_class[state[0]]
+            obj = cls.__new__(cls)
+            obj.state = state
+            return obj
+
+        raise ValueError(f'Unknown object type: {state.type}')
 
     @property
     def type(self) -> str:
         """
         The name of the object type.
         """
-        return IDX_TO_OBJECT[self.array[0]]
+        return self.state.type
 
     @property
     def color(self) -> str:
         """
         The color of the object.
         """
-        return IDX_TO_COLOR[self.array[1]]
+        return self.state.color
 
     @color.setter
     def color(self, value: str):
         """
         Set the color of the object.
         """
-        self.array[1] = COLOR_TO_IDX[value]
-
-    @property
-    def state(self) -> int:
-        """
-        The state of the object.
-        """
-        return self.array[2]
-
-    @state.setter
-    def state(self, value: int):
-        """
-        Set the state of the object.
-        """
-        self.array[2] = value
+        self.state.color = value
 
     @property
     def contains(self) -> Optional['WorldObj']:
         """
         The object contained by this object, if any.
         """
-        array = contents(self.array)
-        if IDX_TO_OBJECT[array[0]] != 'empty':
-            return world_obj_from_array(array)
+        return WorldObj.from_state(self.state.contains)
 
     @contains.setter
-    def contains(self, value):
+    def contains(self, value: Optional['WorldObj']):
         """
         Set the contents of this object.
         """
-        if value is None:
-            self.array[4:] = empty()[:4]
-        else:
-            self.array[4:] = value.array[:4]
+        self.state.contains = WorldObjState() if value is None else value.state
 
     def can_overlap(self) -> bool:
         """
         Can an agent overlap with this?
         """
-        return can_overlap(self.array)
+        return self.state.can_overlap()
 
     def can_pickup(self) -> bool:
         """
         Can an agent pick this up?
         """
-        return can_pickup(self.array)
+        return self.state.can_pickup()
 
     def can_contain(self) -> bool:
         """
         Can this contain another object?
         """
-        return can_contain(self.array)
+        return self.state.can_contain()
 
     def see_behind(self) -> bool:
         """
         Can an agent see behind this object?
         """
-        return see_behind(self.array)
+        return self.state.see_behind()
 
     def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         """
@@ -183,20 +410,25 @@ class WorldObj:
         """
         return False
 
+    def world_state(self) -> WorldObjState:
+        """
+        Get the `WorldObjState` for this object.
+        """
+        return self.state
+
     def encode(self) -> tuple[int, int, int]:
         """
         Encode a description of this object as a 3-tuple of integers.
         """
-        return tuple(self.array[:3])
+        return tuple(self.state.encode())
 
     @staticmethod
-    def decode(type_idx: int, color_idx: int, state: int) -> Optional['WorldObj']:
+    def decode(type_idx: int, color_idx: int, state_idx: int) -> Optional['WorldObj']:
         """
         Create an object from a 3-tuple state description.
         """
-        array = empty()
-        array[:3] = type_idx, color_idx, state
-        return world_obj_from_array(array)
+        arr = np.array([type_idx, color_idx, state_idx, 0])
+        return WorldObj.from_state(WorldObjState.from_array(arr))
 
     def render(self, img: np.ndarray[int]):
         """
@@ -289,7 +521,7 @@ class Door(WorldObj):
         """
         Whether the door is open.
         """
-        return self.state == STATE_TO_IDX['open']
+        return self.state.state == 'open'
 
     @is_open.setter
     def is_open(self, value: bool):
@@ -297,16 +529,16 @@ class Door(WorldObj):
         Set the door to be open or closed.
         """
         if value:
-            self.state = STATE_TO_IDX['open'] # set state to open
+            self.state.state = 'open' # set state to open
         elif not self.is_locked:
-            self.state = STATE_TO_IDX['closed'] # closed (unless already locked)
+            self.state.state = 'closed' # set state to closed (unless already locked)
 
     @property
     def is_locked(self) -> bool:
         """
         Whether the door is locked.
         """
-        return self.state == STATE_TO_IDX['locked']
+        return self.state.state == 'locked'
 
     @is_locked.setter
     def is_locked(self, value: bool):
@@ -314,17 +546,18 @@ class Door(WorldObj):
         Set the door to be locked or unlocked.
         """
         if value:
-            self.state = STATE_TO_IDX['locked'] # set state to locked
+            self.state.state = 'locked' # set state to locked
         elif not self.is_open:
-            self.state = STATE_TO_IDX['closed'] # closed (unless already open)
+            self.state.state = 'closed' # set state to closed (unless already open)
 
     def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         # If the player has the right key to open the door
         if self.is_locked:
-            if isinstance(agent.carrying, Key) and agent.carrying.color == self.color:
-                self.is_locked = False
-                self.is_open = True
-                return True
+            if isinstance(agent.state.carrying, Key):
+                if agent.state.carrying.color == self.color:
+                    self.is_locked = False
+                    self.is_open = True
+                    return True
             return False
 
         self.is_open = not self.is_open
@@ -414,3 +647,10 @@ class Box(WorldObj):
 
         # Horizontal slit
         fill_coords(img, point_in_rect(0.16, 0.84, 0.47, 0.53), c)
+
+
+class Encodable(ABC):
+
+    @abstractmethod
+    def world_state(self) -> WorldObjState:
+        pass

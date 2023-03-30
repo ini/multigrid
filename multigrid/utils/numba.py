@@ -1,11 +1,8 @@
-"""
-Module for fast operations on object grid arrays with numba.
-"""
 import numba as nb
 import numpy as np
 
-from ..core.array import EMPTY
 from ..core.constants import OBJECT_TO_IDX, STATE_TO_IDX
+from ..core.world_object import WorldObjState
 
 
 
@@ -14,10 +11,9 @@ from ..core.constants import OBJECT_TO_IDX, STATE_TO_IDX
 WALL_IDX = OBJECT_TO_IDX['wall']
 DOOR_IDX = OBJECT_TO_IDX['door']
 OPEN_IDX = STATE_TO_IDX['open']
-ENCODE_DIM = 3
-WALL = EMPTY.copy()
-WALL[0] = WALL_IDX
-WALL_ENCODING = WALL[:ENCODE_DIM]
+ENCODE_DIM = WorldObjState.encode_dim
+EMPTY = WorldObjState(type='empty').encode()
+WALL = WorldObjState(type='wall').encode()
 
 
 

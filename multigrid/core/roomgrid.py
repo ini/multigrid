@@ -6,11 +6,11 @@ from .constants import COLOR_NAMES
 from .grid import Grid
 from .world_object import Ball, Box, Door, Key, WorldObj
 
-from ..minigrid_env import MiniGridEnv
+from ..multigrid_env import MultiGridEnv
 
 
 
-def reject_next_to(env: MiniGridEnv, pos: tuple[int, int]):
+def reject_next_to(env: MultiGridEnv, pos: tuple[int, int]):
     """
     Function to filter out object positions that are right next to
     the agent's starting point
@@ -43,7 +43,7 @@ class Room:
         # List of objects contained
         self.objs: list[WorldObj] = []
 
-    def rand_pos(self, env: MiniGridEnv) -> tuple[int, int]:
+    def rand_pos(self, env: MultiGridEnv) -> tuple[int, int]:
         topX, topY = self.top
         sizeX, sizeY = self.size
         return env._randPos(topX + 1, topX + sizeX - 1, topY + 1, topY + sizeY - 1)
@@ -65,7 +65,7 @@ class Room:
         return True
 
 
-class RoomGrid(MiniGridEnv):
+class RoomGrid(MultiGridEnv):
     """
     Environment with multiple rooms and random objects.
     This is meant to serve as a base class for other environments.

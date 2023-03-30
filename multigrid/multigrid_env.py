@@ -14,11 +14,11 @@ from gymnasium.core import ActType, ObsType
 from typing import Any, Iterable, Optional, SupportsFloat, TypeVar
 
 from .core.actions import Actions
-from .core.agent import Agent
+from .core.agent import Agent, AgentState
 from .core.constants import COLOR_NAMES, OBJECT_TO_IDX, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
-from .core.world_object import Point, WorldObj
+from .core.world_object import WorldObj
 
 T = TypeVar('T')
 AgentID = int
@@ -93,10 +93,12 @@ class MultiGridEnv(gym.Env):
 
         # Initialize agents
         if isinstance(agents, int):
+            self.agent_state = AgentState(agents)
             self.agents: dict[AgentID, Agent] = {}
             for agent_id in range(agents):
                 agent = Agent(
                     agent_id,
+                    self.agent_state[agent_id],
                     mission_space,
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
@@ -104,6 +106,10 @@ class MultiGridEnv(gym.Env):
                 self.agents[agent_id] = agent
         elif isinstance(agents, Iterable):
             self.agents: dict[AgentID, Agent] = {agent.id: agent for agent in agents}
+            self.agent_state = AgentState(max(self.agents))
+            for agent in self.agents:
+                self.agent_state[agent.id] = agent.state
+                agent.state = self.agent_state[agent.id]
         else:
             raise ValueError(f"Invalid argument for agents: {agents}")
 
@@ -161,14 +167,14 @@ class MultiGridEnv(gym.Env):
         # These fields should be defined by _gen_grid
         for agent in self.agents.values():
             assert (
-                agent.pos >= (0, 0)
-                if isinstance(agent.pos, tuple)
-                else all(agent.pos >= 0) and agent.dir >= 0
+                agent.state.pos >= (0, 0)
+                if isinstance(agent.state.pos, tuple)
+                else all(agent.state.pos >= 0) and agent.state.dir >= 0
             )
 
         # Check that agents don't overlap with other objects
         for agent in self.agents.values():
-            start_cell = self.grid.get(*agent.pos)
+            start_cell = self.grid.get(*agent.state.pos)
             assert start_cell is None or start_cell.can_overlap()
 
         # Step count since episode start
@@ -195,8 +201,8 @@ class MultiGridEnv(gym.Env):
 
         to_encode = [
             self.grid.encode().tolist(),
-            *[agent.pos for agent in self.agents.values()],
-            *[agent.dir for agent in self.agents.values()],
+            *[agent.state.pos for agent in self.agents.values()],
+            *[agent.state.dir for agent in self.agents.values()],
         ]
         for item in to_encode:
             sample_hash.update(str(item).encode('utf8'))
@@ -232,7 +238,7 @@ class MultiGridEnv(gym.Env):
         AGENT_DIR_TO_STR = {0: '>', 1: 'V', 2: '<', 3: '^'}
 
         output = ""
-        grid = Grid.from_grid_array(self.grid_array_with_agents())
+        grid = Grid.from_grid_state(self.grid_state_with_agents())
         for j in range(grid.height):
             for i in range(grid.width):
                 tile = grid.get(i, j)
@@ -332,7 +338,7 @@ class MultiGridEnv(gym.Env):
     def place_obj(
         self,
         obj: WorldObj | None,
-        top: Point = None,
+        top: tuple[int, int] = None,
         size: tuple[int, int] = None,
         reject_fn=None,
         max_tries=math.inf):
@@ -380,7 +386,10 @@ class MultiGridEnv(gym.Env):
                 continue
 
             # Don't place the object where agents are
-            if any(np.array_equal(pos, agent.pos) for agent in self.agents.values()):
+            if any(
+                np.array_equal(pos, agent.state.pos)
+                for agent in self.agents.values()
+            ):
                 continue
 
             # Check if there is a filtering criterion
@@ -410,12 +419,12 @@ class MultiGridEnv(gym.Env):
         Set agents' starting points at empty positions in the grid.
         """
         for agent in self.agents.values():
-            agent.pos = (-1, -1)
+            agent.state.pos = (-1, -1)
             pos = self.place_obj(None, top, size, max_tries=max_tries)
-            agent.pos = pos
+            agent.state.pos = pos
 
             if rand_dir:
-                agent.dir = self._rand_int(0, 4)
+                agent.state.dir = self._rand_int(0, 4)
 
     def step(
         self, actions: ActType
@@ -437,23 +446,23 @@ class MultiGridEnv(gym.Env):
         self.step_count += 1
 
         reward = {agent.id: 0 for agent in self.agents.values()}
-        agent_locations = {agent.id: agent.pos for agent in self.agents.values()}
+        agent_locations = {agent.id: tuple(agent.state.pos) for agent in self.agents.values()}
         acting_agent_ids = list(actions.keys())
         self.random.shuffle(acting_agent_ids)
 
         for agent_id in acting_agent_ids:
             action, agent = actions[agent_id], self.agents[agent_id]
 
-            if agent.terminated:
+            if agent.state.terminated:
                 continue
 
             # Rotate left
             if action == self.actions.left:
-                agent.dir = (agent.dir - 1) % 4
+                agent.state.dir = (agent.state.dir - 1) % 4
 
             # Rotate right
             elif action == self.actions.right:
-                agent.dir = (agent.dir + 1) % 4
+                agent.state.dir = (agent.state.dir + 1) % 4
 
             # Move forward
             elif action == self.actions.forward:
@@ -462,13 +471,13 @@ class MultiGridEnv(gym.Env):
 
                 if fwd_cell is None or fwd_cell.can_overlap():
                     if fwd_pos not in agent_locations.values():
-                        agent.pos = fwd_pos
+                        agent.state.pos = fwd_pos
                         agent_locations[agent.id] = fwd_pos
                 if fwd_cell is not None and fwd_cell.type == 'goal':
-                    agent.terminated = True
+                    agent.state.terminated = True
                     reward[agent.id] = self._reward()
                 if fwd_cell is not None and fwd_cell.type == 'lava':
-                    agent.terminated = True
+                    agent.state.terminated = True
 
             # Pick up an object
             elif action == self.actions.pickup:
@@ -476,9 +485,9 @@ class MultiGridEnv(gym.Env):
                 fwd_cell = self.grid.get(*fwd_pos)
 
                 if fwd_cell and fwd_cell.can_pickup():
-                    if agent.carrying is None:
-                        agent.carrying = fwd_cell
-                        agent.carrying.cur_pos = np.array([-1, -1])
+                    if agent.state.carrying is None:
+                        agent.state.carrying = fwd_cell
+                        agent.state.carrying.cur_pos = np.array([-1, -1])
                         self.grid.set(fwd_pos[0], fwd_pos[1], None)
 
             # Drop an object
@@ -486,10 +495,10 @@ class MultiGridEnv(gym.Env):
                 fwd_pos = agent.front_pos
                 fwd_cell = self.grid.get(*fwd_pos)
 
-                if not fwd_cell and agent.carrying:
-                    self.grid.set(fwd_pos[0], fwd_pos[1], agent.carrying)
-                    agent.carrying.cur_pos = fwd_pos
-                    agent.carrying = None
+                if not fwd_cell and agent.state.carrying:
+                    self.grid.set(fwd_pos[0], fwd_pos[1], agent.state.carrying)
+                    agent.state.carrying.cur_pos = fwd_pos
+                    agent.state.carrying = None
 
             # Toggle/activate an object
             elif action == self.actions.toggle:
@@ -512,7 +521,7 @@ class MultiGridEnv(gym.Env):
         obs = self.gen_obs()
         truncated = (self.step_count >= self.max_steps)
         truncated = {agent.id: truncated for agent in self.agents.values()}
-        terminated = {agent.id: agent.terminated for agent in self.agents.values()}
+        terminated = {agent.id: agent.state.terminated for agent in self.agents.values()}
 
         return obs, reward, terminated, truncated, {}
 
@@ -520,32 +529,37 @@ class MultiGridEnv(gym.Env):
         """
         Return a copy of the grid with the agents on it.
         """
-        grid = Grid.from_grid_array(self.grid.array.copy())
+        grid = Grid.from_grid_state(self.grid.state.copy())
         for agent in self.agents.values():
-            grid.set(*agent.pos, agent)
+            grid.set(*agent.state.pos, agent)
 
         return grid
 
-    def grid_array_with_agents(self):
+    def grid_state_with_agents(self):
         """
-        Return a copy of the grid array with the agents in it.
+        Return a copy of the grid state with the agents in it.
         """
-        grid_array = self.grid.array.copy()
+        grid_state = self.grid.state.copy()
         for agent in self.agents.values():
-            grid_array[agent.pos][0] = OBJECT_TO_IDX['agent']
-            grid_array[agent.pos][1] = agent.id
-            grid_array[agent.pos][2] = agent.dir
+            pos = tuple(agent.state.pos)
+            grid_state[pos][0] = OBJECT_TO_IDX['agent']
+            grid_state[pos][1] = agent.id
+            grid_state[pos][2] = agent.state.dir
 
-        return grid_array
+        return grid_state
 
     def gen_obs(self) -> dict[AgentID, ObsType]:
         """
         Generate observations for each agent (partially observable, low-res encoding).
         """
-        grid_array = self.grid_array_with_agents()
+        if len(self.agents) > 1:
+            grid_state = self.grid_state_with_agents()
+        else:
+            grid_state = self.grid.state
+
         obs = {}
         for agent in self.agents.values():
-            obs[agent.id] = agent.gen_obs(grid_array)
+            obs[agent.id] = agent.gen_obs(grid_state)
 
         return obs
 
@@ -564,7 +578,7 @@ class MultiGridEnv(gym.Env):
         # Compute agent visibility masks
         grid_with_agents = self.grid_with_agents()
         vis_masks = {
-            agent.id: agent.gen_obs_grid(grid_with_agents.array)[1]
+            agent.id: agent.gen_obs_grid(grid_with_agents.state)[1]
             for agent in self.agents.values()
         }
 
@@ -577,7 +591,7 @@ class MultiGridEnv(gym.Env):
             f_vec = agent.dir_vec
             r_vec = agent.right_vec
             top_left = (
-                agent.pos
+                agent.state.pos
                 + f_vec * (agent.view_size - 1)
                 - r_vec * (agent.view_size // 2)
             )
