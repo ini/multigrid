@@ -64,7 +64,8 @@ class MiniGridInterface(MultiGridEnv):
            "This property is not supported for multi-agent envs. "
            "Try `env.agents[i].pos` instead."
         )
-        self.agents[0].pos = value
+        if value:
+            self.agents[0].pos = value
 
     @property
     def agent_dir(self) -> int:
