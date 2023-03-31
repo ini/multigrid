@@ -9,7 +9,7 @@ import random
 from abc import abstractmethod
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
-from typing import Any, Iterable, Optional, SupportsFloat, TypeVar
+from typing import Any, Iterable, Optional, SupportsFloat, TypeVar, Union
 
 from .core.actions import Actions
 from .core.agent import Agent, AgentState
@@ -18,8 +18,8 @@ from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
 
+from .utils.act import handle_actions
 from .utils.obs import gen_obs_grid_encoding, gen_obs_grid_vis_mask
-from .utils.step import handle_actions
 
 T = TypeVar('T')
 AgentID = int
@@ -49,7 +49,7 @@ class MultiGridEnv(gym.Env):
     def __init__(
         self,
         mission_space: MissionSpace,
-        agents: int | Iterable[Agent] = 1,
+        agents: Union[int, Iterable[Agent]] = 1,
         grid_size: Optional[int] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
@@ -334,7 +334,7 @@ class MultiGridEnv(gym.Env):
 
     def place_obj(
         self,
-        obj: WorldObj | None,
+        obj: Optional[WorldObj],
         top: tuple[int, int] = None,
         size: tuple[int, int] = None,
         reject_fn=None,
@@ -442,14 +442,18 @@ class MultiGridEnv(gym.Env):
         """
         self.step_count += 1
 
-        reward = {agent.id: 0 for agent in self.agents.values()}
-
         action_array = np.asarray(actions)
         order = self.np_random.random(size=len(self.agents)).argsort()
         reward = handle_actions(
-            action_array, order, self.grid.state, self.agent_state)
+            action_array,
+            order,
+            self.grid.state,
+            self.agent_state,
+            allow_agent_overlap=False,
+        )
 
-        # agent_locations = {agent.id: tuple(agent.state.pos) for agent in self.agents.values()}
+        # agent_locations = {
+        #   agent.id: tuple(agent.state.pos) for agent in self.agents.values()}
 
         # for agent_id in order:
         #     action, agent = actions[agent_id], self.agents[agent_id]
@@ -579,7 +583,7 @@ class MultiGridEnv(gym.Env):
         Render an agent's POV observation for visualization.
         """
         raise NotImplementedError(
-            "get_pov_render() not implemented for multiagent environments."
+            "POV rendering not supported for multiagent environments."
         )
 
     def get_full_render(self, highlight: bool, tile_size: int):

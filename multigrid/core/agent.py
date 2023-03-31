@@ -4,7 +4,7 @@ from gymnasium import spaces
 from typing import Optional, TYPE_CHECKING
 
 from .actions import Actions
-from .constants import COLORS, DIR_TO_VEC, COLOR_TO_IDX, OBJECT_TO_IDX
+from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
 from .mission import MissionSpace
 from .world_object import WorldObj, WorldObjState
 

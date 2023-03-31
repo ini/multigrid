@@ -145,7 +145,7 @@ def compare(num_episodes=1):
 
 if __name__ == '__main__':
     #random_walk(agents=3)
-    random_walk(1, agents=3, render=True)
+    #random_walk(1, agents=3, render=True)
     #compare(1000)
-    #import cProfile
-    #cProfile.run('random_walk(5000, agents=1)', sort='cumtime')
+    import cProfile
+    cProfile.run('random_walk(10000, agents=1)', sort='cumtime')

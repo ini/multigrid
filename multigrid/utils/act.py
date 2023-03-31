@@ -36,7 +36,7 @@ LOCKED = STATE_TO_IDX['locked']
 
 # Other constants
 DIR_TO_VEC = np.array(DIR_TO_VEC)
-BASES = np.array(WorldObjState._bases)
+BASES = np.array(WorldObjState._bases) # for mixed-radix integer encoding
 
 
 
@@ -47,7 +47,8 @@ def handle_actions(
     action: np.ndarray[int],
     order: np.ndarray[int],
     grid_state: np.ndarray[int],
-    agent_state: np.ndarray[int]):
+    agent_state: np.ndarray[int],
+    allow_agent_overlap: bool):
     """
     Handle the actions taken by the agents.
     Update the grid state, agent state, and rewards.
@@ -62,6 +63,8 @@ def handle_actions(
         The state of the grid
     agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
         The state of each agent
+    allow_agent_overlap : bool
+        Whether or not agents can overlap each other
 
     Returns
     -------
@@ -85,9 +88,9 @@ def handle_actions(
         agent_y = agent_state[agent, POS_Y]
 
         # Get the cell in front of the agent
-        dir_vec = DIR_TO_VEC[agent_dir]
-        fwd_x = agent_state[agent, POS_X] + dir_vec[0] 
-        fwd_y = agent_state[agent, POS_Y] + dir_vec[1]
+        dx, dy = DIR_TO_VEC[agent_dir]
+        fwd_x = agent_state[agent, POS_X] + dx
+        fwd_y = agent_state[agent, POS_Y] + dy
         fwd_state = grid_state[fwd_x, fwd_y]
 
         # Check if the agent is terminated
@@ -104,11 +107,12 @@ def handle_actions(
 
         # Move forward
         elif action[agent] == 2:
-            if can_overlap(fwd_state) and not agent_location_mask[fwd_x, fwd_y]:
-                agent_location_mask[agent_x, agent_y] = False
-                agent_location_mask[fwd_x, fwd_y] = True
-                agent_state[agent, POS_X] = fwd_x
-                agent_state[agent, POS_Y] = fwd_y
+            if can_overlap(fwd_state):
+                if allow_agent_overlap or not agent_location_mask[fwd_x, fwd_y]:
+                    agent_location_mask[agent_x, agent_y] = False
+                    agent_location_mask[fwd_x, fwd_y] = True
+                    agent_state[agent, POS_X] = fwd_x
+                    agent_state[agent, POS_Y] = fwd_y
 
             if fwd_state[0] == LAVA:
                 agent_state[agent, TERMINATED] = True # set terminated to True
@@ -219,7 +223,7 @@ def toggle(
 @nb.njit(cache=True)
 def from_mixed_radix_int(n: int) -> np.ndarray[int]:
     """
-    Convert a mixed radix integer-encoding to a WorldObjState object.
+    Convert a mixed radix integer encoding to a WorldObjState object.
     """
     x = np.zeros(len(BASES), dtype=np.int_)
     for i in range(len(BASES)):
