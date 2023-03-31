@@ -49,6 +49,51 @@ class AgentState(np.ndarray):
         Whether the agent has terminated
     carrying : WorldObjState
         WorldObjState of object the agent is carrying
+
+    Examples
+    --------
+    Create a vectorized agent state for 3 agents:
+
+    >>> agent_state = AgentState(3)
+    >>> a = agent_state[0]
+    >>> b = agent_state[1]
+    >>> c = agent_state[2]
+    >>> agent_state
+    AgentState([[10,  0, -1, -1, -1,  0,  0,  0,  0,  0],
+                [10,  1, -1, -1, -1,  0,  0,  0,  0,  0],
+                [10,  2, -1, -1, -1,  0,  0,  0,  0,  0]])
+
+    Access and set state attributes one at a time:
+
+    >>> a.color
+    'red'
+    >>> a.color = 'yellow'
+    >>> a
+    AgentState([10,  4, -1, -1, -1,  0,  0,  0,  0,  0])
+    >>> agent_state[1].pos = (23, 45)
+    >>> b
+    AgentState([10,  1, -1, 23, 45,  0,  0,  0,  0,  0])
+
+    The underlying vectorized state is updated as well:
+
+    >>> agent_state
+    AgentState([[10,  4, -1, -1, -1,  0,  0,  0,  0,  0],
+                [10,  1, -1, 23, 45,  0,  0,  0,  0,  0],
+                [10,  2, -1, -1, -1,  0,  0,  0,  0,  0]])
+
+    Access and set state attributes all at once:
+
+    >>> agent_state.dir
+    array([-1, -1, -1])
+    >>> agent_state.dir = np.random.randint(4, size=(len(agent_state)))
+    >>> agent_state.dir
+    array([2, 3, 0])
+    >>> a.dir
+    2
+    >>> b.dir
+    3
+    >>> c.dir
+    0
     """
     dim = 6 + WorldObjState.dim
     _colors = np.array(list(COLOR_TO_IDX.keys()))
@@ -79,14 +124,14 @@ class AgentState(np.ndarray):
         """
         Set the agent color.
         """
-        self[..., 1] = self.color_to_idx(value)
+        self[..., 1] = self._color_to_idx(value)
 
     @property
     def dir(self) -> int:
         """
         Return the agent direction.
         """
-        out = self[..., 2]
+        out = self[..., 2].view(np.ndarray)
         return out.item() if out.ndim == 0 else out
 
     @dir.setter
@@ -101,7 +146,7 @@ class AgentState(np.ndarray):
         """
         Return the agent's (x, y) position.
         """
-        return self[..., 3:5]
+        return self[..., 3:5].view(np.ndarray)
 
     @pos.setter
     def pos(self, value: np.ndarray[int]):
@@ -115,7 +160,7 @@ class AgentState(np.ndarray):
         """
         Return whether the agent has terminated.
         """
-        out = self[..., 5]
+        out = self[..., 5].view(np.ndarray)
         return bool(out.item()) if out.ndim == 0 else out
 
     @terminated.setter
@@ -140,12 +185,12 @@ class AgentState(np.ndarray):
         """
         self[..., 6:6+WorldObjState.dim] = obj_state
 
-    def world_obj_state_encoding(self):
+    def world_obj_state_encoding(self) -> np.ndarray[int]:
         """
         Encode a description of this agent as a 3-tuple of integers
         (i.e. type, color, direction).
         """
-        return self[..., :WorldObjState.encode_dim]
+        return self[..., :WorldObjState.encode_dim].view(np.ndarray)
 
 
 class Agent:
@@ -325,7 +370,7 @@ class Agent:
         assert world_cell is not None
         return obs_cell is not None and obs_cell.type == world_cell.type
 
-    def encode(self):
+    def encode(self) -> tuple[int, int, int]:
         """
         Encode a description of this agent as a 3-tuple of integers.
         """

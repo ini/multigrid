@@ -1,4 +1,5 @@
 import numpy as np
+
 from typing import Any, Callable, Optional, Union
 
 from .agent import Agent
