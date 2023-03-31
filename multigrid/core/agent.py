@@ -1,7 +1,7 @@
 import numpy as np
 
 from gymnasium import spaces
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Sequence, TYPE_CHECKING
 
 from .actions import Actions
 from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
@@ -265,6 +265,34 @@ class Agent:
         self.state.dir = -1
         self.state.terminated = False
         self.state.carrying = WorldObjState.empty()
+
+    @property
+    def pos(self) -> np.ndarray[int]:
+        """
+        Return the agent's (x, y) position.
+        """
+        return self.state.pos
+
+    @pos.setter
+    def pos(self, value: Sequence[int]):
+        """
+        Set the agent's (x, y) position.
+        """
+        self.state.pos = value
+
+    @property
+    def dir(self) -> int:
+        """
+        Return the agent direction.
+        """
+        return self.state.dir
+
+    @dir.setter
+    def dir(self, value: int):
+        """
+        Set the agent direction.
+        """
+        self.state.dir = value
 
     @property
     def carrying(self) -> Optional[WorldObj]:

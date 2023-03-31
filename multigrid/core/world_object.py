@@ -292,10 +292,7 @@ class WorldObj:
         return f"{self.__class__.__name__}(color={self.color})"
 
     def __eq__(self, other: 'WorldObj') -> bool:
-        return (
-            np.array_equal(self.state, other.state)
-            and np.may_share_memory(self.state, other.state)
-        )
+        return np.array_equal(self.state, other.state)
 
     @staticmethod
     def from_state(state: WorldObjState) -> 'WorldObj':
@@ -389,6 +386,12 @@ class WorldObj:
         Method to trigger/toggle an action this object performs.
         """
         return False
+
+    def copy(self) -> 'WorldObj':
+        """
+        Create a copy of this object.
+        """
+        return WorldObj.from_state(self.state.copy())
 
     def encode(self) -> tuple[int, int, int]:
         """

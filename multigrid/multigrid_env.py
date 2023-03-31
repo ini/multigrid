@@ -9,7 +9,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
-from typing import Any, Iterable, Optional, SupportsFloat, TypeVar, Union
+from typing import Any, Iterable, Optional, Sequence, SupportsFloat, TypeVar, Union
 
 from .core.actions import Actions
 from .core.agent import Agent, AgentState
@@ -124,6 +124,7 @@ class MultiGridEnv(gym.Env):
 
         # Action enumeration for this environment
         self.actions = Actions
+        self.null_actions = self.actions.done * np.ones(len(self.agents), dtype=int)
 
         # Set joint action space
         self.action_space = spaces.Dict({
@@ -219,32 +220,6 @@ class MultiGridEnv(gym.Env):
         Number of steps remaining in the episode (until truncation).
         """
         return self.max_steps - self.step_count
-
-    @property
-    def agent_pos(self) -> np.ndarray[int]:
-        """
-        Get agent position.
-        """
-        return self.agent_state.pos
-
-    @property
-    def agent_dir(self) -> int:
-        """
-        Get agent direction.
-        """
-        return self.agent_state.dir
-
-    @property
-    def carrying(self) -> WorldObj:
-        """
-        Get object carried by agent.
-        """
-        carrying_obj_state = self.agent_state.carrying
-        objs = np.empty(self.agent_state.shape[:-1], dtype=object)
-        for index in np.ndindex(objs.shape):
-            objs[index] = WorldObj.from_state(carrying_obj_state[index])
-
-        return objs
 
     def __str__(self):
         """
@@ -476,7 +451,7 @@ class MultiGridEnv(gym.Env):
         Returns
         -------
         obs : dict[AgentID, ObsType]
-            Observation for each agent
+            Observation for each ready agent
         reward : dict[AgentID, SupportsFloat]
             Reward for each agent
         terminated : dict[AgentID, bool]
@@ -488,8 +463,15 @@ class MultiGridEnv(gym.Env):
         """
         self.step_count += 1
 
-        action_array = np.asarray(actions)
-        order = self.np_random.random(size=len(self.agents)).argsort()
+        action_array = self.null_actions.copy()
+        for i, action in actions.items():
+            action_array[i] = action
+
+        if len(self.agents) == 1:
+            order = np.zeros(1, dtype=int)
+        else:
+            order = self.np_random.random(size=len(self.agents)).argsort()
+
         reward = handle_actions(
             action_array,
             order,

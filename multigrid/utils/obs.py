@@ -2,7 +2,7 @@ import numba as nb
 import numpy as np
 
 from ..core.constants import OBJECT_TO_IDX, STATE_TO_IDX
-from ..core.world_object import WorldObjState
+from ..core.world_object import WorldObjState, Wall
 
 
 
@@ -12,7 +12,7 @@ WALL_IDX = OBJECT_TO_IDX['wall']
 DOOR_IDX = OBJECT_TO_IDX['door']
 OPEN_IDX = STATE_TO_IDX['open']
 ENCODE_DIM = WorldObjState.encode_dim
-WALL_ENCODING = WorldObjState(type='wall').encode()
+WALL_ENCODING = Wall().encode()
 
 
 
