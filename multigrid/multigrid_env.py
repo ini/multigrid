@@ -6,6 +6,7 @@ import pygame
 import pygame.freetype
 
 from abc import abstractmethod
+from collections import defaultdict
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
 from typing import Any, Iterable, Optional, SupportsFloat, TypeVar, Union
@@ -181,7 +182,7 @@ class MultiGridEnv(gym.Env):
         # Return first observation
         obs = self.gen_obs()
 
-        return obs, {}
+        return obs, defaultdict(dict)
 
     def hash(self, size=16):
         """
@@ -422,21 +423,34 @@ class MultiGridEnv(gym.Env):
                 agent.state.dir = self._rand_int(0, 4)
 
     def step(
-        self, actions: ActType
-    ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        self,
+        actions: dict[AgentID, ActType]) -> tuple[
+            dict[AgentID, ObsType],
+            dict[AgentID, SupportsFloat],
+            dict[AgentID, bool],
+            dict[AgentID, bool],
+            dict[AgentID, dict[str, Any]]]:
         """
-        Run one timestep of the environment’s dynamics using the agent actions.
+        Run one timestep of the environment’s dynamics
+        using the provided agent actions.
+
+        Parameters
+        ----------
+        actions : dict[AgentID, ActType]
+            Action for each agent
 
         Returns
         -------
-        obs: dict[AgentID, ObsType]
-            Observations for each agent
-        reward: dict[AgentID, SupportsFloat]
+        obs : dict[AgentID, ObsType]
+            Observation for each agent
+        reward : dict[AgentID, SupportsFloat]
             Reward for each agent
-        terminated: dict[AgentID, bool]
+        terminated : dict[AgentID, bool]
             Whether the episode has been terminated for each agent (success or failure)
-        truncated: dict[AgentID, bool]
+        truncated : dict[AgentID, bool]
             Whether the episode has been truncated for each agent (max steps reached)
+        info : dict[AgentID, dict[str, Any]]
+            Additional information for each agent
         """
         self.step_count += 1
 
@@ -524,12 +538,12 @@ class MultiGridEnv(gym.Env):
             self.render()
 
         obs = self.gen_obs()
-        reward = {agent.id: reward[agent.id] for agent in self.agents.values()}
-        truncated = (self.step_count >= self.max_steps)
-        truncated = {agent.id: truncated for agent in self.agents.values()}
-        terminated = {agent.id: agent.state.terminated for agent in self.agents.values()}
+        truncated = self.step_count >= self.max_steps
+        truncated = dict(enumerate([truncated] * len(self.agents)))
+        terminated = dict(enumerate(self.agent_state.terminated))
+        reward = dict(enumerate(reward))
 
-        return obs, reward, terminated, truncated, {}
+        return obs, reward, terminated, truncated, defaultdict(dict)
 
     def gen_obs(self) -> dict[AgentID, ObsType]:
         """
@@ -583,7 +597,6 @@ class MultiGridEnv(gym.Env):
         Render a non-partial observation for visualization.
         """
         # Compute agent visibility masks
-        grid_with_agents = self.grid_with_agents()
         vis_masks = gen_obs_grid_vis_mask(
             self.grid.state, self.agent_state, self.agents[0].view_size)
 
@@ -620,6 +633,7 @@ class MultiGridEnv(gym.Env):
                     highlight_mask[abs_i, abs_j] = True
 
         # Render the whole grid
+        grid_with_agents = self.grid_with_agents()
         img = grid_with_agents.render(
             tile_size,
             highlight_mask=highlight_mask if highlight else None,
@@ -704,5 +718,8 @@ class MultiGridEnv(gym.Env):
             return img
 
     def close(self):
+        """
+        Close the rendering window.
+        """
         if self.window:
             pygame.quit()

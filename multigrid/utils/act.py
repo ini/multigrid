@@ -1,10 +1,20 @@
 import numba as nb
 import numpy as np
 
+from ..core.actions import Actions
 from ..core.constants import DIR_TO_VEC, OBJECT_TO_IDX, STATE_TO_IDX
 from ..core.world_object import WorldObjState
 
 
+
+# Action enumeration
+LEFT = Actions.left
+RIGHT = Actions.right
+FORWARD = Actions.forward
+PICKUP = Actions.pickup
+DROP = Actions.drop
+TOGGLE = Actions.toggle
+DONE = Actions.done
 
 # WorldObjState indices
 TYPE = 0
@@ -17,7 +27,7 @@ DIR = 2
 POS_X = 3
 POS_Y = 4
 TERMINATED = 5
-CARRYING = [6, 7, 8, 9]
+CARRYING = np.array([6, 7, 8, 9])
 
 # Object type indices
 EMPTY = OBJECT_TO_IDX['empty']
@@ -82,6 +92,10 @@ def handle_actions(
     for i in range(len(order)):
         agent = order[i]
 
+        # Check if the agent is terminated
+        if agent_state[agent, TERMINATED]:
+            continue
+
         # Unpack agent state
         agent_dir = agent_state[agent, DIR]
         agent_x = agent_state[agent, POS_X]
@@ -93,20 +107,16 @@ def handle_actions(
         fwd_y = agent_state[agent, POS_Y] + dy
         fwd_state = grid_state[fwd_x, fwd_y]
 
-        # Check if the agent is terminated
-        if agent_state[agent, TERMINATED]:
-            continue
-
         # Rotate left
-        if action[agent] == 0:
+        if action[agent] == LEFT:
             agent_state[agent, DIR] = (agent_state[agent, DIR] - 1) % 4
 
         # Rotate right
-        elif action[agent] == 1:
+        elif action[agent] == RIGHT:
             agent_state[agent, DIR] = (agent_state[agent, DIR] + 1) % 4
 
         # Move forward
-        elif action[agent] == 2:
+        elif action[agent] == FORWARD:
             if can_overlap(fwd_state):
                 if allow_agent_overlap or not agent_location_mask[fwd_x, fwd_y]:
                     agent_location_mask[agent_x, agent_y] = False
@@ -114,32 +124,32 @@ def handle_actions(
                     agent_state[agent, POS_X] = fwd_x
                     agent_state[agent, POS_Y] = fwd_y
 
-            if fwd_state[0] == LAVA:
+            if fwd_state[TYPE] == LAVA:
                 agent_state[agent, TERMINATED] = True # set terminated to True
-            elif fwd_state[0] == GOAL:
+            elif fwd_state[TYPE] == GOAL:
                 agent_state[agent, TERMINATED] = True # set terminated to True
                 rewards[agent] += 1
 
         # Pick up an object
-        elif action[agent] == 3:
+        elif action[agent] == PICKUP:
             if can_pickup(fwd_state):
-                if agent_state[agent, 6] == EMPTY:
-                    agent_state[agent, 6:10] = fwd_state
+                if agent_state[agent, CARRYING[TYPE]] == EMPTY:
+                    agent_state[agent][CARRYING] = fwd_state
                     grid_state[fwd_x, fwd_y] = (EMPTY, 0, 0, 0)
 
         # Drop an object
-        elif action[agent] == 4:
-            if fwd_state[0] == EMPTY:
-                if agent_state[agent, 6] != EMPTY:
-                    grid_state[fwd_x, fwd_y] = agent_state[agent, 6:10]
-                    agent_state[agent, 6:10] = (EMPTY, 0, 0, 0)
-        
+        elif action[agent] == DROP:
+            if fwd_state[TYPE] == EMPTY:
+                if agent_state[agent, CARRYING[TYPE]] != EMPTY:
+                    grid_state[fwd_x, fwd_y] = agent_state[agent][CARRYING]
+                    agent_state[agent][CARRYING] = (EMPTY, 0, 0, 0)
+
         # Toggle an object
-        elif action[agent] == 5:
-            toggle(fwd_state, agent_state[agent, 6:10])
+        elif action[agent] == TOGGLE:
+            toggle(fwd_state, agent_state[agent][CARRYING])
 
         # Done action (not used by default)
-        elif action[agent] == 6:
+        elif action[agent] == DONE:
             pass
 
     return rewards
@@ -230,7 +240,7 @@ def from_mixed_radix_int(n: int) -> np.ndarray[int]:
         x[i] = n % BASES[i]
         n //= BASES[i]
 
-    if x[0] == 0:
-        x[0] = EMPTY
+    if x[TYPE] == 0:
+        x[TYPE] = EMPTY
 
     return x
