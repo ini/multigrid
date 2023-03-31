@@ -4,7 +4,6 @@ import math
 import numpy as np
 import pygame
 import pygame.freetype
-import random
 
 from abc import abstractmethod
 from gymnasium import spaces
@@ -156,7 +155,6 @@ class MultiGridEnv(gym.Env):
         Reset the environment.
         """
         super().reset(seed=seed)
-        self.random = random.Random(seed)
 
         # Reinitialize episode-specific variables
         for agent in self.agents.values():
@@ -451,6 +449,7 @@ class MultiGridEnv(gym.Env):
             self.agent_state,
             allow_agent_overlap=False,
         )
+        reward *= self._reward()
 
         # agent_locations = {
         #   agent.id: tuple(agent.state.pos) for agent in self.agents.values()}
@@ -524,15 +523,8 @@ class MultiGridEnv(gym.Env):
         if self.render_mode == 'human':
             self.render()
 
-        # Calculate rewards
-        for agent in self.agents.values():
-            fwd_pos = agent.front_pos
-            fwd_cell = self.grid.get(*fwd_pos)
-            if fwd_cell is not None and fwd_cell.type == 'goal':
-                reward[agent.id] = self._reward()
-
         obs = self.gen_obs()
-        reward = dict(enumerate(reward * self._reward()))
+        reward = {agent.id: reward[agent.id] for agent in self.agents.values()}
         truncated = (self.step_count >= self.max_steps)
         truncated = {agent.id: truncated for agent in self.agents.values()}
         terminated = {agent.id: agent.state.terminated for agent in self.agents.values()}

@@ -193,7 +193,7 @@ class WorldObjState(np.ndarray):
         """
         Return the state object contained by this object.
         """
-        return self.__class__.from_int(self[..., 3])
+        return self.from_int(self[..., 3])
 
     @contains.setter
     def contains(self, obj_state: 'WorldObjState'):

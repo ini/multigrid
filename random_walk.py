@@ -148,4 +148,4 @@ if __name__ == '__main__':
     #random_walk(1, agents=3, render=True)
     #compare(1000)
     import cProfile
-    cProfile.run('random_walk(10000, agents=1)', sort='cumtime')
+    cProfile.run('random_walk(5000, agents=1)', sort='cumtime')
