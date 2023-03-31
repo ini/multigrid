@@ -1,6 +1,5 @@
 import numpy as np
 
-from abc import ABC, abstractmethod
 from typing import Optional, TYPE_CHECKING
 
 from .constants import (
@@ -9,6 +8,7 @@ from .constants import (
     STATE_TO_IDX, IDX_TO_STATE,
 )
 
+from ..utils.misc import can_overlap, can_pickup
 from ..utils.rendering import (
     fill_coords,
     point_in_circle,
@@ -18,33 +18,11 @@ from ..utils.rendering import (
 
 if TYPE_CHECKING:
     from .agent import Agent
-    from ..minigrid_env import MiniGridEnv
+    from ..multigrid_env import MultiGridEnv
 
 
 
-class Encodable(ABC):
-    """
-    Interface for objects that can be encoded as a 3-tuple of integers.
-    """
-
-    @abstractmethod
-    def world_state(self) -> 'WorldObjState':
-        """
-        Get the `WorldObjState` for this object.
-        """
-        pass
-
-    def encode(self) -> tuple[int, int, int] | np.ndarray[int]:
-        """
-        Encode a description of this object as a 3-tuple of integers.
-        """
-        out = self.world_state().encode()
-        if out.ndim == 1:
-            out = tuple(out)
-        return out
-
-
-class WorldObjState(np.ndarray, Encodable):
+class WorldObjState(np.ndarray):
     """
     State for a `WorldObj` grid object.
 
@@ -106,6 +84,7 @@ class WorldObjState(np.ndarray, Encodable):
     encode_dim = 3
     max_contain_depth = 2
     _bases = [max(IDX_TO_OBJECT) + 1, max(IDX_TO_COLOR) + 1, len(IDX_TO_STATE) + 1]
+    _bases = [*_bases, np.prod(_bases) ** max_contain_depth]
     _types = np.array(list(OBJECT_TO_IDX.keys()))
     _colors = np.array(list(COLOR_TO_IDX.keys()))
     _states = np.array(list(STATE_TO_IDX.keys()))
@@ -147,12 +126,11 @@ class WorldObjState(np.ndarray, Encodable):
         """
         Convert a mixed radix integer-encoding to a WorldObjState object.
         """
-        bases = [*cls._bases, np.prod(cls._bases) ** cls.max_contain_depth]
         n_arr = np.array(n)
         x = cls(*n.shape)
         for i in range(cls.dim):
-            x[..., i] = n_arr % bases[i]
-            n_arr //= bases[i]
+            x[..., i] = n_arr % cls._bases[i]
+            n_arr //= cls._bases[i]
 
         x[np.array(n) == 0] = WorldObjState(type='empty')
         return x
@@ -228,6 +206,9 @@ class WorldObjState(np.ndarray, Encodable):
         """
         Can an agent overlap with this?
         """
+        if self.ndim == 1:
+            return can_overlap(*self)
+
         mask = (self[..., 0] == OBJECT_TO_IDX['empty']) # can overlap empty
         mask |= (self[..., 0] == OBJECT_TO_IDX['goal']) # can overlap goal
         mask |= (self[..., 0] == OBJECT_TO_IDX['floor']) # can overlap floor
@@ -242,6 +223,9 @@ class WorldObjState(np.ndarray, Encodable):
         """
         Can an agent pick this up?
         """
+        if self.ndim == 1:
+            return can_pickup(*self)
+
         mask = (self[..., 0] == OBJECT_TO_IDX['key']) # can pickup key
         mask |= (self[..., 0] == OBJECT_TO_IDX['ball']) # can pickup ball
         mask |= (self[..., 0] == OBJECT_TO_IDX['box']) # can pickup box
@@ -264,12 +248,6 @@ class WorldObjState(np.ndarray, Encodable):
         )
         return ~neg_mask
 
-    def world_state(self) -> 'WorldObjState':
-        """
-        Get the `WorldObjState` for this object.
-        """
-        return self
-
     def encode(self) -> np.ndarray[int]:
         """
         Encode a description of this object state.
@@ -280,17 +258,16 @@ class WorldObjState(np.ndarray, Encodable):
         """
         Encode this object state as a mixed radix integer.
         """
-        bases = [*self._bases, np.prod(self._bases) ** self.max_contain_depth]
         base, n = 1, np.zeros(self.shape[:-1])
         for i in range(self.dim):
             n += (self[..., i] * base)
-            base *= bases[i]
+            base *= self._bases[i]
 
         n[n == OBJECT_TO_IDX['empty']] = 0
         return n
 
 
-class WorldObj(Encodable):
+class WorldObj:
     """
     Base class for grid world objects.
 
@@ -404,17 +381,11 @@ class WorldObj(Encodable):
         """
         return self.state.see_behind()
 
-    def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
+    def toggle(self, env: 'MultiGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         """
         Method to trigger/toggle an action this object performs.
         """
         return False
-
-    def world_state(self) -> WorldObjState:
-        """
-        Get the `WorldObjState` for this object.
-        """
-        return self.state
 
     def encode(self) -> tuple[int, int, int]:
         """
@@ -550,7 +521,7 @@ class Door(WorldObj):
         elif not self.is_open:
             self.state.state = 'closed' # set state to closed (unless already open)
 
-    def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
+    def toggle(self, env: 'MultiGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         # If the player has the right key to open the door
         if self.is_locked:
             if isinstance(agent.state.carrying, Key):
@@ -633,7 +604,7 @@ class Box(WorldObj):
         super().__init__('box', color)
         self.contains = contains
 
-    def toggle(self, env: 'MiniGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
+    def toggle(self, env: 'MultiGridEnv', agent: 'Agent', pos: tuple[int, int]) -> bool:
         # Replace the box by its contents
         env.grid.set(pos[0], pos[1], self.contains)
         return True
@@ -647,10 +618,3 @@ class Box(WorldObj):
 
         # Horizontal slit
         fill_coords(img, point_in_rect(0.16, 0.84, 0.47, 0.53), c)
-
-
-class Encodable(ABC):
-
-    @abstractmethod
-    def world_state(self) -> WorldObjState:
-        pass

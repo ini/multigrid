@@ -1,120 +1,167 @@
 import numpy as np
 
 from gymnasium import spaces
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .actions import Actions
-from .constants import COLORS, DIR_TO_VEC, COLOR_TO_IDX, IDX_TO_COLOR, OBJECT_TO_IDX
-from .grid import Grid
+from .constants import COLORS, DIR_TO_VEC, COLOR_TO_IDX, OBJECT_TO_IDX
 from .mission import MissionSpace
 from .world_object import WorldObj, WorldObjState
 
-from ..utils.numba import gen_obs_grid, gen_obs_grid_encoding
-from ..utils.misc import get_view_exts, front_pos
+from ..utils.misc import front_pos
 from ..utils.rendering import (
     fill_coords,
     point_in_triangle,
     rotate_fn,
 )
 
+if TYPE_CHECKING:
+    from .grid import Grid
+
 
 
 class AgentState(np.ndarray):
     """
-    Array representation of an agent state.
+    State for an `Agent` object.
 
-    The state is a 6-dimensional array, indexed as follows:
-        * 0: x position
-        * 1: y position
-        * 2: direction
-        * 3: color
-        * 4: terminated
-        * 5: carried object
+    The state is a 10-dimensional array, indexed as follows:
+        * 0: object type (i.e. 'agent')
+        * 1: agent color
+        * 2: agent direction
+        * 3: x position
+        * 4: y position
+        * 5: whether the agent has terminated
+        * 6-9: WorldObjState of carried object (if any)
 
-    AgentState objects can also be vectorized, in which case the first
-    (n - 1) dimensions index a batch of states, and the last dimension
-    represents each index in a state array.
+    AgentState objects also support vectorized operations,
+    in which case the first (n - 1) dimensions represent a "batch" of states,
+    and the last dimension represents each index in a state array.
 
     Attributes
     ----------
-    pos : np.ndarray[int] of shape (2,)
-        Agent (x, y) position
-    dir : int
-        Agent direction
     color : str
         Agent color
+    dir : int
+        Agent direction (integer from 0 to 3)
+    pos : np.ndarray[int]
+        Agent (x, y) position
     terminated : bool
         Whether the agent has terminated
-    carrying : WorldObj or None
-        The object the agent is carrying
+    carrying : WorldObjState
+        WorldObjState of object the agent is carrying
     """
-    dim = 6
-    color_to_idx = np.vectorize(COLOR_TO_IDX.get)
-    idx_to_color = np.vectorize(IDX_TO_COLOR.get)
+    dim = 6 + WorldObjState.dim
+    _colors = np.array(list(COLOR_TO_IDX.keys()))
+    _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
+    _dir_to_vec = np.array(DIR_TO_VEC)
 
     def __new__(cls, *dims: int):
-        obj = super().__new__(cls, shape=dims+(cls.dim,), dtype=object)
-        obj[..., :3] = -1 # pos & dir
-        obj[..., 3] = np.arange(np.prod(dims), dtype=int).reshape(*dims) # color
-        obj[..., 3] %= len(COLOR_TO_IDX)
-        obj[..., 4] = False # terminated
-        obj[..., 5] = None # carrying
+        obj = super().__new__(cls, shape=dims+(cls.dim,), dtype=int)
+        obj[..., 0] = OBJECT_TO_IDX['agent'] # type
+        obj[..., 1] = np.arange(np.prod(dims), dtype=int).reshape(*dims) # color
+        obj[..., 1] %= len(COLOR_TO_IDX)
+        obj[..., 2] = -1 # dir
+        obj[..., 3:5] = -1 # pos
+        obj[..., 5] = False # terminated
+        obj[..., 6:] = 0 # carrying
         return obj
 
-    def to_world_state(self) -> WorldObjState:
-        out = WorldObjState.empty(*self.shape[:-1])
-        out[..., :3] = (OBJECT_TO_IDX['agent'], COLOR_TO_IDX[self.color], self.dir)
-        return out
-
     @property
-    def pos(self) -> np.ndarray[int]:
-        return self[..., :2]
+    def color(self) -> str:
+        """
+        Return the name of the agent color.
+        """
+        out = self._colors[self[..., 1]]
+        return out.item() if out.ndim == 0 else out
 
-    @pos.setter
-    def pos(self, value: np.ndarray[int]):
-        self[..., :2] = value
+    @color.setter
+    def color(self, value: str):
+        """
+        Set the agent color.
+        """
+        self[..., 1] = self.color_to_idx(value)
 
     @property
     def dir(self) -> int:
+        """
+        Return the agent direction.
+        """
         out = self[..., 2]
         return out.item() if out.ndim == 0 else out
 
     @dir.setter
     def dir(self, value: int):
+        """
+        Set the agent direction.
+        """
         self[..., 2] = value
 
     @property
-    def color(self) -> str:
-        out = self.idx_to_color(self[..., 3])
-        return out.item() if out.ndim == 0 else out
+    def pos(self) -> np.ndarray[int]:
+        """
+        Return the agent's (x, y) position.
+        """
+        return self[..., 3:5]
 
-    @color.setter
-    def color(self, value: str):
-        self[..., 3] = self.color_to_idx(value)
+    @pos.setter
+    def pos(self, value: np.ndarray[int]):
+        """
+        Set the agent's (x, y) position.
+        """
+        self[..., 3:5] = value
 
     @property
     def terminated(self) -> bool:
-        out = self[..., 4].astype(bool)
-        return out.item() if out.ndim == 0 else out
+        """
+        Return whether the agent has terminated.
+        """
+        out = self[..., 5]
+        return bool(out.item()) if out.ndim == 0 else out
 
     @terminated.setter
     def terminated(self, value: bool):
-        self[..., 4] = value
+        """
+        Set whether the agent has terminated.
+        """
+        self[..., 5] = value
 
     @property
-    def carrying(self) -> Optional[WorldObj]:
-        obj = self[..., 5]
-        return obj.item() if obj.ndim == 0 else obj
+    def carrying(self) -> WorldObjState:
+        """
+        Return the WorldObjState of the object the agent is carrying.
+        """
+        arr = self[..., 6:6+WorldObjState.dim]
+        return WorldObjState.from_array(arr)
 
     @carrying.setter
-    def carrying(self, obj: Optional[WorldObj]):
-        self[..., 5] = obj
+    def carrying(self, obj_state: WorldObjState):
+        """
+        Set the WorldObjState of the object the agent is carrying.
+        """
+        self[..., 6:6+WorldObjState.dim] = obj_state
 
+    def world_obj_state_encoding(self):
+        """
+        Encode a description of this agent as a 3-tuple of integers
+        (i.e. type, color, direction).
+        """
+        return self[..., :WorldObjState.encode_dim]
 
 
 class Agent:
     """
     Class representing an agent in the environment.
+
+    Attributes
+    ----------
+    id : int
+        Index of the agent in the environment
+    state : AgentState
+        State of the agent
+    action_space : gym.spaces.Discrete
+        Action space for the agent
+    observation_space : gym.spaces.Dict
+        Observation space for the agent
     """
 
     def __init__(
@@ -136,8 +183,8 @@ class Agent:
         see_through_walls : bool
             Whether the agent can see through walls
         """
-        self.id = id
-        self.state = state
+        self.id: int = id
+        self.state: AgentState = state
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Actions))
@@ -166,13 +213,30 @@ class Agent:
 
     def reset(self, mission: str = 'maximize reward'):
         """
-        Reset the agent before environment episode.
+        Reset the agent to an initial state.
         """
         self.mission = mission
         self.state.pos = (-1, -1)
         self.state.dir = -1
         self.state.terminated = False
-        self.state.carrying = None
+        self.state.carrying = WorldObjState.empty()
+
+    @property
+    def carrying(self) -> Optional[WorldObj]:
+        """
+        Return the object the agent is carrying.
+        """
+        return WorldObj.from_state(self.state.carrying)
+
+    @carrying.setter
+    def carrying(self, obj: Optional[WorldObj]):
+        """
+        Set the object the agent is carrying.
+        """
+        if obj is None:
+            self.state.carrying = WorldObjState.empty()
+        else:
+            self.state.carrying = obj.state
 
     @property
     def dir_vec(self) -> np.ndarray[int]:
@@ -180,10 +244,7 @@ class Agent:
         Get the direction vector for the agent, pointing in the direction
         of forward movement.
         """
-        assert (
-            0 <= self.state.dir < 4
-        ), f"Invalid direction: {self.state.dir} is not within range(0, 4)"
-        return DIR_TO_VEC[self.state.dir]
+        return DIR_TO_VEC[self.state.dir % 4]
 
     @property
     def right_vec(self) -> np.ndarray[int]:
@@ -198,7 +259,11 @@ class Agent:
         """
         Get the position of the cell that is right in front of the agent.
         """
-        return front_pos(tuple(self.state.pos), self.state.dir)
+        return front_pos(*self.state.pos, self.state.dir)
+
+    def world_state(self) -> WorldObjState:
+        arr = np.array([*self.state.world_obj_state_encoding(), 0])
+        return WorldObjState.from_array(arr)
 
     def get_view_coords(self, i, j) -> tuple[int, int]:
         """
@@ -244,7 +309,7 @@ class Agent:
         """
         return self.relative_coords(x, y) is not None
 
-    def sees(self, x: int, y: int, grid: Grid) -> bool:
+    def sees(self, x: int, y: int, grid: 'Grid') -> bool:
         """
         Check if a non-empty grid position is visible to the agent.
         """
@@ -260,62 +325,11 @@ class Agent:
         assert world_cell is not None
         return obs_cell is not None and obs_cell.type == world_cell.type
 
-    def gen_obs_grid(self, grid_state: WorldObjState) -> tuple[Grid, np.ndarray[bool]]:
-        """
-        Generate the sub-grid observed by the agent.
-
-        Returns
-        -------
-        grid : Grid
-            Grid of partially observable view of the environment
-        vis_mask : np.ndarray[bool]
-            Mask indicating which grid cells are visible to the agent
-        """
-        topX, topY, _, _ = get_view_exts(
-            self.state.dir, tuple(self.state.pos), self.view_size)
-        carrying = self.state.carrying
-        obs_grid_result = gen_obs_grid(
-            grid_state.encode(),
-            WorldObjState.empty().encode() if carrying is None else carrying.encode(),
-            self.state.dir,
-            topX, topY,
-            self.view_size, self.view_size,
-            self.see_through_walls,
-        )
-        grid_state = obs_grid_result[..., :-1].astype(int)
-        vis_mask = obs_grid_result[..., -1].astype(bool)
-        return Grid.from_grid_state(grid_state), vis_mask
-
-    def gen_obs(self, grid_state: WorldObjState) -> dict:
-        """
-        Generate the agent's view (partially observable, low-resolution encoding).
-
-        Returns
-        -------
-        obs : dict
-            - 'image': partially observable view of the environment
-            - 'direction': agent's direction/orientation (acting as a compass)
-            - 'mission': textual mission string (instructions for the agent)
-        """
-        topX, topY, _, _ = get_view_exts(
-            self.state.dir, tuple(self.state.pos), self.view_size)
-        carrying = self.state.carrying
-        image = gen_obs_grid_encoding(
-            grid_state.encode(),
-            WorldObjState.empty().encode() if carrying is None else carrying.encode(),
-            self.state.dir,
-            topX, topY,
-            self.view_size, self.view_size,
-            self.see_through_walls,
-        )
-        obs = {'image': image, 'direction': self.state.dir, 'mission': self.mission}
-        return obs
-
     def encode(self):
         """
         Encode a description of this agent as a 3-tuple of integers.
         """
-        return (OBJECT_TO_IDX['agent'], COLOR_TO_IDX[self.state.color], self.state.dir)
+        return tuple(self.state.world_obj_state_encoding())
 
     def render(self, img: np.ndarray[int]):
         """

@@ -1,9 +1,9 @@
 import numpy as np
+from typing import Any, Callable, Optional, Union
 
-from typing import Any, Callable, Optional
-
+from .agent import Agent
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
-from .world_object import Encodable, Wall, WorldObj, WorldObjState
+from .world_object import Wall, WorldObj, WorldObjState
 
 from ..utils.rendering import (
     downsample,
@@ -14,7 +14,7 @@ from ..utils.rendering import (
 
 
 
-class Grid(Encodable):
+class Grid:
     """
     Represent a grid and operations on it.
     """
@@ -98,16 +98,12 @@ class Grid(Encodable):
         from copy import deepcopy
         return deepcopy(self)
 
-    def set(self, i: int, j: int, v: Optional[Encodable]):
+    def set(self, i: int, j: int, v: Union[WorldObj, Agent, None]):
         """
         Set a world object at the given coordinates.
         """
-        assert (
-            0 <= i < self.width
-        ), f"column index {j} outside of grid of width {self.width}"
-        assert (
-            0 <= j < self.height
-        ), f"row index {j} outside of grid of height {self.height}"
+        assert 0 <= i < self.width
+        assert 0 <= j < self.height
 
         # Update world objects
         prev_obj = self.world_objects.pop((i, j), None)
@@ -118,10 +114,14 @@ class Grid(Encodable):
         # Update grid
         if v is None:
             self.state[i, j] = WorldObjState.empty()
+        elif isinstance(v, WorldObj):
+            self.state[i, j] = v.state # copy object state to grid state
+            v.state = self.state[i, j] # object state references grid state
+        elif isinstance(v, Agent):
+            self.state[i, j] = v.world_state() # update grid state
         else:
-            self.state[i, j] = v.world_state() # copy object state to grid state
-            if isinstance(v, WorldObj):
-                v.state = self.state[i, j] # object state references grid state
+            raise TypeError(f"cannot set grid value to {type(v)}")
+
 
     def get(self, i: int, j: int) -> Optional[WorldObj]:
         """
@@ -249,13 +249,7 @@ class Grid(Encodable):
 
         return img
 
-    def world_state(self) -> WorldObjState:
-        """
-        Get the `WorldObjState` for this object.
-        """
-        return self.state
-
-    def encode(self, vis_mask: np.ndarray | None = None) -> np.ndarray:
+    def encode(self, vis_mask: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Produce a compact numpy encoding of the grid.
         """

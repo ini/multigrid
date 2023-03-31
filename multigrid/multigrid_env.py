@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import gymnasium as gym
 import hashlib
 import math
@@ -15,10 +13,13 @@ from typing import Any, Iterable, Optional, SupportsFloat, TypeVar
 
 from .core.actions import Actions
 from .core.agent import Agent, AgentState
-from .core.constants import COLOR_NAMES, OBJECT_TO_IDX, TILE_PIXELS
+from .core.constants import COLOR_NAMES, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
+
+from .utils.obs import gen_obs_grid_encoding, gen_obs_grid_vis_mask
+from .utils.step import handle_actions
 
 T = TypeVar('T')
 AgentID = int
@@ -42,7 +43,7 @@ class MultiGridEnv(gym.Env):
     """
     metadata = {
         'render_modes': ['human', 'rgb_array'],
-        'render_fps': 10,
+        'render_fps': 20,
     }
 
     def __init__(
@@ -165,12 +166,8 @@ class MultiGridEnv(gym.Env):
         self._gen_grid(self.width, self.height)
 
         # These fields should be defined by _gen_grid
-        for agent in self.agents.values():
-            assert (
-                agent.state.pos >= (0, 0)
-                if isinstance(agent.state.pos, tuple)
-                else all(agent.state.pos >= 0) and agent.state.dir >= 0
-            )
+        assert np.all(self.agent_state.pos >= 0)
+        assert np.all(self.agent_state.dir >= 0)
 
         # Check that agents don't overlap with other objects
         for agent in self.agents.values():
@@ -238,7 +235,7 @@ class MultiGridEnv(gym.Env):
         AGENT_DIR_TO_STR = {0: '>', 1: 'V', 2: '<', 3: '^'}
 
         output = ""
-        grid = Grid.from_grid_state(self.grid_state_with_agents())
+        grid = self.grid_with_agents()
         for j in range(grid.height):
             for i in range(grid.width):
                 tile = grid.get(i, j)
@@ -446,122 +443,136 @@ class MultiGridEnv(gym.Env):
         self.step_count += 1
 
         reward = {agent.id: 0 for agent in self.agents.values()}
-        agent_locations = {agent.id: tuple(agent.state.pos) for agent in self.agents.values()}
-        acting_agent_ids = list(actions.keys())
-        self.random.shuffle(acting_agent_ids)
 
-        for agent_id in acting_agent_ids:
-            action, agent = actions[agent_id], self.agents[agent_id]
+        action_array = np.asarray(actions)
+        order = self.np_random.random(size=len(self.agents)).argsort()
+        reward = handle_actions(
+            action_array, order, self.grid.state, self.agent_state)
 
-            if agent.state.terminated:
-                continue
+        # agent_locations = {agent.id: tuple(agent.state.pos) for agent in self.agents.values()}
 
-            # Rotate left
-            if action == self.actions.left:
-                agent.state.dir = (agent.state.dir - 1) % 4
+        # for agent_id in order:
+        #     action, agent = actions[agent_id], self.agents[agent_id]
 
-            # Rotate right
-            elif action == self.actions.right:
-                agent.state.dir = (agent.state.dir + 1) % 4
+        #     if agent.state.terminated:
+        #         continue
 
-            # Move forward
-            elif action == self.actions.forward:
-                fwd_pos = agent.front_pos
-                fwd_cell = self.grid.get(*fwd_pos)
+        #     # Rotate left
+        #     if action == self.actions.left:
+        #         agent.state.dir = (agent.state.dir - 1) % 4
 
-                if fwd_cell is None or fwd_cell.can_overlap():
-                    if fwd_pos not in agent_locations.values():
-                        agent.state.pos = fwd_pos
-                        agent_locations[agent.id] = fwd_pos
-                if fwd_cell is not None and fwd_cell.type == 'goal':
-                    agent.state.terminated = True
-                    reward[agent.id] = self._reward()
-                if fwd_cell is not None and fwd_cell.type == 'lava':
-                    agent.state.terminated = True
+        #     # Rotate right
+        #     elif action == self.actions.right:
+        #         agent.state.dir = (agent.state.dir + 1) % 4
 
-            # Pick up an object
-            elif action == self.actions.pickup:
-                fwd_pos = agent.front_pos
-                fwd_cell = self.grid.get(*fwd_pos)
+        #     # Move forward
+        #     elif action == self.actions.forward:
+        #         fwd_pos = agent.front_pos
+        #         fwd_cell = self.grid.get(*fwd_pos)
 
-                if fwd_cell and fwd_cell.can_pickup():
-                    if agent.state.carrying is None:
-                        agent.state.carrying = fwd_cell
-                        agent.state.carrying.cur_pos = np.array([-1, -1])
-                        self.grid.set(fwd_pos[0], fwd_pos[1], None)
+        #         if fwd_cell is None or fwd_cell.can_overlap():
+        #             if fwd_pos not in agent_locations.values():
+        #                 agent.state.pos = fwd_pos
+        #                 agent_locations[agent.id] = fwd_pos
+        #         if fwd_cell is not None and fwd_cell.type == 'goal':
+        #             agent.state.terminated = True
+        #             reward[agent.id] = self._reward()
+        #         if fwd_cell is not None and fwd_cell.type == 'lava':
+        #             agent.state.terminated = True
 
-            # Drop an object
-            elif action == self.actions.drop:
-                fwd_pos = agent.front_pos
-                fwd_cell = self.grid.get(*fwd_pos)
+        #     # Pick up an object
+        #     elif action == self.actions.pickup:
+        #         fwd_pos = agent.front_pos
+        #         fwd_cell = self.grid.get(*fwd_pos)
 
-                if not fwd_cell and agent.state.carrying:
-                    self.grid.set(fwd_pos[0], fwd_pos[1], agent.state.carrying)
-                    agent.state.carrying.cur_pos = fwd_pos
-                    agent.state.carrying = None
+        #         if fwd_cell and fwd_cell.can_pickup():
+        #             if agent.state.carrying.type == 'empty':
+        #                 agent.carrying = fwd_cell
+        #                 #agent.carrying.cur_pos = np.array([-1, -1])
+        #                 self.grid.set(fwd_pos[0], fwd_pos[1], None)
 
-            # Toggle/activate an object
-            elif action == self.actions.toggle:
-                fwd_pos = agent.front_pos
-                fwd_cell = self.grid.get(*fwd_pos)
+        #     # Drop an object
+        #     elif action == self.actions.drop:
+        #         fwd_pos = agent.front_pos
+        #         fwd_cell = self.grid.get(*fwd_pos)
 
-                if fwd_cell:
-                    fwd_cell.toggle(self, agent, fwd_pos)
+        #         if not fwd_cell and agent.state.carrying.type != 'empty':
+        #             self.grid.set(fwd_pos[0], fwd_pos[1], agent.carrying)
+        #             #agent.carrying.cur_pos = fwd_pos
+        #             agent.state.carrying = WorldObjState.empty()
 
-            # Done action (not used by default)
-            elif action == self.actions.done:
-                pass
+        #     # Toggle/activate an object
+        #     elif action == self.actions.toggle:
+        #         fwd_pos = agent.front_pos
+        #         fwd_cell = self.grid.get(*fwd_pos)
 
-            else:
-                raise ValueError(f"Unknown action: {action}")
+        #         if fwd_cell:
+        #             fwd_cell.toggle(self, agent, fwd_pos)
 
+        #     # Done action (not used by default)
+        #     elif action == self.actions.done:
+        #         pass
+
+        #     else:
+        #         raise ValueError(f"Unknown action: {action}")
+
+        # Rendering
         if self.render_mode == 'human':
             self.render()
 
+        # Calculate rewards
+        for agent in self.agents.values():
+            fwd_pos = agent.front_pos
+            fwd_cell = self.grid.get(*fwd_pos)
+            if fwd_cell is not None and fwd_cell.type == 'goal':
+                reward[agent.id] = self._reward()
+
         obs = self.gen_obs()
+        reward = dict(enumerate(reward * self._reward()))
         truncated = (self.step_count >= self.max_steps)
         truncated = {agent.id: truncated for agent in self.agents.values()}
         terminated = {agent.id: agent.state.terminated for agent in self.agents.values()}
 
         return obs, reward, terminated, truncated, {}
 
+    def gen_obs(self) -> dict[AgentID, ObsType]:
+        """
+        Generate observations for each agent (partially observable, low-res encoding).
+
+        Returns
+        -------
+        obs : dict[AgentID, dict]
+            Mapping from agent ID to observation dict, containing:
+                - 'image': partially observable view of the environment
+                - 'direction': agent's direction/orientation (acting as a compass)
+                - 'mission': textual mission string (instructions for the agent)
+        """
+        direction = self.agent_state.dir
+        image = gen_obs_grid_encoding(
+            self.grid.state,
+            self.agent_state,
+            self.agents[0].view_size,
+            self.agents[0].see_through_walls,
+        )
+
+        obs = {}
+        for i in range(len(self.agents)):
+            obs[i] = {
+                'image': image[i],
+                'direction': direction[i],
+                'mission': self.mission,
+            }
+        return obs
+
     def grid_with_agents(self):
         """
-        Return a copy of the grid with the agents on it.
+        Return a copy of the grid with the agents on it (for rendering).
         """
         grid = Grid.from_grid_state(self.grid.state.copy())
         for agent in self.agents.values():
             grid.set(*agent.state.pos, agent)
 
         return grid
-
-    def grid_state_with_agents(self):
-        """
-        Return a copy of the grid state with the agents in it.
-        """
-        grid_state = self.grid.state.copy()
-        for agent in self.agents.values():
-            pos = tuple(agent.state.pos)
-            grid_state[pos][0] = OBJECT_TO_IDX['agent']
-            grid_state[pos][1] = agent.id
-            grid_state[pos][2] = agent.state.dir
-
-        return grid_state
-
-    def gen_obs(self) -> dict[AgentID, ObsType]:
-        """
-        Generate observations for each agent (partially observable, low-res encoding).
-        """
-        if len(self.agents) > 1:
-            grid_state = self.grid_state_with_agents()
-        else:
-            grid_state = self.grid.state
-
-        obs = {}
-        for agent in self.agents.values():
-            obs[agent.id] = agent.gen_obs(grid_state)
-
-        return obs
 
     def get_pov_render(self, *args, **kwargs):
         """
@@ -577,10 +588,8 @@ class MultiGridEnv(gym.Env):
         """
         # Compute agent visibility masks
         grid_with_agents = self.grid_with_agents()
-        vis_masks = {
-            agent.id: agent.gen_obs_grid(grid_with_agents.state)[1]
-            for agent in self.agents.values()
-        }
+        vis_masks = gen_obs_grid_vis_mask(
+            self.grid.state, self.agent_state, self.agents[0].view_size)
 
         # Mask of which cells to highlight
         highlight_mask = np.zeros((self.width, self.height), dtype=bool)
