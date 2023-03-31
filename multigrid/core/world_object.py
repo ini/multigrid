@@ -288,6 +288,9 @@ class WorldObj:
         assert color in COLOR_TO_IDX, color
         self.state = WorldObjState(type=type, color=color)
 
+    def __str__(self):
+        return f"{self.__class__.__name__}(color={self.color})"
+
     def __eq__(self, other: 'WorldObj') -> bool:
         return (
             np.array_equal(self.state, other.state)
@@ -486,6 +489,9 @@ class Door(WorldObj):
         super().__init__('door', color)
         self.is_open = is_open
         self.is_locked = is_locked
+
+    def __str__(self):
+        return f"{self.__class__.__name__}(color={self.color},state={self.state.state})"
 
     @property
     def is_open(self) -> bool:

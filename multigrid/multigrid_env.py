@@ -56,6 +56,7 @@ class MultiGridEnv(gym.Env):
         max_steps: int = 100,
         see_through_walls: bool = False,
         agent_view_size: int = 7,
+        allow_agent_overlap: bool = False,
         render_mode: Optional[str] = None,
         screen_size: Optional[int] = 1,
         highlight: bool = True,
@@ -78,10 +79,16 @@ class MultiGridEnv(gym.Env):
             Whether agents can see through walls
         agent_view_size : int
             Size of agent view (must be odd)
+        allow_agent_overlap : bool
+            Whether agents are allowed to overlap
         render_mode : str
             Rendering mode (human or rgb_array)
         screen_size : int
             Size of the screen (in tiles)
+        highlight : bool
+            Whether to highlight the view of each agent when rendering
+        tile_size : int
+            Width and height of each grid tiles (in pixels)
         """
         # Initialize mission
         self.mission = mission_space.sample()
@@ -93,6 +100,7 @@ class MultiGridEnv(gym.Env):
         self.grid = Grid(width, height)
 
         # Initialize agents
+        self.allow_agent_overlap = allow_agent_overlap
         if isinstance(agents, int):
             self.agent_state = AgentState(agents)
             self.agents: dict[AgentID, Agent] = {}
@@ -211,6 +219,32 @@ class MultiGridEnv(gym.Env):
         Number of steps remaining in the episode (until truncation).
         """
         return self.max_steps - self.step_count
+
+    @property
+    def agent_pos(self) -> np.ndarray[int]:
+        """
+        Get agent position.
+        """
+        return self.agent_state.pos
+
+    @property
+    def agent_dir(self) -> int:
+        """
+        Get agent direction.
+        """
+        return self.agent_state.dir
+
+    @property
+    def carrying(self) -> WorldObj:
+        """
+        Get object carried by agent.
+        """
+        carrying_obj_state = self.agent_state.carrying
+        objs = np.empty(self.agent_state.shape[:-1], dtype=object)
+        for index in np.ndindex(objs.shape):
+            objs[index] = WorldObj.from_state(carrying_obj_state[index])
+
+        return objs
 
     def __str__(self):
         """
@@ -461,7 +495,7 @@ class MultiGridEnv(gym.Env):
             order,
             self.grid.state,
             self.agent_state,
-            allow_agent_overlap=False,
+            allow_agent_overlap=self.allow_agent_overlap,
         )
         reward *= self._reward()
 

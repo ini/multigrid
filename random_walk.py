@@ -43,6 +43,9 @@ def done(terminated, truncated):
     if isinstance(terminated, bool) and isinstance(truncated, bool):
         return terminated or truncated
     
+    if isinstance(terminated, bool):
+        terminated = {agent_id: terminated for agent_id in truncated}
+
     for agent_id in terminated:
         if not terminated[agent_id] and not truncated[agent_id]:
             return False
@@ -56,7 +59,7 @@ def random_walk(num_episodes=1, render=False, **kwargs):
     if render:
         kwargs.update({'render_mode': 'human', 'screen_size': 500})
 
-    env = LockedRoomEnvMultiGrid(**kwargs)
+    env = RedBlueDoorEnv(**kwargs)
     for episode in range(num_episodes):
         obs, _ = env.reset(seed=episode)
         terminated, truncated = False, False
@@ -148,4 +151,4 @@ if __name__ == '__main__':
     #random_walk(1, agents=3, render=True)
     #compare(1000)
     import cProfile
-    cProfile.run('random_walk(5000, agents=1)', sort='cumtime')
+    cProfile.run('random_walk(1000, agents=8)', sort='cumtime')
