@@ -476,10 +476,19 @@ class MultiGridEnv(gym.Env):
             action_array,
             order,
             self.grid.state,
+            self.grid.needs_update,
+            self.grid.locations_to_update,
+            self.grid.needs_remove,
+            self.grid.locations_to_remove,
             self.agent_state,
             allow_agent_overlap=self.allow_agent_overlap,
         )
         reward *= self._reward()
+
+        if self.grid.needs_update:
+            self.grid.update_world_objects()
+        if self.grid.needs_remove:
+            self.grid.remove_world_objects()
 
         # agent_locations = {
         #   agent.id: tuple(agent.state.pos) for agent in self.agents.values()}

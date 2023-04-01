@@ -37,6 +37,13 @@ class Grid:
         self.world_objects: dict[tuple[int, int], WorldObj] = {}
         self.state: WorldObjState = WorldObjState(width, height)
 
+        # Arrays for updating world objects in the grid
+        # These can be passed by reference to numba functions (i.e. `handle_actions()`)
+        self.needs_update = np.zeros(1, dtype=bool)
+        self.locations_to_update = -np.ones((10, 2), dtype=int)
+        self.needs_remove = np.zeros(1, dtype=bool)
+        self.locations_to_remove = -np.ones((10, 2), dtype=int)
+
     @classmethod
     def from_grid_state(cls, grid_state: WorldObjState) -> 'Grid':
         """
@@ -107,22 +114,17 @@ class Grid:
         assert 0 <= j < self.height
 
         # Update world objects
-        prev_obj = self.world_objects.pop((i, j), None)
         self.world_objects[i, j] = v
-        if isinstance(prev_obj, WorldObj):
-            prev_obj.state = prev_obj.state.copy() # no longer references grid state
 
         # Update grid
         if v is None:
             self.state[i, j] = WorldObjState.empty()
         elif isinstance(v, WorldObj):
             self.state[i, j] = v.state # copy object state to grid state
-            v.state = self.state[i, j] # object state references grid state
         elif isinstance(v, Agent):
             self.state[i, j] = v.world_state() # update grid state
         else:
             raise TypeError(f"cannot set grid value to {type(v)}")
-
 
     def get(self, i: int, j: int) -> Optional[WorldObj]:
         """
@@ -131,7 +133,7 @@ class Grid:
         assert 0 <= i < self.width
         assert 0 <= j < self.height
         if (i, j) not in self.world_objects:
-            self.world_objects[i, j] = WorldObj.from_state(self.state[i, j])
+            self.world_objects[i, j] = WorldObj.from_state(self.state[i, j].copy())
 
         return self.world_objects[i, j]
 
@@ -279,3 +281,20 @@ class Grid:
                 vis_mask[i, j] = type_idx != OBJECT_TO_IDX['unseen']
 
         return grid, vis_mask
+
+    def update_world_objects(self):
+        """
+        Update WorldObj instances from the grid state.
+        """
+        self.needs_update[...] = False
+        for i, j in self.locations_to_update:
+            if (i, j) in self.world_objects:
+                self.world_objects[i, j].state[...] = self.state[i, j]
+
+    def remove_world_objects(self):
+        """
+        Remove WorldObj instances from the grid.
+        """
+        self.needs_remove[...] = False
+        for i, j in self.locations_to_remove:
+            self.world_objects.pop((i, j), None)

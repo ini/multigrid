@@ -64,7 +64,7 @@ class MiniGridInterface(MultiGridEnv):
            "This property is not supported for multi-agent envs. "
            "Try `env.agents[i].pos` instead."
         )
-        if value:
+        if value is not None:
             self.agents[0].pos = value
 
     @property

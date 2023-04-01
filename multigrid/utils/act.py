@@ -57,6 +57,10 @@ def handle_actions(
     action: np.ndarray[int],
     order: np.ndarray[int],
     grid_state: np.ndarray[int],
+    needs_update: np.ndarray[bool],
+    locations_to_update: np.ndarray[int],
+    needs_remove: np.ndarray[bool],
+    locations_to_remove: np.ndarray[int],
     agent_state: np.ndarray[int],
     allow_agent_overlap: bool):
     """
@@ -69,6 +73,14 @@ def handle_actions(
         The action taken by each agent
     order : np.ndarray[int] of shape (num_agents,)
         The order in which the agents take their actions
+    needs_update : np.ndarray[bool] of shape (1,)
+        A flag indicating whether any WorldObj instances need to be updated in grid
+    locations_to_update : np.ndarray[int] of shape (num_agents, 2)
+        Grid locations of the WorldObj instances that need to be updated
+    needs_remove : np.ndarray[bool] of shape (1,)
+        A flag indicating whether any WorldObj instances need to be removed from grid
+    locations_to_remove : np.ndarray[int] of shape (num_agents, 2)
+        Grid locations of the WorldObj instances that need to be removed
     grid_state : np.ndarray[int] of shape (width, height, grid_state_dim)
         The state of the grid
     agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
@@ -136,6 +148,8 @@ def handle_actions(
                 if agent_state[agent, CARRYING[TYPE]] == EMPTY:
                     agent_state[agent][CARRYING] = fwd_state
                     grid_state[fwd_x, fwd_y] = (EMPTY, 0, 0, 0)
+                    needs_remove[0] = True
+                    locations_to_remove[agent] = (fwd_x, fwd_y)
 
         # Drop an object
         elif action[agent] == DROP:
@@ -143,10 +157,18 @@ def handle_actions(
                 if agent_state[agent, CARRYING[TYPE]] != EMPTY:
                     grid_state[fwd_x, fwd_y] = agent_state[agent][CARRYING]
                     agent_state[agent][CARRYING] = (EMPTY, 0, 0, 0)
+                    needs_remove[0] = True
+                    locations_to_remove[agent] = (fwd_x, fwd_y)
 
         # Toggle an object
         elif action[agent] == TOGGLE:
-            toggle(fwd_state, agent_state[agent][CARRYING])
+            success = toggle(fwd_state, agent_state[agent][CARRYING])
+            if success[0]:
+                needs_update[0] = True
+                locations_to_update[agent] = (fwd_x, fwd_y)
+            elif success[1]:
+                needs_remove[0] = True
+                locations_to_remove[agent] = (fwd_x, fwd_y)
 
         # Done action (not used by default)
         elif action[agent] == DONE:
@@ -198,7 +220,7 @@ def can_pickup(world_obj_state: np.ndarray[int]) -> bool:
 @nb.njit(cache=True)
 def toggle(
     world_obj_state: np.ndarray[int],
-    carrying_obj_state: np.ndarray[int]):
+    carrying_obj_state: np.ndarray[int]) -> np.ndarray[bool]:
     """
     Toggle the state of this object.
 
@@ -206,16 +228,28 @@ def toggle(
     ----------
     world_obj_state : np.ndarray[int]
         The state of the world object
+    carrying_obj_state : np.ndarray[int]
+        The state of the object the toggling agent is carrying
+
+    Returns
+    -------
+    success : np.ndarray[bool] of shape (2,)
+        - success[0] : successfully toggled door
+        - success[1] : successfully toggled box
     """
+    success = np.zeros(2, dtype=np.bool_)
+
     # Handle doors
     if world_obj_state[TYPE] == DOOR:
         # Open -> Closed
         if world_obj_state[..., STATE] == OPEN:
             world_obj_state[..., STATE] = CLOSED
+            success[0] = True
 
         # Closed -> Open
         elif world_obj_state[..., STATE] == CLOSED:
             world_obj_state[..., STATE] = OPEN
+            success[0] = True
 
         # Locked -> Open
         elif world_obj_state[..., STATE] == LOCKED:
@@ -223,12 +257,16 @@ def toggle(
                 # Check if key color matches door color
                 if carrying_obj_state[..., COLOR] == world_obj_state[..., COLOR]:
                     world_obj_state[..., STATE] = OPEN
+                    success[0] = True
 
     # Handle boxes
     elif world_obj_state[TYPE] == BOX:
         # Return the contents of the box
         contents = from_mixed_radix_int(world_obj_state[CONTENTS])
         world_obj_state[...] = contents
+        success[1] = True
+
+    return success
 
 @nb.njit(cache=True)
 def from_mixed_radix_int(n: int) -> np.ndarray[int]:
