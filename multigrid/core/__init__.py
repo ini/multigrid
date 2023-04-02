@@ -1,6 +1,7 @@
 from .actions import Actions
 from .agent import Agent, AgentState
-from .constants import COLOR_NAMES, TILE_PIXELS
+from .constants import *
 from .grid import Grid
 from .mission import MissionSpace
-from .world_object import WorldObj
+from .roomgrid import Room, RoomGrid
+from .world_object import Ball, Box, Door, Floor, Goal, Key, Lava, Wall, WorldObj

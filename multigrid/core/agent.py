@@ -105,7 +105,7 @@ class AgentState(np.ndarray):
     def __new__(cls, *dims: int):
         obj = super().__new__(cls, shape=dims+(cls.dim,), dtype=int)
         obj[..., 0] = OBJECT_TO_IDX['agent'] # type
-        obj[..., 1] = np.arange(np.prod(dims), dtype=int).reshape(*dims) # color
+        obj[..., 1].flat = np.arange(np.prod(dims), dtype=int) # color
         obj[..., 1] %= len(COLOR_TO_IDX)
         obj[..., 2] = -1 # dir
         obj[..., 3:5] = -1 # pos
@@ -215,8 +215,8 @@ class Agent:
     def __init__(
         self,
         index: int,
-        state: AgentState,
         mission_space: MissionSpace,
+        state: AgentState | None = None,
         view_size: int = 7,
         see_through_walls: bool = False):
         """
@@ -226,13 +226,15 @@ class Agent:
             Index of the agent in the environment
         mission_space : MissionSpace
             The mission space for the agent
+        state : AgentState or None
+            AgentState object to use for the agent
         view_size : int
             The size of the agent's view (must be odd)
         see_through_walls : bool
             Whether the agent can see through walls
         """
         self.index: int = index
-        self.state: AgentState = state
+        self.state: AgentState = AgentState() if state is None else state
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Actions))

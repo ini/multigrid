@@ -112,8 +112,8 @@ class MultiGridEnv(gym.Env):
             for i in range(agents):
                 agent = Agent(
                     i,
-                    self.agent_state[i],
                     mission_space,
+                    state=self.agent_state[i],
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
                 )
