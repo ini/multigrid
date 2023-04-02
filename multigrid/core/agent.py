@@ -202,7 +202,7 @@ class Agent:
 
     Attributes
     ----------
-    id : int
+    index : int
         Index of the agent in the environment
     state : AgentState
         State of the agent
