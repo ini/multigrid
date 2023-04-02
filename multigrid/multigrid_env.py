@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gymnasium as gym
 import hashlib
 import math
@@ -9,7 +11,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
-from typing import Any, Iterable, Optional, SupportsFloat, TypeVar, Union
+from typing import Any, Iterable, SupportsFloat, TypeVar
 
 from .core.actions import Actions
 from .core.agent import Agent, AgentState
@@ -49,16 +51,16 @@ class MultiGridEnv(gym.Env):
     def __init__(
         self,
         mission_space: MissionSpace,
-        agents: Union[int, Iterable[Agent]] = 1,
-        grid_size: Optional[int] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        agents: Iterable[Agent] | int = 1,
+        grid_size: int | None = None,
+        width: int | None = None,
+        height: int | None = None,
         max_steps: int = 100,
         see_through_walls: bool = False,
         agent_view_size: int = 7,
         allow_agent_overlap: bool = False,
-        render_mode: Optional[str] = None,
-        screen_size: Optional[int] = 1,
+        render_mode: str | None = None,
+        screen_size: int | None = 1,
         highlight: bool = True,
         tile_size: int = TILE_PIXELS,
         agent_pov: bool = False):
@@ -121,7 +123,7 @@ class MultiGridEnv(gym.Env):
             self.agents: dict[AgentID, Agent] = {agent.index: agent for agent in agents}
             for agent in self.agents:
                 self.agent_state[agent.index] = agent.state # copy to joint agent state
-                agent.state = self.agent_state[agent.index] # references joint agent state
+                agent.state = self.agent_state[agent.index] # reference joint agent state
         else:
             raise ValueError(f"Invalid argument for agents: {agents}")
 
@@ -162,7 +164,7 @@ class MultiGridEnv(gym.Env):
     def reset(
         self,
         *,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         options: dict[str, Any] = {}) -> tuple[ObsType, dict[str, Any]]:
         """
         Reset the environment.
@@ -347,7 +349,7 @@ class MultiGridEnv(gym.Env):
 
     def place_obj(
         self,
-        obj: Optional[WorldObj],
+        obj: WorldObj | None,
         top: tuple[int, int] = None,
         size: tuple[int, int] = None,
         reject_fn=None,
@@ -546,7 +548,7 @@ class MultiGridEnv(gym.Env):
         #         if not fwd_cell and agent.state.carrying.type != 'empty':
         #             self.grid.set(fwd_pos[0], fwd_pos[1], agent.carrying)
         #             #agent.carrying.cur_pos = fwd_pos
-        #             agent.state.carrying = WorldObjState.empty()
+        #             agent.state.carrying = None
 
         #     # Toggle/activate an object
         #     elif action == self.actions.toggle:
@@ -608,7 +610,7 @@ class MultiGridEnv(gym.Env):
         """
         Return a copy of the grid with the agents on it (for rendering).
         """
-        grid = Grid.from_grid_state(self.grid.state.copy())
+        grid = self.grid.copy()
         for agent in self.agents.values():
             grid.set(*agent.state.pos, agent)
 
@@ -714,7 +716,7 @@ class MultiGridEnv(gym.Env):
                 self.window = pygame.display.set_mode(
                     (self.screen_size, self.screen_size)
                 )
-                pygame.display.set_caption('minigrid')
+                pygame.display.set_caption('multigrid')
             if self.clock is None:
                 self.clock = pygame.time.Clock()
             surf = pygame.surfarray.make_surface(img)

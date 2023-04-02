@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import numpy as np
 
 from functools import cached_property
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 from .agent import Agent
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
@@ -35,7 +37,7 @@ class Grid:
         """
         assert width >= 3
         assert height >= 3
-        self.world_objects: dict[tuple[int, int], WorldObj] = {}
+        self.world_objects: dict[tuple[int, int], WorldObj] = {} # indexed by location
         self.state: np.ndarray[int] = np.zeros(
             (width, height, WorldObj.dim), dtype=int)
         self.state[...] = WorldObj.empty()
@@ -47,17 +49,6 @@ class Grid:
         self.locations_to_update = -np.ones((1, 2), dtype=int) # (num_locations, 2)
         self.needs_remove = np.zeros(1, dtype=bool)
         self.locations_to_remove = -np.ones((1, 2), dtype=int) # (num_locations, 2)
-
-    @classmethod
-    def from_grid_state(cls, grid_state: np.ndarray) -> 'Grid':
-        """
-        Create a grid from a grid state array.
-        """
-        assert grid_state.ndim == 3
-        grid = cls.__new__(cls)
-        grid.world_objects = {}
-        grid.state = grid_state
-        return grid
 
     def __contains__(self, key: Any) -> bool:
         if isinstance(key, WorldObj):
@@ -107,7 +98,7 @@ class Grid:
         from copy import deepcopy
         return deepcopy(self)
 
-    def set(self, i: int, j: int, v: Union[WorldObj, Agent, None]):
+    def set(self, i: int, j: int, v: WorldObj | Agent | None):
         """
         Set a world object at the given coordinates.
         """
@@ -127,7 +118,7 @@ class Grid:
         else:
             raise TypeError(f"cannot set grid value to {type(v)}")
 
-    def get(self, i: int, j: int) -> Optional[WorldObj]:
+    def get(self, i: int, j: int) -> WorldObj | None:
         """
         Get the world object at the given coordinates.
         """
@@ -141,7 +132,7 @@ class Grid:
     def horz_wall(
         self,
         x: int, y: int,
-        length: Optional[int] = None,
+        length: int | None = None,
         obj_type: Callable[[], WorldObj] = Wall):
         """
         Create a horizontal wall.
@@ -152,7 +143,7 @@ class Grid:
     def vert_wall(
         self,
         x: int, y: int,
-        length: Optional[int] = None,
+        length: int | None = None,
         obj_type: Callable[[], WorldObj] = Wall):
         """
         Create a vertical wall.
@@ -172,7 +163,7 @@ class Grid:
     @classmethod
     def render_tile(
         cls,
-        obj: Optional[WorldObj] = None,
+        obj: WorldObj | None = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
         subdivs: int = 3) -> np.ndarray:
@@ -212,7 +203,7 @@ class Grid:
     def render(
         self,
         tile_size: int,
-        highlight_mask: Optional[np.ndarray] = None) -> np.ndarray:
+        highlight_mask: np.ndarray | None = None) -> np.ndarray:
         """
         Render this grid at a given scale.
 
@@ -252,7 +243,7 @@ class Grid:
 
         return img
 
-    def encode(self, vis_mask: Optional[np.ndarray] = None) -> np.ndarray:
+    def encode(self, vis_mask: np.ndarray | None = None) -> np.ndarray:
         """
         Produce a compact numpy encoding of the grid.
         """

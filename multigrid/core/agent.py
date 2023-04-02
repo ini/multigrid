@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import numpy as np
 
 from gymnasium import spaces
-from typing import Optional, Sequence, TYPE_CHECKING
+from typing import Sequence, TYPE_CHECKING
 
 from .actions import Actions
 from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
@@ -31,7 +33,7 @@ class AgentState(np.ndarray):
         * 3: x position
         * 4: y position
         * 5: whether the agent has terminated
-        * 6-9: WorldObjState of carried object (if any)
+        * 6-9: array representation of carried object (if any)
 
     AgentState objects also support vectorized operations,
     in which case the first (n - 1) dimensions represent a "batch" of states,
@@ -47,8 +49,8 @@ class AgentState(np.ndarray):
         Agent (x, y) position
     terminated : bool
         Whether the agent has terminated
-    carrying : WorldObjState
-        WorldObjState of object the agent is carrying
+    carrying : WorldObj or None
+        Object the agent is carrying
 
     Examples
     --------
@@ -171,7 +173,7 @@ class AgentState(np.ndarray):
         self[..., 5] = value
 
     @property
-    def carrying(self) -> Optional[WorldObj]:
+    def carrying(self) -> WorldObj | None:
         """
         Return the WorldObj the agent is carrying.
         """
@@ -179,7 +181,7 @@ class AgentState(np.ndarray):
         return WorldObj.from_array(arr)
 
     @carrying.setter
-    def carrying(self, world_obj: Optional[WorldObj]):
+    def carrying(self, world_obj: WorldObj | None):
         """
         Set the WorldObj of the object the agent is carrying.
         """
@@ -296,14 +298,14 @@ class Agent:
         self.state.dir = value
 
     @property
-    def carrying(self) -> Optional[WorldObj]:
+    def carrying(self) -> WorldObj | None:
         """
         Return the object the agent is carrying.
         """
         return self.state.carrying
 
     @carrying.setter
-    def carrying(self, obj: Optional[WorldObj]):
+    def carrying(self, obj: WorldObj | None):
         """
         Set the object the agent is carrying.
         """
@@ -362,7 +364,7 @@ class Agent:
 
         return vx, vy
 
-    def relative_coords(self, x: int, y: int) -> Optional[tuple[int, int]]:
+    def relative_coords(self, x: int, y: int) -> tuple[int, int] | None:
         """
         Check if a grid position belongs to the agent's field of view,
         and returns the corresponding coordinates.

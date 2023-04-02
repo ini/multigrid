@@ -1,6 +1,6 @@
-import numpy as np
+from __future__ import annotations
 
-from typing import Optional
+import numpy as np
 
 from .constants import (
     OBJECT_TO_IDX, IDX_TO_OBJECT,
@@ -34,7 +34,7 @@ class WorldObj(np.ndarray):
         The name of the object type
     color : str
         The name of the object color
-    state : WorldObjState
+    state : str
         The name of the object state
     contains : WorldObj or None
         The object contained by this object, if any
@@ -46,7 +46,7 @@ class WorldObj(np.ndarray):
     _bases = [*_bases, np.prod(_bases) ** max_contain_depth]
     _empty = None
 
-    def __new__(cls, type: str = 'empty', color: Optional[str] = None):
+    def __new__(cls, type: str = 'empty', color: str | None = None):
         """
         Parameters
         ----------
@@ -87,29 +87,28 @@ class WorldObj(np.ndarray):
         Convert an array to a WorldObj instance.
         """
         object_idx_to_class = {
-            2: Wall,
-            3: Floor,
-            4: Door,
-            5: Key,
-            6: Ball,
-            7: Box,
-            8: Goal,
-            9: Lava,
+            OBJECT_TO_IDX['empty']: type(None),
+            OBJECT_TO_IDX['wall']: Wall,
+            OBJECT_TO_IDX['floor']: Floor,
+            OBJECT_TO_IDX['door']: Door,
+            OBJECT_TO_IDX['key']: Key,
+            OBJECT_TO_IDX['ball']: Ball,
+            OBJECT_TO_IDX['box']: Box,
+            OBJECT_TO_IDX['goal']: Goal,
+            OBJECT_TO_IDX['lava']: Lava,
         }
 
-        if arr[0] == OBJECT_TO_IDX['empty']:
-            return None
-
-        elif arr[0] in object_idx_to_class:
+        if arr[0] in object_idx_to_class:
             cls = object_idx_to_class[arr[0]]
             obj = cls.__new__(cls)
-            obj[...] = arr
+            if obj is not None:
+                obj[...] = arr
             return obj
 
         raise ValueError(f'Unknown object type: {arr[0]}')
 
     @classmethod
-    def from_int(cls, n: int) -> Optional['WorldObj']:
+    def from_int(cls, n: int) -> 'WorldObj' | None:
         """
         Convert a mixed-radix integer encoding to a WorldObj instance.
         """
@@ -166,14 +165,14 @@ class WorldObj(np.ndarray):
         self[2] = STATE_TO_IDX[value]
 
     @property
-    def contains(self) -> Optional['WorldObj']:
+    def contains(self) -> 'WorldObj' | None:
         """
         Return the object contained by this object.
         """
         return self.from_int(self[3])
 
     @contains.setter
-    def contains(self, world_obj: Optional['WorldObj']):
+    def contains(self, world_obj: 'WorldObj' | None):
         """
         Set the object state contained by this object.
         """
@@ -214,7 +213,7 @@ class WorldObj(np.ndarray):
         return tuple(self[:self.encode_dim])
 
     @staticmethod
-    def decode(type_idx: int, color_idx: int, state_idx: int) -> Optional['WorldObj']:
+    def decode(type_idx: int, color_idx: int, state_idx: int) -> 'WorldObj' | None:
         """
         Create an object from a 3-tuple state description.
         """
@@ -426,7 +425,7 @@ class Box(WorldObj):
     Box object that may contain other objects.
     """
 
-    def __new__(cls, color: str = 'yellow', contains: Optional[WorldObj] = None):
+    def __new__(cls, color: str = 'yellow', contains: WorldObj | None = None):
         box = super().__new__(cls, type='box', color=color)
         box.contains = contains
         return box
