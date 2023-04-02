@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from collections import defaultdict
 from functools import cached_property
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from .agent import Agent
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
@@ -99,7 +100,7 @@ class Grid:
         from copy import deepcopy
         return deepcopy(self)
 
-    def set(self, i: int, j: int, v: WorldObj | Agent | None):
+    def set(self, i: int, j: int, v: WorldObj | None):
         """
         Set a world object at the given coordinates.
         """
@@ -112,8 +113,6 @@ class Grid:
         # Update grid
         if isinstance(v, WorldObj):
             self.state[i, j] = v
-        elif isinstance(v, Agent):
-            self.state[i, j] = v.to_world_obj()
         elif v is None:
             self.state[i, j] = WorldObj.empty()
         else:
@@ -165,6 +164,7 @@ class Grid:
     def render_tile(
         cls,
         obj: WorldObj | None = None,
+        agent: Agent | None = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
         subdivs: int = 3) -> np.ndarray:
@@ -173,6 +173,10 @@ class Grid:
         """
         # Hash map lookup key for the cache
         key: tuple[Any, ...] = (highlight, tile_size)
+        if agent:
+            key += (agent.state.color, agent.state.dir)
+        else:
+            key += (None, None)
         key = obj.encode() + key if obj else key
 
         if key in cls.tile_cache:
@@ -186,8 +190,13 @@ class Grid:
         fill_coords(img, point_in_rect(0, 0.031, 0, 1), (100, 100, 100))
         fill_coords(img, point_in_rect(0, 1, 0, 0.031), (100, 100, 100))
 
+        # Draw the object
         if obj is not None:
             obj.render(img)
+
+        # Draw the agent
+        if agent is not None:
+            agent.render(img)
 
         # Highlight the cell if needed
         if highlight:
@@ -204,6 +213,7 @@ class Grid:
     def render(
         self,
         tile_size: int,
+        agents: Iterable[Agent] = (),
         highlight_mask: np.ndarray | None = None) -> np.ndarray:
         """
         Render this grid at a given scale.
@@ -212,11 +222,19 @@ class Grid:
         ----------
         tile_size: int
             Tile size (in pixels)
+        agents: Iterable[Agent]
+            Agents to render
         highlight_mask: np.ndarray
             Boolean mask indicating which grid locations to highlight
         """
         if highlight_mask is None:
             highlight_mask = np.zeros(shape=(self.width, self.height), dtype=bool)
+
+        # Get agent locations
+        location_to_agent = defaultdict(
+            type(None),
+            {tuple(agent.pos): agent for agent in agents}
+        )
 
         # Compute the total grid size
         width_px = self.width * tile_size
@@ -232,6 +250,7 @@ class Grid:
                 assert highlight_mask is not None
                 tile_img = Grid.render_tile(
                     cell,
+                    agent=location_to_agent[i, j],
                     highlight=highlight_mask[i, j],
                     tile_size=tile_size,
                 )

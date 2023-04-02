@@ -249,11 +249,17 @@ class MultiGridEnv(gym.Env):
         # Map agent's direction to short string
         AGENT_DIR_TO_STR = {0: '>', 1: 'V', 2: '<', 3: '^'}
 
+        # Get agent locations
+        location_to_agent = {tuple(agent.pos): agent for agent in agents}
+
         output = ""
-        grid = self.grid_with_agents()
-        for j in range(grid.height):
-            for i in range(grid.width):
-                tile = grid.get(i, j)
+        for j in range(self.grid.height):
+            for i in range(self.grid.width):
+                if (i, j) in location_to_agent:
+                    output += 2 * AGENT_DIR_TO_STR[tile.dir]
+                    continue
+
+                tile = self.grid.get(i, j)
 
                 if tile is None:
                     output += '  '
@@ -274,7 +280,7 @@ class MultiGridEnv(gym.Env):
 
                 output += OBJECT_TO_STR[tile.type] + tile.color[0].upper()
 
-            if j < grid.height - 1:
+            if j < self.grid.height - 1:
                 output += '\n'
 
         return output
@@ -546,16 +552,6 @@ class MultiGridEnv(gym.Env):
             }
         return obs
 
-    def grid_with_agents(self):
-        """
-        Return a copy of the grid with the agents on it (for rendering).
-        """
-        grid = self.grid.copy()
-        for agent in self.agents:
-            grid.set(*agent.state.pos, agent)
-
-        return grid
-
     def get_pov_render(self, *args, **kwargs):
         """
         Render an agent's POV observation for visualization.
@@ -605,9 +601,9 @@ class MultiGridEnv(gym.Env):
                     highlight_mask[abs_i, abs_j] = True
 
         # Render the whole grid
-        grid_with_agents = self.grid_with_agents()
-        img = grid_with_agents.render(
+        img = self.grid.render(
             tile_size,
+            agents=self.agents,
             highlight_mask=highlight_mask if highlight else None,
         )
 
