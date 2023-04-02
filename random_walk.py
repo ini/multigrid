@@ -127,12 +127,28 @@ def compare_clean(env_cls, num_episodes=1, **env_kwargs):
 def test_clean(num_episodes_per_env=10000):
     import inspect
     import multigrid.envs
+    from collections import defaultdict
+
+    skip = {'ObstructedMazeEnv'}
+    kwargs = defaultdict(dict)
+    kwargs['LavaGapEnv'] = {'size': 5}
+    kwargs['MemoryEnv'] = {'size': 11}
+    kwargs['MultiRoomEnv'] = {'minNumRooms': 2, 'maxNumRooms': 4}
 
     for attr_name in dir(multigrid.envs):
+        if attr_name in skip:
+            continue
+
         attr = getattr(multigrid.envs, attr_name)
         if inspect.isclass(attr):
             if issubclass(attr, MultiGridEnv):
-                compare_clean(attr, num_episodes=num_episodes_per_env)
+                try:
+                    compare_clean(
+                        attr, num_episodes=num_episodes_per_env, **kwargs[attr_name])
+                except Exception as e:
+                    tqdm.write(attr_name)
+                    tqdm.write(str(e))
+                    raise e
 
 
 def compare(num_episodes=1):
@@ -225,10 +241,10 @@ if __name__ == '__main__':
     #random_walk(agents=3)
     #random_walk(1, render=True)
 
-    # from multigrid.envs import BlockedUnlockPickupEnv
-    # compare_clean(BlockedUnlockPickupEnv, 1000)
+    # from multigrid.envs import MemoryEnv
+    # compare_clean(MemoryEnv, 1000)
 
-    test_clean(1000)
+    test_clean(num_episodes_per_env=10000)
 
     # import cProfile
-    # cProfile.run('random_walk(1000, agents=1)', sort='cumtime')
+    # cProfile.run('random_walk(5000, agents=1)', sort='cumtime')
