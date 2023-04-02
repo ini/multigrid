@@ -122,3 +122,9 @@ class MiniGridInterface(MultiGridEnv):
            "Use `env.agents[i].front_pos` instead."
         )
         return self.agents[0].front_pos
+
+    def place_agent(self, **kwargs) -> tuple[int, int]:
+        """
+        Set agent starting point at an empty position in the grid.
+        """
+        return super().place_agent(self.agents[0], **kwargs)

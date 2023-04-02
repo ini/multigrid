@@ -34,8 +34,8 @@ class MultiGridEnv(gym.Env):
 
     Attributes
     ----------
-    agents : dict[AgentID, Agent]
-        Dictionary of agents in the environment
+    agents : list[Agent]
+        List of agents in the environment
     grid : Grid
         Environment grid
     action_space : gym.spaces.Dict
@@ -106,21 +106,21 @@ class MultiGridEnv(gym.Env):
         if isinstance(agents, int):
             self.num_agents = agents
             self.agent_state = AgentState(agents)
-            self.agents: dict[AgentID, Agent] = {}
-            for agent_id in range(agents):
+            self.agents: list[Agent] = []
+            for i in range(agents):
                 agent = Agent(
-                    agent_id,
-                    self.agent_state[agent_id],
+                    i,
+                    self.agent_state[i],
                     mission_space,
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
                 )
-                self.agents[agent_id] = agent
+                self.agents.append(agent)
         elif isinstance(agents, Iterable):
             assert {agent.index for agent in agents} == set(range(len(agents)))
             self.num_agents = len(agents)
             self.agent_state = AgentState(self.num_agents)
-            self.agents: dict[AgentID, Agent] = {agent.index: agent for agent in agents}
+            self.agents: list[Agent] = sorted(agents, key=lambda agent: agent.index)
             for agent in self.agents:
                 self.agent_state[agent.index] = agent.state # copy to joint agent state
                 agent.state = self.agent_state[agent.index] # reference joint agent state
@@ -134,13 +134,13 @@ class MultiGridEnv(gym.Env):
         # Set joint action space
         self.action_space = spaces.Dict({
             agent.index: agent.action_space
-            for agent in self.agents.values()
+            for agent in self.agents
         })
 
         # Set joint observation space
         self.observation_space = spaces.Dict({
             agent.index: agent.observation_space
-            for agent in self.agents.values()
+            for agent in self.agents
         })
 
         # Range of possible rewards
@@ -172,7 +172,7 @@ class MultiGridEnv(gym.Env):
         super().reset(seed=seed)
 
         # Reinitialize episode-specific variables
-        for agent in self.agents.values():
+        for agent in self.agents:
             agent.reset(self.mission)
 
         # Generate a new random grid at the start of each episode
@@ -185,7 +185,7 @@ class MultiGridEnv(gym.Env):
         assert np.all(self.agent_state.dir >= 0)
 
         # Check that agents don't overlap with other objects
-        for agent in self.agents.values():
+        for agent in self.agents:
             start_cell = self.grid.get(*agent.state.pos)
             assert start_cell is None or start_cell.can_overlap()
 
@@ -213,8 +213,8 @@ class MultiGridEnv(gym.Env):
 
         to_encode = [
             self.grid.encode().tolist(),
-            *[agent.state.pos for agent in self.agents.values()],
-            *[agent.state.dir for agent in self.agents.values()],
+            *[agent.state.pos for agent in self.agents],
+            *[agent.state.dir for agent in self.agents],
         ]
         for item in to_encode:
             sample_hash.update(str(item).encode('utf8'))
@@ -353,7 +353,7 @@ class MultiGridEnv(gym.Env):
         top: tuple[int, int] = None,
         size: tuple[int, int] = None,
         reject_fn=None,
-        max_tries=math.inf):
+        max_tries=math.inf) -> tuple[int, int]:
         """
         Place an object at an empty position in the grid.
 
@@ -398,10 +398,7 @@ class MultiGridEnv(gym.Env):
                 continue
 
             # Don't place the object where agents are
-            if any(
-                np.array_equal(pos, agent.state.pos)
-                for agent in self.agents.values()
-            ):
+            if any(np.array_equal(pos, agent.state.pos) for agent in self.agents):
                 continue
 
             # Check if there is a filtering criterion
@@ -420,23 +417,30 @@ class MultiGridEnv(gym.Env):
 
     def put_obj(self, obj: WorldObj, i: int, j: int):
         """
-        Put an object at a specific position in the grid
+        Put an object at a specific position in the grid.
         """
         self.grid.set(i, j, obj)
         obj.init_pos = (i, j)
         obj.cur_pos = (i, j)
 
-    def place_agent(self, top=None, size=None, rand_dir=True, max_tries=math.inf):
+    def place_agent(
+        self,
+        agent: Agent,
+        top=None,
+        size=None,
+        rand_dir=True,
+        max_tries=math.inf) -> tuple[int, int]:
         """
-        Set agents' starting points at empty positions in the grid.
+        Set agent starting point at an empty position in the grid.
         """
-        for agent in self.agents.values():
-            agent.state.pos = (-1, -1)
-            pos = self.place_obj(None, top, size, max_tries=max_tries)
-            agent.state.pos = pos
+        pos = (-1, -1)
+        pos = self.place_obj(None, top, size, max_tries=max_tries)
+        agent.state.pos = pos
 
-            if rand_dir:
-                agent.state.dir = self._rand_int(0, 4)
+        if rand_dir:
+            agent.state.dir = self._rand_int(0, 4)
+
+        return pos
 
     def step(
         self,
@@ -458,7 +462,7 @@ class MultiGridEnv(gym.Env):
         Returns
         -------
         obs : dict[AgentID, ObsType]
-            Observation for each ready agent
+            Observation for each agent
         reward : dict[AgentID, SupportsFloat]
             Reward for each agent
         terminated : dict[AgentID, bool]
@@ -474,11 +478,13 @@ class MultiGridEnv(gym.Env):
         for i, action in actions.items():
             action_array[i] = action
 
+        # Randomize agent action order
         if self.num_agents == 1:
             order = np.zeros(1, dtype=int)
         else:
             order = self.np_random.random(size=self.num_agents).argsort()
 
+        # Update agent state and grid state from actions
         reward = handle_actions(
             action_array,
             order,
@@ -490,90 +496,24 @@ class MultiGridEnv(gym.Env):
             self.grid.locations_to_remove,
             allow_agent_overlap=self.allow_agent_overlap,
         )
-        reward *= self._reward()
 
+        # Update world objects in grid
         if self.grid.needs_update:
             self.grid.update_world_objects()
         if self.grid.needs_remove:
             self.grid.remove_world_objects()
 
-        # agent_locations = {
-        #   agent.index: tuple(agent.state.pos) for agent in self.agents.values()}
-
-        # for agent_id in order:
-        #     action, agent = actions[agent_id], self.agents[agent_id]
-
-        #     if agent.state.terminated:
-        #         continue
-
-        #     # Rotate left
-        #     if action == self.actions.left:
-        #         agent.state.dir = (agent.state.dir - 1) % 4
-
-        #     # Rotate right
-        #     elif action == self.actions.right:
-        #         agent.state.dir = (agent.state.dir + 1) % 4
-
-        #     # Move forward
-        #     elif action == self.actions.forward:
-        #         fwd_pos = agent.front_pos
-        #         fwd_cell = self.grid.get(*fwd_pos)
-
-        #         if fwd_cell is None or fwd_cell.can_overlap():
-        #             if fwd_pos not in agent_locations.values():
-        #                 agent.state.pos = fwd_pos
-        #                 agent_locations[agent.index] = fwd_pos
-        #         if fwd_cell is not None and fwd_cell.type == 'goal':
-        #             agent.state.terminated = True
-        #             reward[agent.index] = self._reward()
-        #         if fwd_cell is not None and fwd_cell.type == 'lava':
-        #             agent.state.terminated = True
-
-        #     # Pick up an object
-        #     elif action == self.actions.pickup:
-        #         fwd_pos = agent.front_pos
-        #         fwd_cell = self.grid.get(*fwd_pos)
-
-        #         if fwd_cell and fwd_cell.can_pickup():
-        #             if agent.state.carrying.type == 'empty':
-        #                 agent.carrying = fwd_cell
-        #                 #agent.carrying.cur_pos = np.array([-1, -1])
-        #                 self.grid.set(fwd_pos[0], fwd_pos[1], None)
-
-        #     # Drop an object
-        #     elif action == self.actions.drop:
-        #         fwd_pos = agent.front_pos
-        #         fwd_cell = self.grid.get(*fwd_pos)
-
-        #         if not fwd_cell and agent.state.carrying.type != 'empty':
-        #             self.grid.set(fwd_pos[0], fwd_pos[1], agent.carrying)
-        #             #agent.carrying.cur_pos = fwd_pos
-        #             agent.state.carrying = None
-
-        #     # Toggle/activate an object
-        #     elif action == self.actions.toggle:
-        #         fwd_pos = agent.front_pos
-        #         fwd_cell = self.grid.get(*fwd_pos)
-
-        #         if fwd_cell:
-        #             fwd_cell.toggle(self, agent, fwd_pos)
-
-        #     # Done action (not used by default)
-        #     elif action == self.actions.done:
-        #         pass
-
-        #     else:
-        #         raise ValueError(f"Unknown action: {action}")
-
         # Rendering
         if self.render_mode == 'human':
             self.render()
 
+        # Generate outputs
         obs = self.gen_obs()
+        reward *= self._reward()
+        reward = dict(enumerate(reward))
         truncated = self.step_count >= self.max_steps
         truncated = dict(enumerate([truncated] * self.num_agents))
         terminated = dict(enumerate(self.agent_state.terminated))
-        reward = dict(enumerate(reward))
 
         return obs, reward, terminated, truncated, defaultdict(dict)
 
@@ -611,7 +551,7 @@ class MultiGridEnv(gym.Env):
         Return a copy of the grid with the agents on it (for rendering).
         """
         grid = self.grid.copy()
-        for agent in self.agents.values():
+        for agent in self.agents:
             grid.set(*agent.state.pos, agent)
 
         return grid
@@ -635,7 +575,7 @@ class MultiGridEnv(gym.Env):
         # Mask of which cells to highlight
         highlight_mask = np.zeros((self.width, self.height), dtype=bool)
 
-        for agent in self.agents.values():
+        for agent in self.agents:
             # Compute the world coordinates of the bottom-left corner
             # of the agent's view area
             f_vec = agent.dir_vec
