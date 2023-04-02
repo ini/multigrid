@@ -65,6 +65,9 @@ class WorldObj(np.ndarray):
     def __eq__(self, other: 'WorldObj') -> bool:
         return np.array_equal(self, other)
 
+    def __bool__(self) -> bool:
+        return self.type != 'empty'
+
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(color={self.color})"
 

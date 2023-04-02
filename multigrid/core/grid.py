@@ -147,7 +147,7 @@ class Grid:
         Create a horizontal wall.
         """
         length = self.width - x if length is None else length
-        self.state[x:x+length, y] = obj_type().state
+        self.state[x:x+length, y] = obj_type()
 
     def vert_wall(
         self,
@@ -158,7 +158,7 @@ class Grid:
         Create a vertical wall.
         """
         length = self.height - y if length is None else length
-        self.state[x, y:y+length] = obj_type().state
+        self.state[x, y:y+length] = obj_type()
 
     def wall_rect(self, x: int, y: int, w: int, h: int):
         """

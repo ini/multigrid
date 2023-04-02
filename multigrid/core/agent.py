@@ -300,7 +300,7 @@ class Agent:
         """
         Return the object the agent is carrying.
         """
-        return WorldObj.from_array(self.state.carrying)
+        return self.state.carrying
 
     @carrying.setter
     def carrying(self, obj: Optional[WorldObj]):
