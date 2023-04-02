@@ -59,6 +59,7 @@ class MultiGridEnv(gym.Env):
         see_through_walls: bool = False,
         agent_view_size: int = 7,
         allow_agent_overlap: bool = False,
+        is_competitive: bool = True,
         render_mode: str | None = None,
         screen_size: int | None = 1,
         highlight: bool = True,
@@ -83,6 +84,8 @@ class MultiGridEnv(gym.Env):
             Size of agent view (must be odd)
         allow_agent_overlap : bool
             Whether agents are allowed to overlap
+        is_competitive : bool
+            Whether the task is competitive (i.e. only one agent can get the reward)
         render_mode : str
             Rendering mode (human or rgb_array)
         screen_size : int
@@ -102,7 +105,6 @@ class MultiGridEnv(gym.Env):
         self.grid = Grid(width, height)
 
         # Initialize agents
-        self.allow_agent_overlap = allow_agent_overlap
         if isinstance(agents, int):
             self.num_agents = agents
             self.agent_state = AgentState(agents)
@@ -160,6 +162,10 @@ class MultiGridEnv(gym.Env):
         self.render_size = None
         self.window = None
         self.clock = None
+
+        # Other
+        self.allow_agent_overlap = allow_agent_overlap
+        self.is_competitive = is_competitive
 
     def reset(
         self,
@@ -501,6 +507,7 @@ class MultiGridEnv(gym.Env):
             self.grid.needs_remove,
             self.grid.locations_to_remove,
             allow_agent_overlap=self.allow_agent_overlap,
+            is_competitive=self.is_competitive,
         )
 
         # Update world objects in grid

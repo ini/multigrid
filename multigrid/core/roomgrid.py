@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .agent import Agent
 from .constants import COLOR_NAMES
 from .grid import Grid
 from .world_object import Ball, Box, Door, Key, WorldObj
@@ -313,12 +314,14 @@ class RoomGrid(MultiGridEnv):
         neighbor.doors[(wall_idx + 2) % 4] = True
 
     def place_agent(
-        self, i: int | None = None, j: int | None = None, rand_dir: bool = True
-    ) -> np.ndarray:
+        self,
+        agent: Agent,
+        i: int | None = None,
+        j: int | None = None,
+        rand_dir: bool = True) -> np.ndarray:
         """
-        Place the agent in a room
+        Place agent in a room.
         """
-
         if i is None:
             i = self._rand_int(0, self.num_cols)
         if j is None:
@@ -328,12 +331,12 @@ class RoomGrid(MultiGridEnv):
 
         # Find a position that is not right in front of an object
         while True:
-            super().place_agent(room.top, room.size, rand_dir, max_tries=1000)
-            front_cell = self.grid.get(*self.front_pos)
+            super().place_agent(agent, room.top, room.size, rand_dir, max_tries=1000)
+            front_cell = self.grid.get(*agent.front_pos)
             if front_cell is None or front_cell.type == "wall":
                 break
 
-        return self.agent_pos
+        return agent.state.pos
 
     def connect_all(
         self, door_colors: list[str] = COLOR_NAMES, max_itrs: int = 5000

@@ -62,7 +62,8 @@ def handle_actions(
     locations_to_update: np.ndarray[int],
     needs_remove: np.ndarray[bool],
     locations_to_remove: np.ndarray[int],
-    allow_agent_overlap: bool):
+    allow_agent_overlap: bool,
+    is_competitive: bool) -> np.ndarray[float]:
     """
     Handle the actions taken by the agents.
     Update the grid state, agent state, and rewards.
@@ -87,6 +88,8 @@ def handle_actions(
         Grid locations of the WorldObj instances that need to be removed
     allow_agent_overlap : bool
         Whether or not agents can overlap each other
+    is_competitive : bool
+        Whether or not to terminate all agents when one agent reaches the goal
 
     Returns
     -------
@@ -137,10 +140,13 @@ def handle_actions(
                     agent_state[agent, POS_Y] = fwd_y
 
             if fwd_state[TYPE] == LAVA:
-                agent_state[agent, TERMINATED] = True # set terminated to True
+                agent_state[agent, TERMINATED] = True # terminate this agent only
             elif fwd_state[TYPE] == GOAL:
-                agent_state[agent, TERMINATED] = True # set terminated to True
                 rewards[agent] += 1
+                if is_competitive:
+                    agent_state[:, TERMINATED] = True # terminate all agents
+                else:
+                    agent_state[agent, TERMINATED] = True # terminate this agent only
 
         # Pick up an object
         elif action[agent] == PICKUP:
