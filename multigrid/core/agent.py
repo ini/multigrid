@@ -334,9 +334,9 @@ class Agent:
         """
         return front_pos(*self.state.pos, self.state.dir)
 
-    def world_obj(self) -> WorldObj:
+    def to_world_obj(self) -> WorldObj:
         arr = np.array([*self.state.world_obj_encoding(), 0])
-        return WorldObj.from_array(arr)
+        return arr.view(WorldObj)
 
     def get_view_coords(self, i, j) -> tuple[int, int]:
         """

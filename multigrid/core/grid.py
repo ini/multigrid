@@ -43,6 +43,7 @@ class Grid:
         self.state[...] = WorldObj.empty()
 
         # Arrays for updating world objects in the grid
+        # Useful for functions that operate directly on the grid state
         # These can be passed by reference and updated within numba functions
         # (i.e. `handle_actions()`)
         self.needs_update = np.zeros(1, dtype=bool)
@@ -112,7 +113,7 @@ class Grid:
         if isinstance(v, WorldObj):
             self.state[i, j] = v
         elif isinstance(v, Agent):
-            self.state[i, j] = v.world_obj()
+            self.state[i, j] = v.to_world_obj()
         elif v is None:
             self.state[i, j] = WorldObj.empty()
         else:
