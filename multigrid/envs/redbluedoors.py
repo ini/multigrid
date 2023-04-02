@@ -3,10 +3,11 @@ from __future__ import annotations
 from ..core.grid import Grid
 from ..core.mission import MissionSpace
 from ..core.world_object import Door
-from ..multigrid_env import MultiGridEnv
+from ..minigrid_interface import MiniGridInterface
 
 
-class RedBlueDoorEnv(MultiGridEnv):
+
+class RedBlueDoorEnv(MiniGridInterface):
 
     """
     ## Description

@@ -4,9 +4,11 @@ from ..core.constants import COLOR_NAMES, DIR_TO_VEC
 from ..core.mission import MissionSpace
 from ..core.roomgrid import RoomGrid
 from ..core.world_object import Ball, Box, Key
+from ..minigrid_interface import MiniGridInterface
 
 
-class ObstructedMazeEnv(RoomGrid):
+
+class ObstructedMazeEnv(RoomGrid, MiniGridInterface):
 
     """
     ## Description

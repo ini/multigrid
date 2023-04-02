@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from minigrid.core.grid import Grid
-from minigrid.core.mission import MissionSpace
-from minigrid.core.world_object import Goal, Lava
-from minigrid.minigrid_env import MiniGridEnv
+from ..core.grid import Grid
+from ..core.mission import MissionSpace
+from ..core.world_object import Goal, Lava
+from ..minigrid_interface import MiniGridInterface
 
 
-class LavaGapEnv(MiniGridEnv):
+
+class LavaGapEnv(MiniGridInterface):
 
     """
     ## Description

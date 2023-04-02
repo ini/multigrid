@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from minigrid.core.actions import Actions
-from minigrid.core.grid import Grid
-from minigrid.core.mission import MissionSpace
-from minigrid.core.world_object import Ball, Key, Wall
-from minigrid.minigrid_env import MiniGridEnv
+from ..core.actions import Actions
+from ..core.grid import Grid
+from ..core.mission import MissionSpace
+from ..core.world_object import Ball, Key, Wall
+from ..minigrid_interface import MiniGridInterface
 
 
-class MemoryEnv(MiniGridEnv):
+
+class MemoryEnv(MiniGridInterface):
 
     """
     ## Description
@@ -68,7 +69,7 @@ class MemoryEnv(MiniGridEnv):
     """
 
     def __init__(
-        self, size=8, random_length=False, max_steps: int | None = None, **kwargs
+        self, size=11, random_length=False, max_steps: int | None = None, **kwargs
     ):
         self.size = size
         self.random_length = random_length

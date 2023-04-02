@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from minigrid.core.constants import COLOR_NAMES
-from minigrid.core.mission import MissionSpace
-from minigrid.core.roomgrid import RoomGrid
-from minigrid.core.world_object import Ball
+from ..core.constants import COLOR_NAMES
+from ..core.mission import MissionSpace
+from ..core.roomgrid import RoomGrid
+from ..core.world_object import Ball
+from ..minigrid_interface import MiniGridInterface
 
 
-class BlockedUnlockPickupEnv(RoomGrid):
+
+class BlockedUnlockPickupEnv(RoomGrid, MiniGridInterface):
 
     """
 

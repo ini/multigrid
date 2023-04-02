@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from minigrid.core.constants import COLOR_NAMES
-from minigrid.core.grid import Grid
-from minigrid.core.mission import MissionSpace
-from minigrid.core.world_object import Ball, Box, Door, Key
-from minigrid.minigrid_env import MiniGridEnv
+from ..core.constants import COLOR_NAMES
+from ..core.grid import Grid
+from ..core.mission import MissionSpace
+from ..core.world_object import Ball, Box, Door, Key
+from ..minigrid_interface import MiniGridInterface
 
 
-class PlaygroundEnv(MiniGridEnv):
+
+class PlaygroundEnv(MiniGridInterface):
     """
     Environment with multiple rooms and random objects.
     This environment has no specific goals or rewards.
