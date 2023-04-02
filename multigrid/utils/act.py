@@ -56,12 +56,12 @@ BASES = np.array(WorldObj._bases) # for mixed-radix integer encoding
 def handle_actions(
     action: np.ndarray[int],
     order: np.ndarray[int],
+    agent_state: np.ndarray[int],
     grid_state: np.ndarray[int],
     needs_update: np.ndarray[bool],
     locations_to_update: np.ndarray[int],
     needs_remove: np.ndarray[bool],
     locations_to_remove: np.ndarray[int],
-    agent_state: np.ndarray[int],
     allow_agent_overlap: bool):
     """
     Handle the actions taken by the agents.
@@ -73,6 +73,10 @@ def handle_actions(
         The action taken by each agent
     order : np.ndarray[int] of shape (num_agents,)
         The order in which the agents take their actions
+    agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
+        The state of each agent
+    grid_state : np.ndarray[int] of shape (width, height, grid_state_dim)
+        The state of the grid
     needs_update : np.ndarray[bool] of shape (1,)
         A flag indicating whether any WorldObj instances need to be updated in grid
     locations_to_update : np.ndarray[int] of shape (num_agents, 2)
@@ -81,10 +85,6 @@ def handle_actions(
         A flag indicating whether any WorldObj instances need to be removed from grid
     locations_to_remove : np.ndarray[int] of shape (num_agents, 2)
         Grid locations of the WorldObj instances that need to be removed
-    grid_state : np.ndarray[int] of shape (width, height, grid_state_dim)
-        The state of the grid
-    agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
-        The state of each agent
     allow_agent_overlap : bool
         Whether or not agents can overlap each other
 
@@ -96,7 +96,7 @@ def handle_actions(
     rewards = np.zeros(len(agent_state), dtype=np.float_)
 
     # Get the agent locations
-    agent_location_mask = np.zeros((len(order), 2), dtype=np.bool_)
+    agent_location_mask = np.zeros(grid_state.shape[:2], dtype=np.bool_)
     for agent in range(len(agent_state)):
         x, y = agent_state[agent, POS_X], agent_state[agent, POS_Y]
         agent_location_mask[x, y] = True

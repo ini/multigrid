@@ -480,12 +480,12 @@ class MultiGridEnv(gym.Env):
         reward = handle_actions(
             action_array,
             order,
+            self.agent_state,
             self.grid.state,
             self.grid.needs_update,
             self.grid.locations_to_update,
             self.grid.needs_remove,
             self.grid.locations_to_remove,
-            self.agent_state,
             allow_agent_overlap=self.allow_agent_overlap,
         )
         reward *= self._reward()

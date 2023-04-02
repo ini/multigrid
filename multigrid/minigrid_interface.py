@@ -51,7 +51,7 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Try `env.agents[i].pos` instead."
+           "Use `env.agents[i].pos` instead."
         )
         return self.agents[0].pos
 
@@ -62,7 +62,7 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Try `env.agents[i].pos` instead."
+           "Use `env.agents[i].pos` instead."
         )
         if value is not None:
             self.agents[0].pos = value
@@ -74,7 +74,7 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Try `env.agents[i].dir` instead."
+           "Use `env.agents[i].dir` instead."
         )
         return self.agents[0].dir
 
@@ -85,7 +85,7 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Try `env.agents[i].dir` instead."
+           "Use `env.agents[i].dir` instead."
         )
         self.agents[0].dir = value
 
@@ -96,9 +96,21 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Try `env.agents[i].carrying` instead."
+           "Use `env.agents[i].carrying` instead."
         )
         return self.agents[0].carrying
+
+    @property
+    def dir_vec(self):
+        """
+        Get the direction vector for the agent, pointing in the direction
+        of forward movement.
+        """
+        assert len(self.agents) == 1, (
+           "This property is not supported for multi-agent envs. "
+           "Use `env.agents[i].dir_vec` instead."
+        )
+        return self.agents[0].dir_vec
 
     @property
     def front_pos(self):
@@ -107,6 +119,6 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Try `env.agents[i].front_pos` instead."
+           "Use `env.agents[i].front_pos` instead."
         )
         return self.agents[0].front_pos

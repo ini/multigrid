@@ -316,7 +316,8 @@ class Door(WorldObj):
         Whether the door is locked
     """
 
-    def __new__(cls, color: str, is_open: bool = False, is_locked: bool = False):
+    def __new__(
+        cls, color: str = 'blue', is_open: bool = False, is_locked: bool = False):
         door = super().__new__(cls, type='door', color=color)
         door.is_open = is_open
         door.is_locked = is_locked
@@ -425,7 +426,7 @@ class Box(WorldObj):
     Box object that may contain other objects.
     """
 
-    def __new__(cls, color: str, contains: Optional[WorldObj] = None):
+    def __new__(cls, color: str = 'yellow', contains: Optional[WorldObj] = None):
         box = super().__new__(cls, type='box', color=color)
         box.contains = contains
         return box
