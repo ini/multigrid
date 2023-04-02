@@ -6,7 +6,7 @@ from typing import Optional, Sequence, TYPE_CHECKING
 from .actions import Actions
 from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
 from .mission import MissionSpace
-from .world_object import WorldObj, WorldObjState
+from .world_object import WorldObj
 
 from ..utils.misc import front_pos
 from ..utils.rendering import (
@@ -95,7 +95,7 @@ class AgentState(np.ndarray):
     >>> c.dir
     0
     """
-    dim = 6 + WorldObjState.dim
+    dim = 6 + WorldObj.dim
     _colors = np.array(list(COLOR_TO_IDX.keys()))
     _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
     _dir_to_vec = np.array(DIR_TO_VEC)
@@ -171,26 +171,27 @@ class AgentState(np.ndarray):
         self[..., 5] = value
 
     @property
-    def carrying(self) -> WorldObjState:
+    def carrying(self) -> Optional[WorldObj]:
         """
-        Return the WorldObjState of the object the agent is carrying.
+        Return the WorldObj the agent is carrying.
         """
-        arr = self[..., 6:6+WorldObjState.dim]
-        return WorldObjState.from_array(arr)
+        arr = self[..., 6:6+WorldObj.dim]
+        return WorldObj.from_array(arr)
 
     @carrying.setter
-    def carrying(self, obj_state: WorldObjState):
+    def carrying(self, world_obj: Optional[WorldObj]):
         """
-        Set the WorldObjState of the object the agent is carrying.
+        Set the WorldObj of the object the agent is carrying.
         """
-        self[..., 6:6+WorldObjState.dim] = obj_state
+        world_obj = WorldObj.empty() if world_obj is None else world_obj
+        self[..., 6:6+WorldObj.dim] = world_obj
 
-    def world_obj_state_encoding(self) -> np.ndarray[int]:
+    def world_obj_encoding(self) -> np.ndarray[int]:
         """
         Encode a description of this agent as a 3-tuple of integers
         (i.e. type, color, direction).
         """
-        return self[..., :WorldObjState.encode_dim].view(np.ndarray)
+        return self[..., :WorldObj.encode_dim].view(np.ndarray)
 
 
 class Agent:
@@ -211,7 +212,7 @@ class Agent:
 
     def __init__(
         self,
-        id: int,
+        index: int,
         state: AgentState,
         mission_space: MissionSpace,
         view_size: int = 7,
@@ -219,8 +220,8 @@ class Agent:
         """
         Parameters
         ----------
-        id : int
-            Unique ID for the agent in the environment
+        index : int
+            Index of the agent in the environment
         mission_space : MissionSpace
             The mission space for the agent
         view_size : int
@@ -228,7 +229,7 @@ class Agent:
         see_through_walls : bool
             Whether the agent can see through walls
         """
-        self.id: int = id
+        self.index: int = index
         self.state: AgentState = state
 
         # Actions are discrete integer values
@@ -264,7 +265,7 @@ class Agent:
         self.state.pos = (-1, -1)
         self.state.dir = -1
         self.state.terminated = False
-        self.state.carrying = WorldObjState.empty()
+        self.state.carrying = None
 
     @property
     def pos(self) -> np.ndarray[int]:
@@ -299,17 +300,14 @@ class Agent:
         """
         Return the object the agent is carrying.
         """
-        return WorldObj.from_state(self.state.carrying)
+        return WorldObj.from_array(self.state.carrying)
 
     @carrying.setter
     def carrying(self, obj: Optional[WorldObj]):
         """
         Set the object the agent is carrying.
         """
-        if obj is None:
-            self.state.carrying = WorldObjState.empty()
-        else:
-            self.state.carrying = obj.state
+        self.state.carrying = obj
 
     @property
     def dir_vec(self) -> np.ndarray[int]:
@@ -334,9 +332,9 @@ class Agent:
         """
         return front_pos(*self.state.pos, self.state.dir)
 
-    def world_state(self) -> WorldObjState:
-        arr = np.array([*self.state.world_obj_state_encoding(), 0])
-        return WorldObjState.from_array(arr)
+    def world_obj(self) -> WorldObj:
+        arr = np.array([*self.state.world_obj_encoding(), 0])
+        return WorldObj.from_array(arr)
 
     def get_view_coords(self, i, j) -> tuple[int, int]:
         """
@@ -402,7 +400,7 @@ class Agent:
         """
         Encode a description of this agent as a 3-tuple of integers.
         """
-        return tuple(self.state.world_obj_state_encoding())
+        return tuple(self.state.world_obj_encoding())
 
     def render(self, img: np.ndarray[int]):
         """

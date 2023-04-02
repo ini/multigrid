@@ -1,10 +1,11 @@
 import numpy as np
 
+from functools import cached_property
 from typing import Any, Callable, Optional, Union
 
 from .agent import Agent
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
-from .world_object import Wall, WorldObj, WorldObjState
+from .world_object import Wall, WorldObj
 
 from ..utils.rendering import (
     downsample,
@@ -35,46 +36,28 @@ class Grid:
         assert width >= 3
         assert height >= 3
         self.world_objects: dict[tuple[int, int], WorldObj] = {}
-        self.state: WorldObjState = WorldObjState(width, height)
+        self.state: np.ndarray[int] = np.zeros(
+            (width, height, WorldObj.dim), dtype=int)
+        self.state[...] = WorldObj.empty()
 
         # Arrays for updating world objects in the grid
-        # These can be passed by reference to numba functions (i.e. `handle_actions()`)
+        # These can be passed by reference and updated within numba functions
+        # (i.e. `handle_actions()`)
         self.needs_update = np.zeros(1, dtype=bool)
-        self.locations_to_update = -np.ones((10, 2), dtype=int)
+        self.locations_to_update = -np.ones((1, 2), dtype=int) # (num_locations, 2)
         self.needs_remove = np.zeros(1, dtype=bool)
-        self.locations_to_remove = -np.ones((10, 2), dtype=int)
+        self.locations_to_remove = -np.ones((1, 2), dtype=int) # (num_locations, 2)
 
     @classmethod
-    def from_grid_state(cls, grid_state: WorldObjState) -> 'Grid':
+    def from_grid_state(cls, grid_state: np.ndarray) -> 'Grid':
         """
-        Create a grid from a vectorized WorldObjState.
+        Create a grid from a grid state array.
         """
         assert grid_state.ndim == 3
         grid = cls.__new__(cls)
         grid.world_objects = {}
         grid.state = grid_state
         return grid
-
-    @property
-    def width(self) -> int:
-        """
-        Width of the grid.
-        """
-        return self.state.shape[0]
-
-    @property
-    def height(self) -> int:
-        """
-        Height of the grid.
-        """
-        return self.state.shape[1]
-
-    @property
-    def grid(self) -> list[WorldObj]:
-        """
-        Return a list of all world objects in the grid.
-        """
-        return [self.get(i, j) for i in range(self.width) for j in range(self.height)]
 
     def __contains__(self, key: Any) -> bool:
         if isinstance(key, WorldObj):
@@ -96,8 +79,26 @@ class Grid:
     def __eq__(self, other: 'Grid') -> bool:
         return np.array_equal(self.state, other.state)
 
-    def __ne__(self, other: 'Grid') -> bool:
-        return not self == other
+    @cached_property
+    def width(self) -> int:
+        """
+        Width of the grid.
+        """
+        return self.state.shape[0]
+
+    @cached_property
+    def height(self) -> int:
+        """
+        Height of the grid.
+        """
+        return self.state.shape[1]
+
+    @property
+    def grid(self) -> list[WorldObj]:
+        """
+        Return a list of all world objects in the grid.
+        """
+        return [self.get(i, j) for i in range(self.width) for j in range(self.height)]
 
     def copy(self) -> 'Grid':
         """
@@ -117,12 +118,12 @@ class Grid:
         self.world_objects[i, j] = v
 
         # Update grid
-        if v is None:
-            self.state[i, j] = WorldObjState.empty()
-        elif isinstance(v, WorldObj):
-            self.state[i, j] = v.state # copy object state to grid state
+        if isinstance(v, WorldObj):
+            self.state[i, j] = v
         elif isinstance(v, Agent):
-            self.state[i, j] = v.world_state() # update grid state
+            self.state[i, j] = v.world_obj()
+        elif v is None:
+            self.state[i, j] = WorldObj.empty()
         else:
             raise TypeError(f"cannot set grid value to {type(v)}")
 
@@ -133,7 +134,7 @@ class Grid:
         assert 0 <= i < self.width
         assert 0 <= j < self.height
         if (i, j) not in self.world_objects:
-            self.world_objects[i, j] = WorldObj.from_state(self.state[i, j].copy())
+            self.world_objects[i, j] = WorldObj.from_array(self.state[i, j])
 
         return self.world_objects[i, j]
 
@@ -222,7 +223,6 @@ class Grid:
         highlight_mask: np.ndarray
             Boolean mask indicating which grid locations to highlight
         """
-
         if highlight_mask is None:
             highlight_mask = np.zeros(shape=(self.width, self.height), dtype=bool)
 
@@ -259,7 +259,7 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        encoding = self.state.encode().copy()
+        encoding = self.state[..., :WorldObj.encode_dim].copy()
         encoding[~vis_mask] = 0
         return encoding
 
@@ -289,7 +289,7 @@ class Grid:
         self.needs_update[...] = False
         for i, j in self.locations_to_update:
             if (i, j) in self.world_objects:
-                self.world_objects[i, j].state[...] = self.state[i, j]
+                self.world_objects[i, j][...] = self.state[i, j]
 
     def remove_world_objects(self):
         """

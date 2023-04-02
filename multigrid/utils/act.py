@@ -3,7 +3,7 @@ import numpy as np
 
 from ..core.actions import Actions
 from ..core.constants import DIR_TO_VEC, OBJECT_TO_IDX, STATE_TO_IDX
-from ..core.world_object import WorldObjState
+from ..core.world_object import WorldObj
 
 
 
@@ -16,7 +16,7 @@ DROP = Actions.drop
 TOGGLE = Actions.toggle
 DONE = Actions.done
 
-# WorldObjState indices
+# WorldObj indices
 TYPE = 0
 COLOR = 1
 STATE = 2
@@ -46,7 +46,7 @@ LOCKED = STATE_TO_IDX['locked']
 
 # Other constants
 DIR_TO_VEC = np.array(DIR_TO_VEC)
-BASES = np.array(WorldObjState._bases) # for mixed-radix integer encoding
+BASES = np.array(WorldObj._bases) # for mixed-radix integer encoding
 
 
 
@@ -271,7 +271,7 @@ def toggle(
 @nb.njit(cache=True)
 def from_mixed_radix_int(n: int) -> np.ndarray[int]:
     """
-    Convert a mixed radix integer encoding to a WorldObjState object.
+    Convert a mixed radix integer encoding to a WorldObj object.
     """
     x = np.zeros(len(BASES), dtype=np.int_)
     for i in range(len(BASES)):
