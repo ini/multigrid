@@ -9,7 +9,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
-from typing import Any, Iterable, Optional, Sequence, SupportsFloat, TypeVar, Union
+from typing import Any, Iterable, Optional, SupportsFloat, TypeVar, Union
 
 from .core.actions import Actions
 from .core.agent import Agent, AgentState
