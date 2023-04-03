@@ -2,7 +2,7 @@ import numba as nb
 import numpy as np
 
 from ..core.actions import Actions
-from ..core.constants import DIR_TO_VEC, OBJECT_TO_IDX, STATE_TO_IDX
+from ..core.constants import DIR_TO_VEC
 from ..core.world_object import WorldObj
 from ..core.world_object import TYPE, COLOR, STATE, CONTENTS # WorldObj indices
 from ..core.world_object import EMPTY, DOOR, KEY, BOX, GOAL, LAVA # object type indices
