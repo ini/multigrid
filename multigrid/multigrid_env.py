@@ -133,18 +133,6 @@ class MultiGridEnv(gym.Env):
         self.actions = Actions
         self.null_actions = self.actions.done * np.ones(self.num_agents, dtype=int)
 
-        # Set joint action space
-        self.action_space = spaces.Dict({
-            agent.index: agent.action_space
-            for agent in self.agents
-        })
-
-        # Set joint observation space
-        self.observation_space = spaces.Dict({
-            agent.index: agent.observation_space
-            for agent in self.agents
-        })
-
         # Range of possible rewards
         self.reward_range = (0, 1)
 
@@ -166,6 +154,26 @@ class MultiGridEnv(gym.Env):
         # Other
         self.allow_agent_overlap = allow_agent_overlap
         self.is_competitive = is_competitive
+
+    @property
+    def action_space(self) -> spaces.Dict[AgentID, ActType]:
+        """
+        Return the joint action space of all agents.
+        """
+        return spaces.Dict({
+            agent.index: agent.action_space
+            for agent in self.agents
+        })
+
+    @property
+    def observation_space(self) -> spaces.Dict[AgentID, ObsType]:
+        """
+        Return the joint observation space of all agents.
+        """
+        return spaces.Dict({
+            agent.index: agent.observation_space
+            for agent in self.agents
+        })
 
     def reset(
         self,
