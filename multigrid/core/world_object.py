@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import numba as nb
 
 from .constants import (
     OBJECT_TO_IDX, IDX_TO_OBJECT,
@@ -8,13 +9,36 @@ from .constants import (
     STATE_TO_IDX, IDX_TO_STATE,
 )
 
-from ..utils.misc import can_overlap, can_pickup
 from ..utils.rendering import (
     fill_coords,
     point_in_circle,
     point_in_line,
     point_in_rect,
 )
+
+
+
+# WorldObj indices
+TYPE = 0
+COLOR = 1
+STATE = 2
+CONTENTS = 3
+
+# Object type indices
+EMPTY = OBJECT_TO_IDX['empty']
+WALL = OBJECT_TO_IDX['wall']
+FLOOR = OBJECT_TO_IDX['floor']
+DOOR = OBJECT_TO_IDX['door']
+KEY = OBJECT_TO_IDX['key']
+BALL = OBJECT_TO_IDX['ball']
+BOX = OBJECT_TO_IDX['box']
+GOAL = OBJECT_TO_IDX['goal']
+LAVA = OBJECT_TO_IDX['lava']
+
+# Object state indices
+OPEN = STATE_TO_IDX['open']
+CLOSED = STATE_TO_IDX['closed']
+LOCKED = STATE_TO_IDX['locked']
 
 
 
@@ -56,9 +80,9 @@ class WorldObj(np.ndarray):
             The name of the object color
         """
         obj = np.zeros(cls.dim, dtype=int).view(cls)
-        obj[0] = OBJECT_TO_IDX[type]
+        obj[TYPE] = OBJECT_TO_IDX[type]
         if color is not None:
-            obj[1] = COLOR_TO_IDX[color]
+            obj[COLOR] = COLOR_TO_IDX[color]
 
         return obj
 
@@ -87,25 +111,25 @@ class WorldObj(np.ndarray):
         Convert an array to a WorldObj instance.
         """
         object_idx_to_class = {
-            OBJECT_TO_IDX['empty']: type(None),
-            OBJECT_TO_IDX['wall']: Wall,
-            OBJECT_TO_IDX['floor']: Floor,
-            OBJECT_TO_IDX['door']: Door,
-            OBJECT_TO_IDX['key']: Key,
-            OBJECT_TO_IDX['ball']: Ball,
-            OBJECT_TO_IDX['box']: Box,
-            OBJECT_TO_IDX['goal']: Goal,
-            OBJECT_TO_IDX['lava']: Lava,
+            EMPTY: type(None),
+            WALL: Wall,
+            FLOOR: Floor,
+            DOOR: Door,
+            KEY: Key,
+            BALL: Ball,
+            BOX: Box,
+            GOAL: Goal,
+            LAVA: Lava,
         }
 
-        if arr[0] in object_idx_to_class:
-            cls = object_idx_to_class[arr[0]]
+        if arr[TYPE] in object_idx_to_class:
+            cls = object_idx_to_class[arr[TYPE]]
             obj = cls.__new__(cls)
             if obj is not None:
                 obj[...] = arr
             return obj
 
-        raise ValueError(f'Unknown object type: {arr[0]}')
+        raise ValueError(f'Unknown object type: {arr[TYPE]}')
 
     @classmethod
     def from_int(cls, n: int) -> 'WorldObj' | None:
@@ -127,83 +151,106 @@ class WorldObj(np.ndarray):
         """
         Return the name of the object type.
         """
-        return IDX_TO_OBJECT[self[0]]
+        return IDX_TO_OBJECT[self[TYPE]]
 
     @type.setter
     def type(self, value: str):
         """
         Set the name of the object type.
         """
-        self[0] = OBJECT_TO_IDX[value]
+        self[TYPE] = OBJECT_TO_IDX[value]
 
     @property
     def color(self) -> str:
         """
         Return the name of the object color.
         """
-        return IDX_TO_COLOR[self[1]]
+        return IDX_TO_COLOR[self[COLOR]]
 
     @color.setter
     def color(self, value: str):
         """
         Set the name of the object color.
         """
-        self[1] = COLOR_TO_IDX[value]
+        self[COLOR] = COLOR_TO_IDX[value]
 
     @property
     def state(self) -> str:
         """
         Return the name of the object state.
         """
-        return IDX_TO_STATE[self[2]]
+        return IDX_TO_STATE[self[STATE]]
 
     @state.setter
     def state(self, value: str):
         """
         Set the name of the object state.
         """
-        self[2] = STATE_TO_IDX[value]
+        self[STATE] = STATE_TO_IDX[value]
 
     @property
     def contains(self) -> 'WorldObj' | None:
         """
         Return the object contained by this object.
         """
-        return self.from_int(self[3])
+        return self.from_int(self[CONTENTS])
 
     @contains.setter
     def contains(self, world_obj: 'WorldObj' | None):
         """
         Set the object state contained by this object.
         """
-        self[3] = 0 if world_obj is None else world_obj.to_int()
+        self[CONTENTS] = 0 if world_obj is None else world_obj.to_int()
 
+    @nb.njit(cache=True)
     def can_overlap(self) -> bool:
         """
         Can an agent overlap with this?
         """
-        return can_overlap(*self)
+        if self[TYPE] == EMPTY:
+            return True
+        elif self[TYPE] == GOAL:
+            return True
+        elif self[TYPE] == FLOOR:
+            return True
+        elif self[TYPE] == LAVA:
+            return True
+        elif self[TYPE] == DOOR and self[STATE] == OPEN:
+            return True
 
+        return False
+
+    @nb.njit(cache=True)
     def can_pickup(self) -> bool:
         """
         Can an agent pick this up?
         """
-        return can_pickup(*self)
+        if self[TYPE] == KEY:
+            return True
+        elif self[TYPE] == BALL:
+            return True
+        elif self[TYPE] == BOX:
+            return True
 
+        return False
+
+    @nb.njit(cache=True)
     def can_contain(self) -> bool:
         """
         Can this contain another object?
         """
-        return self.type == 'box'
+        return self[TYPE] == BOX
 
+    @nb.njit(cache=True)
     def see_behind(self) -> bool:
         """
         Can an agent see behind this object?
         """
-        if self.type == 'wall':
+        if self[TYPE] == WALL:
             return False
-        elif self.type == 'door' and self.state != 'open':
+        elif self[TYPE] == DOOR and self[STATE] != OPEN:
             return False
+
         return True
 
     def encode(self) -> tuple[int, int, int]:

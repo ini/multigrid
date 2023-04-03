@@ -4,8 +4,9 @@ import numpy as np
 from ..core.actions import Actions
 from ..core.constants import DIR_TO_VEC, OBJECT_TO_IDX, STATE_TO_IDX
 from ..core.world_object import WorldObj
-
-
+from ..core.world_object import TYPE, COLOR, STATE, CONTENTS # WorldObj indices
+from ..core.world_object import EMPTY, DOOR, KEY, BOX, GOAL, LAVA # object type indices
+from ..core.world_object import OPEN, CLOSED, LOCKED # object state indices
 
 # Action enumeration
 LEFT = Actions.left
@@ -16,11 +17,9 @@ DROP = Actions.drop
 TOGGLE = Actions.toggle
 DONE = Actions.done
 
-# WorldObj indices
-TYPE = 0
-COLOR = 1
-STATE = 2
-CONTENTS = 3
+### WorldObj Functions
+can_overlap = WorldObj.can_overlap
+can_pickup = WorldObj.can_pickup
 
 # AgentState indices
 DIR = 2
@@ -28,21 +27,6 @@ POS_X = 3
 POS_Y = 4
 TERMINATED = 5
 CARRYING = np.array([6, 7, 8, 9])
-
-# Object type indices
-EMPTY = OBJECT_TO_IDX['empty']
-FLOOR = OBJECT_TO_IDX['floor']
-DOOR = OBJECT_TO_IDX['door']
-KEY = OBJECT_TO_IDX['key']
-BALL = OBJECT_TO_IDX['ball']
-BOX = OBJECT_TO_IDX['box']
-GOAL = OBJECT_TO_IDX['goal']
-LAVA = OBJECT_TO_IDX['lava']
-
-# Object state indices (i.e. 'open', 'closed', 'locked')
-OPEN = STATE_TO_IDX['open']
-CLOSED = STATE_TO_IDX['closed']
-LOCKED = STATE_TO_IDX['locked']
 
 # Other constants
 DIR_TO_VEC = np.array(DIR_TO_VEC)
@@ -181,47 +165,6 @@ def handle_actions(
             pass
 
     return rewards
-
-@nb.njit(cache=True)
-def can_overlap(world_obj_state: np.ndarray[int]) -> bool:
-    """
-    Can an agent overlap with this?
-
-    Parameters
-    ----------
-    world_obj_state : np.ndarray[int]
-        The state of the world object
-    """
-    if world_obj_state[..., TYPE] == EMPTY:
-        return True
-    elif world_obj_state[..., TYPE] == GOAL:
-        return True
-    elif world_obj_state[..., TYPE] == FLOOR:
-        return True
-    elif world_obj_state[..., TYPE] == LAVA:
-        return True
-    elif world_obj_state[..., TYPE] == DOOR:
-        if world_obj_state[..., STATE] == OPEN:
-            return True
-    return False
-
-@nb.njit(cache=True)
-def can_pickup(world_obj_state: np.ndarray[int]) -> bool:
-    """
-    Can an agent pick this up?
-
-    Parameters
-    ----------
-    world_obj_state : np.ndarray[int]
-        The state of the world object
-    """
-    if world_obj_state[..., TYPE] == KEY:
-        return True
-    elif world_obj_state[..., TYPE] == BALL:
-        return True
-    elif world_obj_state[..., TYPE] == BOX:
-        return True
-    return False
 
 @nb.njit(cache=True)
 def toggle(

@@ -1,22 +1,20 @@
 import numba as nb
 import numpy as np
 
-from ..core.constants import OBJECT_TO_IDX, STATE_TO_IDX
 from ..core.world_object import WorldObj, Wall
 
 
 
-### Constants
-
-WALL_IDX = OBJECT_TO_IDX['wall']
-DOOR_IDX = OBJECT_TO_IDX['door']
-OPEN_IDX = STATE_TO_IDX['open']
+# Constants
 ENCODE_DIM = WorldObj.encode_dim
 WALL_ENCODING = Wall().encode()
 
+# WorldObj Functions
+see_behind = WorldObj.see_behind
 
 
-### Functions
+
+### Observation Functions
 
 @nb.njit(cache=True)
 def gen_obs_grid_encoding(
@@ -178,17 +176,13 @@ def get_see_behind_mask(grid_array: np.ndarray[int]) -> np.ndarray[bool]:
         Boolean transparency mask
     """
     num_agents, width, height = grid_array.shape[:3]
-    neg_mask = np.zeros((num_agents, width, height), dtype=np.bool_)
+    see_behind_mask = np.zeros((num_agents, width, height), dtype=np.bool_)
     for agent in range(num_agents):
         for i in range(width):
             for j in range(height):
-                if grid_array[agent, i, j, 0] == WALL_IDX:
-                    neg_mask[agent, i, j] = True
-                elif grid_array[agent, i, j, 0] == DOOR_IDX:
-                    if grid_array[agent, i, j, 2] != OPEN_IDX:
-                        neg_mask[agent, i, j] = True
+                see_behind_mask[agent, i, j] = see_behind(grid_array[agent, i, j])
 
-    return ~neg_mask
+    return see_behind_mask
 
 @nb.njit(cache=True)
 def get_vis_mask(obs_grid: np.ndarray[int]) -> np.ndarray[bool]:
