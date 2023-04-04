@@ -1,5 +1,6 @@
 import numpy as np
 
+from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
 from typing import Any, Sequence, SupportsFloat
 
@@ -56,6 +57,50 @@ class MiniGridInterface(MultiGridEnv):
         """
         result = super().step({0: action})
         return (item[0] for item in result)
+
+    @property
+    def action_space(self) -> spaces.Space:
+        """
+        Get action space.
+        """
+        assert len(self.agents) == 1, (
+           "This property is not supported for multi-agent envs. "
+           "Use `env.agents[i].action_space` instead."
+        )
+        return self.agents[0].action_space
+
+    @action_space.setter
+    def action_space(self, space: spaces.Space):
+        """
+        Set action space.
+        """
+        assert len(self.agents) == 1, (
+           "This property is not supported for multi-agent envs. "
+           "Use `env.agents[i].action_space` instead."
+        )
+        self.agents[0].action_space = space
+
+    @property
+    def observation_space(self) -> spaces.Space:
+        """
+        Get observation space.
+        """
+        assert len(self.agents) == 1, (
+           "This property is not supported for multi-agent envs. "
+           "Use `env.agents[i].observation_space` instead."
+        )
+        return self.agents[0].observation_space
+
+    @observation_space.setter
+    def observation_space(self, space: spaces.Space):
+        """
+        Set observation space.
+        """
+        assert len(self.agents) == 1, (
+           "This property is not supported for multi-agent envs. "
+           "Use `env.agents[i].observation_space` instead."
+        )
+        self.agents[0].observation_space = space
 
     @property
     def agent_pos(self) -> np.ndarray[int]:
