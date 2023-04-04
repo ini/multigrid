@@ -1,6 +1,7 @@
 import numpy as np
 
-from typing import Sequence
+from gymnasium.core import ActType, ObsType
+from typing import Any, Sequence, SupportsFloat
 
 from .core.world_object import WorldObj
 from .multigrid_env import MultiGridEnv
@@ -36,11 +37,23 @@ class MiniGridInterface(MultiGridEnv):
     >>>    ... # same class definition
     """
 
-    def reset(self, *args, **kwargs):
+    def reset(self, *args, **kwargs) -> tuple[ObsType, dict[str, Any]]:
+        """
+        Reset the environment.
+        """
         result = super().reset(*args, **kwargs)
         return (item[0] for item in result)
 
-    def step(self, action: int):
+    def step(self, action: ActType) -> tuple[
+        ObsType,
+        SupportsFloat,
+        bool,
+        bool,
+        dict[str, Any]]:
+        """
+        Run one timestep of the environment’s dynamics
+        using the provided agent action.
+        """
         result = super().step({0: action})
         return (item[0] for item in result)
 
@@ -123,8 +136,8 @@ class MiniGridInterface(MultiGridEnv):
         )
         return self.agents[0].front_pos
 
-    def place_agent(self, **kwargs) -> tuple[int, int]:
+    def place_agent(self, *args, **kwargs) -> tuple[int, int]:
         """
         Set agent starting point at an empty position in the grid.
         """
-        return super().place_agent(self.agents[0], **kwargs)
+        return super().place_agent(self.agents[0], *args, **kwargs)

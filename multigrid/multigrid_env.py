@@ -179,7 +179,9 @@ class MultiGridEnv(gym.Env):
         self,
         *,
         seed: int | None = None,
-        options: dict[str, Any] = {}) -> tuple[ObsType, dict[str, Any]]:
+        options: dict[str, Any] = {}) -> tuple[
+            dict[AgentID, ObsType]:
+            dict[AgentID, dict[str, Any]]]:
         """
         Reset the environment.
         """
@@ -477,7 +479,7 @@ class MultiGridEnv(gym.Env):
         Parameters
         ----------
         actions : dict[AgentID, ActType]
-            Action for each agent
+            Action for each agent acting at this timestep
 
         Returns
         -------
