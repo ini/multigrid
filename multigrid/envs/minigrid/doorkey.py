@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from ..core.grid import Grid
-from ..core.mission import MissionSpace
-from ..core.world_object import Door, Goal, Key
-from ..minigrid_interface import MiniGridInterface
+from multigrid.core.grid import Grid
+from multigrid.core.mission import MissionSpace
+from multigrid.core.world_object import Door, Goal, Key
+from multigrid.minigrid_interface import MiniGridInterface as MiniGridEnv
 
 
-
-class DoorKeyEnv(MiniGridInterface):
+class DoorKeyEnv(MiniGridEnv):
 
     """
     ## Description

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import itertools as itt
+
 import numpy as np
 
-from ..core.grid import Grid
-from ..core.mission import MissionSpace
-from ..core.world_object import Goal, Lava
-from ..minigrid_interface import MiniGridInterface
+from multigrid.core.grid import Grid
+from multigrid.core.mission import MissionSpace
+from multigrid.core.world_object import Goal, Lava
+from multigrid.minigrid_interface import MiniGridInterface as MiniGridEnv
 
 
-
-class CrossingEnv(MiniGridInterface):
+class CrossingEnv(MiniGridEnv):
 
     """
     ## Description

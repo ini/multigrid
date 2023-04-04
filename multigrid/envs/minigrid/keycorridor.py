@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from ..core.constants import COLOR_NAMES
-from ..core.mission import MissionSpace
-from ..core.roomgrid import RoomGrid
-from ..minigrid_interface import MiniGridInterface
+from multigrid.core.constants import COLOR_NAMES
+from multigrid.core.mission import MissionSpace
+from multigrid.core.roomgrid import RoomGrid
+from multigrid.minigrid_interface import MiniGridInterface
 
 
-
-class KeyCorridorEnv(RoomGrid, MiniGridInterface):
+class KeyCorridorEnv(MiniGridInterface, RoomGrid):
 
     """
     ## Description

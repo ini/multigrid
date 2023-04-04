@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from gymnasium.spaces import Discrete
 from operator import add
 
-from ..core.grid import Grid
-from ..core.mission import MissionSpace
-from ..core.world_object import Ball, Goal
-from ..minigrid_interface import MiniGridInterface
+from gymnasium.spaces import Discrete
+
+from multigrid.core.grid import Grid
+from multigrid.core.mission import MissionSpace
+from multigrid.core.world_object import Ball, Goal
+from multigrid.minigrid_interface import MiniGridInterface as MiniGridEnv
 
 
-
-class DynamicObstaclesEnv(MiniGridInterface):
+class DynamicObstaclesEnv(MiniGridEnv):
     """
     ## Description
 

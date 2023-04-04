@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from ..core.mission import MissionSpace
-from ..core.roomgrid import RoomGrid
-from ..minigrid_interface import MiniGridInterface
+from multigrid.core.mission import MissionSpace
+from multigrid.core.roomgrid import RoomGrid
+from multigrid.minigrid_interface import MiniGridInterface
 
 
-
-class UnlockEnv(RoomGrid, MiniGridInterface):
+class UnlockEnv(MiniGridInterface, RoomGrid):
 
     """
     ## Description

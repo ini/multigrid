@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-from ..core.grid import Grid
-from ..core.mission import MissionSpace
-from ..core.world_object import Goal, Lava
-from ..minigrid_interface import MiniGridInterface
+from multigrid.core.grid import Grid
+from multigrid.core.mission import MissionSpace
+from multigrid.core.world_object import Goal
+from multigrid.minigrid_interface import MiniGridInterface as MiniGridEnv
 
 
-
-class DistShiftEnv(MiniGridInterface):
-
+class EmptyEnv(MiniGridEnv):
     """
     ## Description
 
-    This environment is based on one of the DeepMind [AI safety gridworlds](https://github.com/deepmind/ai-safety-gridworlds).
-    The agent starts in the
-    top-left corner and must reach the goal which is in the top-right corner,
-    but has to avoid stepping into lava on its way. The aim of this environment
-    is to test an agent's ability to generalize. There are two slightly
-    different variants of the environment, so that the agent can be trained on
-    one variant and tested on the other.
+    This environment is an empty room, and the goal of the agent is to reach the
+    green goal square, which provides a sparse reward. A small penalty is
+    subtracted for the number of steps to reach the goal. This environment is
+    useful, with small rooms, to validate that your RL algorithm works
+    correctly, and with large rooms to experiment with sparse rewards and
+    exploration. The random variants of the environment have the agent starting
+    at a random position for each episode, while the regular variants have the
+    agent always starting in the corner opposite to the goal.
 
     ## Mission Space
 
@@ -53,40 +52,38 @@ class DistShiftEnv(MiniGridInterface):
     The episode ends if any one of the following conditions is met:
 
     1. The agent reaches the goal.
-    2. The agent falls into lava.
-    3. Timeout (see `max_steps`).
+    2. Timeout (see `max_steps`).
 
     ## Registered Configurations
 
-    - `MiniGrid-DistShift1-v0`
-    - `MiniGrid-DistShift2-v0`
+    - `MiniGrid-Empty-5x5-v0`
+    - `MiniGrid-Empty-Random-5x5-v0`
+    - `MiniGrid-Empty-6x6-v0`
+    - `MiniGrid-Empty-Random-6x6-v0`
+    - `MiniGrid-Empty-8x8-v0`
+    - `MiniGrid-Empty-16x16-v0`
 
     """
 
     def __init__(
         self,
-        width=9,
-        height=7,
+        size=8,
         agent_start_pos=(1, 1),
         agent_start_dir=0,
-        strip2_row=2,
         max_steps: int | None = None,
         **kwargs,
     ):
         self.agent_start_pos = agent_start_pos
         self.agent_start_dir = agent_start_dir
-        self.goal_pos = (width - 2, 1)
-        self.strip2_row = strip2_row
 
         mission_space = MissionSpace(mission_func=self._gen_mission)
 
         if max_steps is None:
-            max_steps = 4 * width * height
+            max_steps = 4 * size**2
 
         super().__init__(
             mission_space=mission_space,
-            width=width,
-            height=height,
+            grid_size=size,
             # Set this to True for maximum speed
             see_through_walls=True,
             max_steps=max_steps,
@@ -105,12 +102,7 @@ class DistShiftEnv(MiniGridInterface):
         self.grid.wall_rect(0, 0, width, height)
 
         # Place a goal square in the bottom-right corner
-        self.put_obj(Goal(), *self.goal_pos)
-
-        # Place the lava rows
-        for i in range(self.width - 6):
-            self.grid.set(3 + i, 1, Lava())
-            self.grid.set(3 + i, self.strip2_row, Lava())
+        self.put_obj(Goal(), width - 2, height - 2)
 
         # Place the agent
         if self.agent_start_pos is not None:

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from ..core.constants import DIR_TO_VEC
-from ..core.roomgrid import RoomGrid
-from ..core.world_object import Ball, Box, Key
-from ..envs.obstructedmaze import ObstructedMazeEnv
+from minigrid.core.constants import DIR_TO_VEC
+from minigrid.core.roomgrid import RoomGrid
+from minigrid.core.world_object import Ball, Box, Key
+from minigrid.envs.obstructedmaze import ObstructedMazeEnv
 
 
 class ObstructedMaze_Full(ObstructedMazeEnv):

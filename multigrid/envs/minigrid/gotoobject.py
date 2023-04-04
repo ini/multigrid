@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from ..core.constants import COLOR_NAMES
-from ..core.grid import Grid
-from ..core.mission import MissionSpace
-from ..core.world_object import Ball, Box, Key
-from ..minigrid_interface import MiniGridInterface
+from multigrid.core.constants import COLOR_NAMES
+from multigrid.core.grid import Grid
+from multigrid.core.mission import MissionSpace
+from multigrid.core.world_object import Ball, Box, Key
+from multigrid.minigrid_interface import MiniGridInterface as MiniGridEnv
 
 
-
-class GoToObjectEnv(MiniGridInterface):
+class GoToObjectEnv(MiniGridEnv):
     """
     ## Description
 
