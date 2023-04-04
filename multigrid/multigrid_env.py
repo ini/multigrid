@@ -32,15 +32,25 @@ class MultiGridEnv(gym.Env):
     """
     Multi-agent 2D gridworld game environment.
 
+    Agents are identified by their index, from 0 to (`num_agents - 1`).
+
+    The multi-agent observation space is a Dict mapping from agent index to
+    corresponding agent observation space.
+
+    Similarly, the multi-agent action space is a Dict mapping from agent index to
+    corresponding agent action space.
+
+    Subclasses of MultiGridEnv should implement `_gen_grid()`.
+
     Attributes
     ----------
     agents : list[Agent]
         List of agents in the environment
     grid : Grid
         Environment grid
-    action_space : gym.spaces.Dict
+    action_space : spaces.Dict[AgentID, spaces.Space]
         Joint action space of all agents
-    observation_space : gym.spaces.Dict
+    observation_space : spaces.Dict[AgentID, spaces.Space]
         Joint observation space of all agents
     """
     metadata = {
@@ -156,7 +166,7 @@ class MultiGridEnv(gym.Env):
         self.is_competitive = is_competitive
 
     @property
-    def action_space(self) -> spaces.Dict[AgentID, ActType]:
+    def action_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint action space of all agents.
         """
@@ -166,7 +176,7 @@ class MultiGridEnv(gym.Env):
         })
 
     @property
-    def observation_space(self) -> spaces.Dict[AgentID, ObsType]:
+    def observation_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint observation space of all agents.
         """
@@ -185,7 +195,7 @@ class MultiGridEnv(gym.Env):
         """
         Reset the environment.
         """
-        super().reset(seed=seed)
+        super().reset(seed=seed, options=options)
 
         # Reinitialize episode-specific variables
         for agent in self.agents:
@@ -215,6 +225,112 @@ class MultiGridEnv(gym.Env):
         obs = self.gen_obs()
 
         return obs, defaultdict(dict)
+
+    def step(
+        self,
+        actions: dict[AgentID, ActType]) -> tuple[
+            dict[AgentID, ObsType],
+            dict[AgentID, SupportsFloat],
+            dict[AgentID, bool],
+            dict[AgentID, bool],
+            dict[AgentID, dict[str, Any]]]:
+        """
+        Run one timestep of the environment’s dynamics
+        using the provided agent actions.
+
+        Parameters
+        ----------
+        actions : dict[AgentID, ActType]
+            Action for each agent acting at this timestep
+
+        Returns
+        -------
+        obs : dict[AgentID, ObsType]
+            Observation for each agent
+        reward : dict[AgentID, SupportsFloat]
+            Reward for each agent
+        terminated : dict[AgentID, bool]
+            Whether the episode has been terminated for each agent (success or failure)
+        truncated : dict[AgentID, bool]
+            Whether the episode has been truncated for each agent (max steps reached)
+        info : dict[AgentID, dict[str, Any]]
+            Additional information for each agent
+        """
+        self.step_count += 1
+
+        action_array = self.null_actions.copy()
+        for i, action in actions.items():
+            action_array[i] = action
+
+        # Randomize agent action order
+        if self.num_agents == 1:
+            order = np.zeros(1, dtype=int)
+        else:
+            order = self.np_random.random(size=self.num_agents).argsort()
+
+        # Update agent state and grid state from actions
+        reward = handle_actions(
+            action_array,
+            order,
+            self.agent_state,
+            self.grid.state,
+            self.grid.needs_update,
+            self.grid.locations_to_update,
+            self.grid.needs_remove,
+            self.grid.locations_to_remove,
+            self.allow_agent_overlap,
+            self.is_competitive,
+            self.step_count,
+            self.max_steps,
+        )
+
+        # Update world objects in grid
+        if self.grid.needs_update:
+            self.grid.update_world_objects()
+        if self.grid.needs_remove:
+            self.grid.remove_world_objects()
+
+        # Rendering
+        if self.render_mode == 'human':
+            self.render()
+
+        # Generate outputs
+        obs = self.gen_obs()
+        reward = dict(enumerate(reward))
+        truncated = self.step_count >= self.max_steps
+        truncated = dict(enumerate([truncated] * self.num_agents))
+        terminated = dict(enumerate(self.agent_state.terminated))
+
+        return obs, reward, terminated, truncated, defaultdict(dict)
+
+    def gen_obs(self) -> dict[AgentID, ObsType]:
+        """
+        Generate observations for each agent (partially observable, low-res encoding).
+
+        Returns
+        -------
+        obs : dict[AgentID, dict]
+            Mapping from agent ID to observation dict, containing:
+                - 'image': partially observable view of the environment
+                - 'direction': agent's direction/orientation (acting as a compass)
+                - 'mission': textual mission string (instructions for the agent)
+        """
+        direction = self.agent_state.dir
+        image = gen_obs_grid_encoding(
+            self.grid.state,
+            self.agent_state,
+            self.agents[0].view_size,
+            self.agents[0].see_through_walls,
+        )
+
+        obs = {}
+        for i in range(self.num_agents):
+            obs[i] = {
+                'image': image[i],
+                'direction': direction[i],
+                'mission': self.mission,
+            }
+        return obs
 
     def hash(self, size=16):
         """
@@ -304,12 +420,6 @@ class MultiGridEnv(gym.Env):
     @abstractmethod
     def _gen_grid(self, width, height):
         pass
-
-    def _reward(self) -> float:
-        """
-        Compute the reward to be given upon success.
-        """
-        return 1 - 0.9 * (self.step_count / self.max_steps)
 
     def _rand_int(self, low: int, high: int) -> int:
         """
@@ -463,111 +573,6 @@ class MultiGridEnv(gym.Env):
             agent.state.dir = self._rand_int(0, 4)
 
         return pos
-
-    def step(
-        self,
-        actions: dict[AgentID, ActType]) -> tuple[
-            dict[AgentID, ObsType],
-            dict[AgentID, SupportsFloat],
-            dict[AgentID, bool],
-            dict[AgentID, bool],
-            dict[AgentID, dict[str, Any]]]:
-        """
-        Run one timestep of the environment’s dynamics
-        using the provided agent actions.
-
-        Parameters
-        ----------
-        actions : dict[AgentID, ActType]
-            Action for each agent acting at this timestep
-
-        Returns
-        -------
-        obs : dict[AgentID, ObsType]
-            Observation for each agent
-        reward : dict[AgentID, SupportsFloat]
-            Reward for each agent
-        terminated : dict[AgentID, bool]
-            Whether the episode has been terminated for each agent (success or failure)
-        truncated : dict[AgentID, bool]
-            Whether the episode has been truncated for each agent (max steps reached)
-        info : dict[AgentID, dict[str, Any]]
-            Additional information for each agent
-        """
-        self.step_count += 1
-
-        action_array = self.null_actions.copy()
-        for i, action in actions.items():
-            action_array[i] = action
-
-        # Randomize agent action order
-        if self.num_agents == 1:
-            order = np.zeros(1, dtype=int)
-        else:
-            order = self.np_random.random(size=self.num_agents).argsort()
-
-        # Update agent state and grid state from actions
-        reward = handle_actions(
-            action_array,
-            order,
-            self.agent_state,
-            self.grid.state,
-            self.grid.needs_update,
-            self.grid.locations_to_update,
-            self.grid.needs_remove,
-            self.grid.locations_to_remove,
-            allow_agent_overlap=self.allow_agent_overlap,
-            is_competitive=self.is_competitive,
-        )
-
-        # Update world objects in grid
-        if self.grid.needs_update:
-            self.grid.update_world_objects()
-        if self.grid.needs_remove:
-            self.grid.remove_world_objects()
-
-        # Rendering
-        if self.render_mode == 'human':
-            self.render()
-
-        # Generate outputs
-        obs = self.gen_obs()
-        reward *= self._reward()
-        reward = dict(enumerate(reward))
-        truncated = self.step_count >= self.max_steps
-        truncated = dict(enumerate([truncated] * self.num_agents))
-        terminated = dict(enumerate(self.agent_state.terminated))
-
-        return obs, reward, terminated, truncated, defaultdict(dict)
-
-    def gen_obs(self) -> dict[AgentID, ObsType]:
-        """
-        Generate observations for each agent (partially observable, low-res encoding).
-
-        Returns
-        -------
-        obs : dict[AgentID, dict]
-            Mapping from agent ID to observation dict, containing:
-                - 'image': partially observable view of the environment
-                - 'direction': agent's direction/orientation (acting as a compass)
-                - 'mission': textual mission string (instructions for the agent)
-        """
-        direction = self.agent_state.dir
-        image = gen_obs_grid_encoding(
-            self.grid.state,
-            self.agent_state,
-            self.agents[0].view_size,
-            self.agents[0].see_through_walls,
-        )
-
-        obs = {}
-        for i in range(self.num_agents):
-            obs[i] = {
-                'image': image[i],
-                'direction': direction[i],
-                'mission': self.mission,
-            }
-        return obs
 
     def get_pov_render(self, *args, **kwargs):
         """
