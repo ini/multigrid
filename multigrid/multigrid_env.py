@@ -266,7 +266,7 @@ class MultiGridEnv(gym.Env):
         AGENT_DIR_TO_STR = {0: '>', 1: 'V', 2: '<', 3: '^'}
 
         # Get agent locations
-        location_to_agent = {tuple(agent.pos): agent for agent in agents}
+        location_to_agent = {tuple(agent.pos): agent for agent in self.agents}
 
         output = ""
         for j in range(self.grid.height):
