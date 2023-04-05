@@ -7,7 +7,7 @@ import numpy as np
 import pygame
 import pygame.freetype
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
@@ -28,7 +28,7 @@ AgentID = int
 
 
 
-class MultiGridEnv(gym.Env):
+class MultiGridEnv(gym.Env, ABC):
     """
     Multi-agent 2D gridworld game environment.
 
@@ -112,7 +112,7 @@ class MultiGridEnv(gym.Env):
         width, height = (grid_size, grid_size) if grid_size else (width, height)
         assert width is not None and height is not None
         self.width, self.height = width, height
-        self.grid = Grid(width, height)
+        self.grid: Grid = Grid(width, height)
 
         # Initialize agents
         if isinstance(agents, int):
@@ -425,7 +425,21 @@ class MultiGridEnv(gym.Env):
         return output
 
     @abstractmethod
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width: int, height: int):
+        """
+        Generate the grid for a new episode.
+
+        This method should:
+        * Set `self.grid` and populate it with `WorldObj` instances
+        * Set the positions and orientations of each agent
+
+        Parameters
+        ----------
+        width : int
+            Width of the grid
+        height : int
+            Height of the grid
+        """
         pass
 
     def _rand_int(self, low: int, high: int) -> int:
