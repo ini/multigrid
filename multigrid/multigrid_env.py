@@ -71,7 +71,7 @@ class MultiGridEnv(gym.Env):
         allow_agent_overlap: bool = False,
         is_competitive: bool = True,
         render_mode: str | None = None,
-        screen_size: int | None = 1,
+        screen_size: int | None = 640,
         highlight: bool = True,
         tile_size: int = TILE_PIXELS,
         agent_pov: bool = False):
@@ -141,7 +141,6 @@ class MultiGridEnv(gym.Env):
 
         # Action enumeration for this environment
         self.actions = Actions
-        self.null_actions = self.actions.done * np.ones(self.num_agents, dtype=int)
 
         # Range of possible rewards
         self.reward_range = (0, 1)
@@ -194,6 +193,13 @@ class MultiGridEnv(gym.Env):
             dict[AgentID, dict[str, Any]]]:
         """
         Reset the environment.
+
+        Returns
+        -------
+        obs : dict[AgentID, ObsType]
+            Observation for each agent
+        info : dict[AgentID, dict[str, Any]]
+            Additional information for each agent
         """
         super().reset(seed=seed, options=options)
 
@@ -258,9 +264,10 @@ class MultiGridEnv(gym.Env):
         """
         self.step_count += 1
 
-        action_array = self.null_actions.copy()
-        for i, action in actions.items():
-            action_array[i] = action
+        action_array = np.array([
+            actions[i] if i in actions else -1
+            for i in range(self.num_agents)
+        ])
 
         # Randomize agent action order
         if self.num_agents == 1:
@@ -309,7 +316,7 @@ class MultiGridEnv(gym.Env):
 
         Returns
         -------
-        obs : dict[AgentID, dict]
+        obs : dict[AgentID, ObsType]
             Mapping from agent ID to observation dict, containing:
                 - 'image': partially observable view of the environment
                 - 'direction': agent's direction/orientation (acting as a compass)
