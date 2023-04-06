@@ -81,13 +81,17 @@ class MissionSpace(spaces.Space[str]):
                 "the mission function shouldn't have any parameters."
             )
 
-        self.ordered_placeholders = ordered_placeholders or []
+        self.ordered_placeholders = ordered_placeholders
         self.mission_func = mission_func
-        self.mission_to_index = {
-            self.get(idx): np.array(idx, dtype=int)
-            for idx in np.ndindex(
-                tuple(len(var_list) for var_list in self.ordered_placeholders))
-        }
+
+        if not self.ordered_placeholders:
+            self.mission_to_index = {self.mission_func(): 0}
+        else:
+            self.mission_to_index = {
+                self.get(idx): np.array(idx, dtype=int)
+                for idx in np.ndindex(
+                    tuple(len(var_list) for var_list in self.ordered_placeholders))
+            }
 
         super().__init__(dtype=str, seed=seed)
 
@@ -97,7 +101,7 @@ class MissionSpace(spaces.Space[str]):
             sampled_mission, str
         ), f"mission_func must return type str not {type(sampled_mission)}"
 
-    def placeholder_space(self) -> spaces.MultiDiscrete:
+    def placeholder_space(self) -> spaces.MultiDiscrete | spaces.Discrete:
         """
         Return the multi-discrete placeholder space.
 
@@ -109,6 +113,9 @@ class MissionSpace(spaces.Space[str]):
         >>> mission_space.placeholder_space()
         MultiDiscrete([3, 2])
         """
+        if not self.ordered_placeholders:
+            return spaces.Discrete(1)
+
         return spaces.MultiDiscrete(
             tuple(len(var_list) for var_list in self.ordered_placeholders))
 
