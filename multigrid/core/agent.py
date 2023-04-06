@@ -254,7 +254,7 @@ class Agent:
                 dtype='uint8',
             ),
             'direction': spaces.Discrete(len(DIR_TO_VEC)),
-            'mission_space': mission_space,
+            'mission': mission_space,
         })
         self.see_through_walls = see_through_walls
 

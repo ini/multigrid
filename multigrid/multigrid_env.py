@@ -106,6 +106,7 @@ class MultiGridEnv(gym.Env, ABC):
             Width and height of each grid tiles (in pixels)
         """
         # Initialize mission
+        self.mission_space = mission_space
         self.mission = mission_space.sample()
 
         # Initialize grid
@@ -204,6 +205,7 @@ class MultiGridEnv(gym.Env, ABC):
         super().reset(seed=seed, options=options)
 
         # Reinitialize episode-specific variables
+        self.mission = self.mission_space.sample()
         for agent in self.agents:
             agent.reset(self.mission)
 
@@ -395,7 +397,7 @@ class MultiGridEnv(gym.Env, ABC):
         for j in range(self.grid.height):
             for i in range(self.grid.width):
                 if (i, j) in location_to_agent:
-                    output += 2 * AGENT_DIR_TO_STR[tile.dir]
+                    output += 2 * AGENT_DIR_TO_STR[location_to_agent[i, j].dir]
                     continue
 
                 tile = self.grid.get(i, j)
