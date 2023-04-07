@@ -133,7 +133,7 @@ class MissionSpace(spaces.Space[str]):
         if not self.ordered_placeholders:
             return self.mission_func()
 
-        idx = self.np_random.integers(0, self.placeholder_space().shape)
+        idx = self.np_random.integers(0, self.placeholder_space().nvec)
         return self.get(idx)
 
     def contains(self, x: Any) -> bool:
