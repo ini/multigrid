@@ -15,12 +15,12 @@ from typing import Any, Iterable, SupportsFloat, TypeVar
 
 from .core.actions import Action
 from .core.agent import Agent, AgentState
-from .core.constants import COLOR_NAMES, TILE_PIXELS
+from .core.constants import COLOR_NAMES, OBJECT_TO_IDX, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
 from .core.world_object import can_overlap, can_pickup
-from .utils.obs import gen_obs_grid_encoding, gen_obs_grid_vis_mask
+from .utils.obs import gen_obs_grid_encoding
 
 
 
@@ -28,7 +28,7 @@ from .utils.obs import gen_obs_grid_encoding, gen_obs_grid_vis_mask
 
 T = TypeVar('T')
 AgentID = int
-ObsType = dict[str, NDArray[np._int] | int | str]
+ObsType = dict[str, NDArray[np.int_] | int | str]
 
 
 
@@ -75,6 +75,7 @@ class MultiGridEnv(gym.Env, ABC):
         see_through_walls: bool = False,
         agent_view_size: int = 7,
         allow_agent_overlap: bool = False,
+        give_joint_reward: bool = False,
         is_competitive: bool = True,
         render_mode: str | None = None,
         screen_size: int | None = 640,
@@ -100,6 +101,8 @@ class MultiGridEnv(gym.Env, ABC):
             Size of agent view (must be odd)
         allow_agent_overlap : bool
             Whether agents are allowed to overlap
+        give_joint_reward : bool
+            Whether all agents receive the same joint reward
         is_competitive : bool
             Whether the task is competitive (i.e. only one agent can get the reward)
         render_mode : str
@@ -169,6 +172,7 @@ class MultiGridEnv(gym.Env, ABC):
 
         # Other
         self.allow_agent_overlap = allow_agent_overlap
+        self.give_joint_reward = give_joint_reward
         self.is_competitive = is_competitive
 
     @property
@@ -232,11 +236,12 @@ class MultiGridEnv(gym.Env, ABC):
         # Step count since episode start
         self.step_count = 0
 
-        if self.render_mode == 'human':
-            self.render()
-
         # Return first observation
         obs = self.gen_obs()
+
+        # Render environment
+        if self.render_mode == 'human':
+            self.render()
 
         return obs, defaultdict(dict)
 
@@ -325,15 +330,26 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
+                if not self.allow_agent_overlap:
+                    if any(np.array_equal(fwd_pos, pos) for pos in self.agent_state.pos):
+                        continue
+
                 if can_overlap(self.grid.state[fwd_pos]):
                     agent.state.pos = fwd_pos
 
                 if fwd_obj is not None:
-                    if fwd_obj.type == 'goal':
+                    if fwd_obj.type == 'lava':
                         agent.state.terminated = True
-                        reward[i] = self._reward()
-                    elif fwd_obj.type == 'lava':
-                        agent.state.terminated = True
+                    elif fwd_obj.type == 'goal':
+                        if self.is_competitive:
+                            self.agent_state.terminated = True # terminate all agents
+                        else:
+                            agent.state.terminated = True # terminate this agent only
+                        if self.give_joint_reward:
+                            for key in reward:
+                                reward[key] = self._reward() # reward all agents
+                        else:
+                            reward[i] = self._reward() # reward this agent only
 
             # Pick up an object
             elif action == Action.pickup:
@@ -399,6 +415,8 @@ class MultiGridEnv(gym.Env, ABC):
                 'direction': direction[i],
                 'mission': self.mission,
             }
+
+        self._current_obs = obs
         return obs
 
     def hash(self, size=16):
@@ -677,8 +695,10 @@ class MultiGridEnv(gym.Env, ABC):
         Render a non-partial observation for visualization.
         """
         # Compute agent visibility masks
-        vis_masks = gen_obs_grid_vis_mask(
-            self.grid.state, self.agent_state, self.agents[0].view_size)
+        obs_shape = self.agents[0].observation_space['image'].shape[:-1]
+        vis_masks = np.zeros((self.num_agents, *obs_shape), dtype=bool)
+        for i, agent_obs in self._current_obs.items():
+            vis_masks[i] = (agent_obs['image'][..., 0] != OBJECT_TO_IDX['unseen'])
 
         # Mask of which cells to highlight
         highlight_mask = np.zeros((self.width, self.height), dtype=bool)
