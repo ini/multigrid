@@ -1,16 +1,19 @@
 import numba as nb
 import numpy as np
 
-from ..core.world_object import WorldObj, Wall
+from ..core.world_object import Wall
+from ..core.world_object import see_behind
+
+from numpy.typing import NDArray
+
+shape_dim = tuple
 
 
 
-# Constants
-ENCODE_DIM = WorldObj.encode_dim
+### Constants
+
 WALL_ENCODING = Wall().encode()
-
-# WorldObj Functions
-see_behind = WorldObj.see_behind
+ENCODE_DIM = len(WALL_ENCODING)
 
 
 
@@ -18,18 +21,18 @@ see_behind = WorldObj.see_behind
 
 @nb.njit(cache=True)
 def gen_obs_grid_encoding(
-    grid_state: np.ndarray[int],
-    agent_state: np.ndarray[int],
+    grid_state: NDArray[np.int_],
+    agent_state: NDArray[np.int_],
     agent_view_size: int,
-    see_through_walls: bool) -> np.ndarray[int]:
+    see_through_walls: bool) -> NDArray[np.int_]:
     """
     Generate encoding for the sub-grid observed by an agent (including visibility mask).
 
     Parameters
     ----------
-    grid_state : np.ndarray[int] of shape (width, height, grid_state_dim)
+    grid_state : ndarray[int] of shape (width, height, grid_state_dim)
         Array representation for each grid object
-    agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
+    agent_state : ndarray[int] of shape (num_agents, agent_state_dim)
         Array representation for each agent
     agent_view_size : int
         Width and height of observation sub-grids
@@ -38,7 +41,7 @@ def gen_obs_grid_encoding(
 
     Returns
     -------
-    img : np.ndarray[int] of shape (num_agents, view_size, view_size, encode_dim)
+    img : ndarray[int] of shape (num_agents, view_size, view_size, encode_dim)
         Encoding of observed sub-grid for each agent
     """
     obs_grid = gen_obs_grid(grid_state, agent_state, agent_view_size)
@@ -57,24 +60,24 @@ def gen_obs_grid_encoding(
 
 @nb.njit(cache=True)
 def gen_obs_grid_vis_mask(
-    grid_state: np.ndarray[int],
-    agent_state: np.ndarray[int],
-    agent_view_size: int) -> np.ndarray[int]:
+    grid_state: NDArray[np.int_],
+    agent_state: NDArray[np.int_],
+    agent_view_size: int) -> NDArray[np.int_]:
     """
     Generate visibility mask for the sub-grid observed by an agent.
 
     Parameters
     ----------
-    grid_state : np.ndarray[int] of shape (width, height, grid_state_dim)
+    grid_state : ndarray[int] of shape (width, height, grid_state_dim)
         Array representation for each grid object
-    agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
+    agent_state : ndarray[int] of shape (num_agents, agent_state_dim)
         Array representation for each agent
     agent_view_size : int
         Width and height of observation sub-grids
 
     Returns
     -------
-    mask : np.ndarray[int] of shape (num_agents, view_size, view_size)
+    mask : ndarray[int] of shape (num_agents, view_size, view_size)
         Encoding of observed sub-grid for each agent
     """
     obs_grid = gen_obs_grid(grid_state, agent_state, agent_view_size)
@@ -83,24 +86,24 @@ def gen_obs_grid_vis_mask(
 
 @nb.njit(cache=True)
 def gen_obs_grid(
-    grid_state: np.ndarray[int],
-    agent_state: np.ndarray[int],
-    agent_view_size: int) -> np.ndarray[int]:
+    grid_state: NDArray[np.int_],
+    agent_state: NDArray[np.int_],
+    agent_view_size: int) -> NDArray[np.int_]:
     """
     Generate the sub-grid observed by each agent (WITHOUT visibility mask).
 
     Parameters
     ----------
-    grid_state : np.ndarray[int] of shape (width, height, grid_state_dim)
+    grid_state : ndarray[int] of shape (width, height, grid_state_dim)
         Array representation for each grid object
-    agent_state : np.ndarray[int] of shape (num_agents, agent_state_dim)
+    agent_state : ndarray[int] of shape (num_agents, agent_state_dim)
         Array representation for each agent
     agent_view_size : int
         Width and height of observation sub-grids
 
     Returns
     -------
-    obs_grid : np.ndarray[int] of shape (num_agents, width, height, encode_dim)
+    obs_grid : ndarray[int] of shape (num_agents, width, height, encode_dim)
         Observed sub-grid for each agent
     """
     num_agents = len(agent_state)
@@ -114,10 +117,9 @@ def gen_obs_grid(
 
     # Get grid encoding
     if num_agents > 1:
-        grid_encoding = np.empty(
-            (grid_state.shape[0], grid_state.shape[1], ENCODE_DIM), dtype=np.int_)
+        grid_encoding = np.empty((*grid_state.shape[:-1], ENCODE_DIM), dtype=np.int_)
         grid_encoding[...] = grid_state[..., :ENCODE_DIM]
-        # Insert agent encodings
+        # Insert agent grid encodings
         for agent in range(num_agents):
             i, j = agent_pos[agent]
             grid_encoding[i, j, :ENCODE_DIM] = agent_grid_encoding[agent]
@@ -161,18 +163,18 @@ def gen_obs_grid(
     return obs_grid
 
 @nb.njit(cache=True)
-def get_see_behind_mask(grid_array: np.ndarray[int]) -> np.ndarray[bool]:
+def get_see_behind_mask(grid_array: NDArray[np.int_]) -> NDArray[np.int_]:
     """
     Return boolean mask indicating which grid locations can be seen through.
 
     Parameters
     ----------
-    grid_array : np.ndarray[int] of shape (num_agents, width, height, dim)
+    grid_array : ndarray[int] of shape (num_agents, width, height, dim)
         Grid object array for each agent
 
     Returns
     -------
-    see_behind_mask : np.ndarray[bool] of shape (width, height)
+    see_behind_mask : ndarray[bool] of shape (width, height)
         Boolean transparency mask
     """
     num_agents, width, height = grid_array.shape[:3]
@@ -185,18 +187,18 @@ def get_see_behind_mask(grid_array: np.ndarray[int]) -> np.ndarray[bool]:
     return see_behind_mask
 
 @nb.njit(cache=True)
-def get_vis_mask(obs_grid: np.ndarray[int]) -> np.ndarray[bool]:
+def get_vis_mask(obs_grid: NDArray[np.int_]) -> NDArray[np.bool_]:
     """
-    Generate a boolean mask indicating which grid locations are visible to the agent.
+    Generate a boolean mask indicating which grid locations are visible to each agent.
 
     Parameters
     ----------
-    obs_grid : np.ndarray[int] of shape (num_agents, width, height, dim)
+    obs_grid : ndarray[int] of shape (num_agents, width, height, dim)
         Grid object array for each agent observation
 
     Returns
     -------
-    vis_mask : np.ndarray[bool] of shape (num_agents, width, height)
+    vis_mask : ndarray[bool] of shape (num_agents, width, height)
         Boolean visibility mask for each agent
     """
     num_agents, width, height = obs_grid.shape[:3]
@@ -226,25 +228,25 @@ def get_vis_mask(obs_grid: np.ndarray[int]) -> np.ndarray[bool]:
 
 @nb.njit(cache=True)
 def get_view_exts(
-    agent_dir: np.ndarray[int],
-    agent_pos: np.ndarray[int],
-    agent_view_size: int):
+    agent_dir: NDArray[np.int_],
+    agent_pos: NDArray[np.int_],
+    agent_view_size: int) -> NDArray[np.int_]:
     """
-    Get the extents of the square set of tiles visible to agents.
+    Get the extents of the square set of grid cells visible to each agent.
 
     Parameters
     ----------
-    agent_dir : np.ndarray[int] of shape (num_agents,)
+    agent_dir : ndarray[int] of shape (num_agents,)
         Direction of each agent
-    agent_pos : np.ndarray[int] of shape (num_agents, 2)
+    agent_pos : ndarray[int] of shape (num_agents, 2)
         The (x, y) position of each agent
     agent_view_size : int
         Width and height of agent view
 
     Returns
     -------
-    top_left : np.ndarray[int] of shape (num_agents, 2)
-        The (x, y) coordinates of the top-left corner of each observable view
+    top_left : ndarray[int] of shape (num_agents, 2)
+        The (x, y) coordinates of the top-left corner of each agent's observable view
     """
     agent_x, agent_y = agent_pos[:, 0], agent_pos[:, 1]
     top_left = np.zeros((agent_dir.shape[0], 2), dtype=np.int_)

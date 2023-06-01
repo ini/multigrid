@@ -3,14 +3,14 @@ from __future__ import annotations
 import numpy as np
 
 from gymnasium import spaces
-from typing import Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from .actions import Actions
+from .actions import Action
 from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
 from .mission import MissionSpace
 from .world_object import WorldObj
 
-from ..utils.misc import front_pos
+from ..utils.misc import front_pos, PropertyAlias
 from ..utils.rendering import (
     fill_coords,
     point_in_triangle,
@@ -26,25 +26,16 @@ class AgentState(np.ndarray):
     """
     State for an `Agent` object.
 
-    The state is a 10-dimensional array, indexed as follows:
-        * 0: object type (i.e. 'agent')
-        * 1: agent color
-        * 2: agent direction
-        * 3: x position
-        * 4: y position
-        * 5: whether the agent has terminated
-        * 6-9: array representation of carried object (if any)
-
     AgentState objects also support vectorized operations,
-    in which case the first (n - 1) dimensions represent a "batch" of states,
-    and the last dimension represents each index in a state array.
+    in which case the AgentState object represents a "batch" of states
+    over multiple agents.
 
     Attributes
     ----------
     color : str
         Agent color
     dir : int
-        Agent direction (integer from 0 to 3)
+        Agent direction (0: right, 1: down, 2: left, 3: up)
     pos : np.ndarray[int]
         Agent (x, y) position
     terminated : bool
@@ -100,7 +91,6 @@ class AgentState(np.ndarray):
     dim = 6 + WorldObj.dim
     _colors = np.array(list(COLOR_TO_IDX.keys()))
     _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
-    _dir_to_vec = np.array(DIR_TO_VEC)
 
     def __new__(cls, *dims: int):
         obj = super().__new__(cls, shape=dims+(cls.dim,), dtype=int)
@@ -110,8 +100,15 @@ class AgentState(np.ndarray):
         obj[..., 2] = -1 # dir
         obj[..., 3:5] = -1 # pos
         obj[..., 5] = False # terminated
-        obj[..., 6:] = 0 # carrying
+        obj[..., 6:] = 0 # carrying (encoding)
+        obj._carried_obj = np.empty(dims, dtype=object) # carrying (object reference)
         return obj
+
+    def __getitem__(self, idx):
+        out = super().__getitem__(idx)
+        if out.shape and out.shape[-1] == self.dim:
+            out._carried_obj = self._carried_obj[idx, ...] # set carried object reference
+        return out
 
     @property
     def color(self) -> str:
@@ -131,7 +128,7 @@ class AgentState(np.ndarray):
     @property
     def dir(self) -> int:
         """
-        Return the agent direction.
+        Return the agent direction (0: right, 1: down, 2: left, 3: up).
         """
         out = self[..., 2].view(np.ndarray)
         return out.item() if out.ndim == 0 else out
@@ -177,23 +174,23 @@ class AgentState(np.ndarray):
         """
         Return the WorldObj the agent is carrying.
         """
-        arr = self[..., 6:6+WorldObj.dim]
-        return WorldObj.from_array(arr)
+        out = self._carried_obj
+        return out.item() if out.ndim == 0 else out
 
     @carrying.setter
-    def carrying(self, world_obj: WorldObj | None):
+    def carrying(self, obj: WorldObj | None):
         """
         Set the WorldObj of the object the agent is carrying.
         """
-        world_obj = WorldObj.empty() if world_obj is None else world_obj
-        self[..., 6:6+WorldObj.dim] = world_obj
+        self[..., 6:6+WorldObj.dim] = WorldObj.empty() if obj is None else obj
+        self._carried_obj[...].fill(obj)
 
     def world_obj_encoding(self) -> np.ndarray[int]:
         """
         Encode a description of this agent as a 3-tuple of integers
         (i.e. type, color, direction).
         """
-        return self[..., :WorldObj.encode_dim].view(np.ndarray)
+        return self[..., :WorldObj.dim].view(np.ndarray)
 
 
 class Agent:
@@ -211,6 +208,10 @@ class Agent:
     observation_space : gym.spaces.Dict
         Observation space for the agent
     """
+    pos = PropertyAlias('state', AgentState.pos)
+    dir = PropertyAlias('state', AgentState.dir)
+    carrying = PropertyAlias('state', AgentState.carrying)
+    terminated = PropertyAlias('state', AgentState.terminated)
 
     def __init__(
         self,
@@ -237,7 +238,7 @@ class Agent:
         self.state: AgentState = AgentState() if state is None else state
 
         # Actions are discrete integer values
-        self.action_space = spaces.Discrete(len(Actions))
+        self.action_space = spaces.Discrete(len(Action))
 
         # Number of cells (width and height) in the agent view
         assert view_size % 2 == 1
@@ -272,48 +273,6 @@ class Agent:
         self.state.carrying = None
 
     @property
-    def pos(self) -> np.ndarray[int]:
-        """
-        Return the agent's (x, y) position.
-        """
-        return self.state.pos
-
-    @pos.setter
-    def pos(self, value: Sequence[int]):
-        """
-        Set the agent's (x, y) position.
-        """
-        self.state.pos = value
-
-    @property
-    def dir(self) -> int:
-        """
-        Return the agent direction.
-        """
-        return self.state.dir
-
-    @dir.setter
-    def dir(self, value: int):
-        """
-        Set the agent direction.
-        """
-        self.state.dir = value
-
-    @property
-    def carrying(self) -> WorldObj | None:
-        """
-        Return the object the agent is carrying.
-        """
-        return self.state.carrying
-
-    @carrying.setter
-    def carrying(self, obj: WorldObj | None):
-        """
-        Set the object the agent is carrying.
-        """
-        self.state.carrying = obj
-
-    @property
     def dir_vec(self) -> np.ndarray[int]:
         """
         Get the direction vector for the agent, pointing in the direction
@@ -324,7 +283,7 @@ class Agent:
     @property
     def right_vec(self) -> np.ndarray[int]:
         """
-        Get the vector pointing to the right of the agent.
+        Get the direction vector pointing to agent's right.
         """
         dx, dy = self.dir_vec
         return np.array((-dy, dx))

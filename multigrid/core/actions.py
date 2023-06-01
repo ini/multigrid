@@ -2,7 +2,7 @@ import enum
 
 
 
-class Actions(enum.IntEnum):
+class Action(enum.IntEnum):
     """
     Enumeration of possible actions.
     """

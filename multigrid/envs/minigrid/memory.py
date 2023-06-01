@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from multigrid.core.actions import Actions
+from multigrid.core.actions import Action
 from multigrid.core.grid import Grid
 from multigrid.core.mission import MissionSpace
 from multigrid.core.world_object import Ball, Key, Wall
@@ -151,8 +151,8 @@ class MemoryEnv(MiniGridEnv):
         self.mission = "go to the matching object at the end of the hallway"
 
     def step(self, action):
-        if action == Actions.pickup:
-            action = Actions.toggle
+        if action == Action.pickup:
+            action = Action.toggle
         obs, reward, terminated, truncated, info = super().step(action)
 
         if tuple(self.agent_pos) == self.success_pos:

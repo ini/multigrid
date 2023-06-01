@@ -39,18 +39,8 @@ class Grid:
         assert width >= 3
         assert height >= 3
         self.world_objects: dict[tuple[int, int], WorldObj] = {} # indexed by location
-        self.state: np.ndarray[int] = np.zeros(
-            (width, height, WorldObj.dim), dtype=int)
+        self.state: np.ndarray[int] = np.zeros((width, height, WorldObj.dim), dtype=int)
         self.state[...] = WorldObj.empty()
-
-        # Arrays for updating world objects in the grid
-        # Useful for functions that operate directly on the grid state
-        # These can be passed by reference and updated within numba functions
-        # (i.e. `handle_actions()`)
-        self.needs_update = np.zeros(1, dtype=bool)
-        self.locations_to_update = -np.ones((1, 2), dtype=int) # (num_locations, 2)
-        self.needs_remove = np.zeros(1, dtype=bool)
-        self.locations_to_remove = -np.ones((1, 2), dtype=int) # (num_locations, 2)
 
     def __contains__(self, key: Any) -> bool:
         if isinstance(key, WorldObj):
@@ -107,10 +97,10 @@ class Grid:
         assert 0 <= i < self.width
         assert 0 <= j < self.height
 
-        # Update world objects
+        # Update world object dictionary
         self.world_objects[i, j] = v
 
-        # Update grid
+        # Update grid state
         if isinstance(v, WorldObj):
             self.state[i, j] = v
         elif v is None:
@@ -124,10 +114,19 @@ class Grid:
         """
         assert 0 <= i < self.width
         assert 0 <= j < self.height
+
+        # Create WorldObj instance if none exists
         if (i, j) not in self.world_objects:
             self.world_objects[i, j] = WorldObj.from_array(self.state[i, j])
 
         return self.world_objects[i, j]
+
+    def update(self, i: int, j: int):
+        """
+        Update the grid state from the world object at the given coordinates.
+        """
+        if (i, j) in self.world_objects:
+            self.state[i, j] = self.world_objects[i, j]
 
     def horz_wall(
         self,
@@ -292,20 +291,3 @@ class Grid:
                 vis_mask[i, j] = type_idx != OBJECT_TO_IDX['unseen']
 
         return grid, vis_mask
-
-    def update_world_objects(self):
-        """
-        Update WorldObj instances from the grid state.
-        """
-        self.needs_update[...] = False
-        for i, j in self.locations_to_update:
-            if (i, j) in self.world_objects:
-                self.world_objects[i, j][...] = self.state[i, j]
-
-    def remove_world_objects(self):
-        """
-        Remove WorldObj instances from the grid.
-        """
-        self.needs_remove[...] = False
-        for i, j in self.locations_to_remove:
-            self.world_objects.pop((i, j), None)

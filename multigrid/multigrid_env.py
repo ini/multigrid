@@ -10,23 +10,29 @@ import pygame.freetype
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
-from gymnasium.core import ActType, ObsType
+from numpy.typing import NDArray
 from typing import Any, Iterable, SupportsFloat, TypeVar
 
-from .core.actions import Actions
+from .core.actions import Action
 from .core.agent import Agent, AgentState
 from .core.constants import COLOR_NAMES, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
-
-from .utils.act import handle_actions
+from .core.world_object import can_overlap, can_pickup
 from .utils.obs import gen_obs_grid_encoding, gen_obs_grid_vis_mask
+
+
+
+### Typing
 
 T = TypeVar('T')
 AgentID = int
+ObsType = dict[str, NDArray[np._int] | int | str]
 
 
+
+### Environment
 
 class MultiGridEnv(gym.Env, ABC):
     """
@@ -48,10 +54,10 @@ class MultiGridEnv(gym.Env, ABC):
         List of agents in the environment
     grid : Grid
         Environment grid
-    action_space : spaces.Dict[AgentID, spaces.Space]
-        Joint action space of all agents
     observation_space : spaces.Dict[AgentID, spaces.Space]
         Joint observation space of all agents
+    action_space : spaces.Dict[AgentID, spaces.Space]
+        Joint action space of all agents
     """
     metadata = {
         'render_modes': ['human', 'rgb_array'],
@@ -141,7 +147,7 @@ class MultiGridEnv(gym.Env, ABC):
             raise ValueError(f"Invalid argument for agents: {agents}")
 
         # Action enumeration for this environment
-        self.actions = Actions
+        self.actions = Action
 
         # Range of possible rewards
         self.reward_range = (0, 1)
@@ -166,22 +172,22 @@ class MultiGridEnv(gym.Env, ABC):
         self.is_competitive = is_competitive
 
     @property
-    def action_space(self) -> spaces.Dict[AgentID, spaces.Space]:
-        """
-        Return the joint action space of all agents.
-        """
-        return spaces.Dict({
-            agent.index: agent.action_space
-            for agent in self.agents
-        })
-
-    @property
     def observation_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint observation space of all agents.
         """
         return spaces.Dict({
             agent.index: agent.observation_space
+            for agent in self.agents
+        })
+
+    @property
+    def action_space(self) -> spaces.Dict[AgentID, spaces.Space]:
+        """
+        Return the joint action space of all agents.
+        """
+        return spaces.Dict({
+            agent.index: agent.action_space
             for agent in self.agents
         })
 
@@ -221,7 +227,7 @@ class MultiGridEnv(gym.Env, ABC):
         # Check that agents don't overlap with other objects
         for agent in self.agents:
             start_cell = self.grid.get(*agent.state.pos)
-            assert start_cell is None or start_cell.can_overlap()
+            assert start_cell is None or can_overlap(start_cell)
 
         # Step count since episode start
         self.step_count = 0
@@ -236,7 +242,7 @@ class MultiGridEnv(gym.Env, ABC):
 
     def step(
         self,
-        actions: dict[AgentID, ActType]) -> tuple[
+        actions: dict[AgentID, Action]) -> tuple[
             dict[AgentID, ObsType],
             dict[AgentID, SupportsFloat],
             dict[AgentID, bool],
@@ -248,7 +254,7 @@ class MultiGridEnv(gym.Env, ABC):
 
         Parameters
         ----------
-        actions : dict[AgentID, ActType]
+        actions : dict[AgentID, Action]
             Action for each agent acting at this timestep
 
         Returns
@@ -265,39 +271,7 @@ class MultiGridEnv(gym.Env, ABC):
             Additional information for each agent
         """
         self.step_count += 1
-
-        action_array = np.array([
-            actions[i] if i in actions else -1
-            for i in range(self.num_agents)
-        ])
-
-        # Randomize agent action order
-        if self.num_agents == 1:
-            order = np.zeros(1, dtype=int)
-        else:
-            order = self.np_random.random(size=self.num_agents).argsort()
-
-        # Update agent state and grid state from actions
-        reward = handle_actions(
-            action_array,
-            order,
-            self.agent_state,
-            self.grid.state,
-            self.grid.needs_update,
-            self.grid.locations_to_update,
-            self.grid.needs_remove,
-            self.grid.locations_to_remove,
-            self.allow_agent_overlap,
-            self.is_competitive,
-            self.step_count,
-            self.max_steps,
-        )
-
-        # Update world objects in grid
-        if self.grid.needs_update:
-            self.grid.update_world_objects()
-        if self.grid.needs_remove:
-            self.grid.remove_world_objects()
+        reward = self.handle_actions(actions)
 
         # Rendering
         if self.render_mode == 'human':
@@ -305,12 +279,98 @@ class MultiGridEnv(gym.Env, ABC):
 
         # Generate outputs
         obs = self.gen_obs()
-        reward = dict(enumerate(reward))
         truncated = self.step_count >= self.max_steps
         truncated = dict(enumerate([truncated] * self.num_agents))
         terminated = dict(enumerate(self.agent_state.terminated))
 
         return obs, reward, terminated, truncated, defaultdict(dict)
+
+    def handle_actions(
+        self, actions: dict[AgentID, Action]) -> dict[AgentID, SupportsFloat]:
+        """
+        Handle actions taken by agents.
+
+        Parameters
+        ----------
+        actions : dict[AgentID, Action]
+            Action for each agent acting at this timestep
+
+        Returns
+        -------
+        reward : dict[AgentID, SupportsFloat]
+            Reward for each agent
+        """
+        reward = {agent_index: 0 for agent_index in range(self.num_agents)}
+
+        # Randomize agent action order
+        if self.num_agents == 1:
+            order = np.zeros(1, dtype=int)
+        else:
+            order = self.np_random.random(size=self.num_agents).argsort()
+
+        # Update agent states, grid states, and reward from actions
+        for i in order:
+            agent, action = self.agents[i], actions[i]
+
+            # Rotate left
+            if action == Action.left:
+                agent.state.dir = (agent.state.dir - 1) % 4
+
+            # Rotate right
+            elif action == Action.right:
+                agent.state.dir = (agent.state.dir + 1) % 4
+
+            # Move forward
+            elif action == Action.forward:
+                fwd_pos = agent.front_pos
+                fwd_obj = self.grid.get(*fwd_pos)
+
+                if can_overlap(self.grid.state[fwd_pos]):
+                    agent.state.pos = fwd_pos
+
+                if fwd_obj is not None:
+                    if fwd_obj.type == 'goal':
+                        agent.state.terminated = True
+                        reward[i] = self._reward()
+                    elif fwd_obj.type == 'lava':
+                        agent.state.terminated = True
+
+            # Pick up an object
+            elif action == Action.pickup:
+                fwd_pos = agent.front_pos
+                fwd_obj = self.grid.get(*fwd_pos)
+
+                if can_pickup(self.grid.state[fwd_pos]):
+                    if agent.state.carrying is None:
+                        agent.state.carrying = fwd_obj
+                        self.grid.set(*fwd_pos, None)
+
+            # Drop an object
+            elif action == Action.drop:
+                fwd_pos = agent.front_pos
+                fwd_obj = self.grid.get(*fwd_pos)
+
+                if not fwd_obj and agent.state.carrying:
+                    self.grid.set(*fwd_pos, agent.state.carrying)
+                    agent.state.carrying.cur_pos = fwd_pos
+                    agent.state.carrying = None
+
+            # Toggle/activate an object
+            elif action == Action.toggle:
+                fwd_pos = agent.front_pos
+                fwd_obj = self.grid.get(*fwd_pos)
+
+                if fwd_obj:
+                    fwd_obj.toggle(self, agent, fwd_pos)
+
+            # Done action (not used by default)
+            elif action == Action.done:
+                pass
+
+            else:
+                raise ValueError(f"Unknown action: {action}")
+
+        return reward
 
     def gen_obs(self) -> dict[AgentID, ObsType]:
         """
@@ -443,6 +503,13 @@ class MultiGridEnv(gym.Env, ABC):
             Height of the grid
         """
         pass
+
+    def _reward(self) -> float:
+        """
+        Compute the reward to be given upon success
+        """
+
+        return 1 - 0.9 * (self.step_count / self.max_steps)
 
     def _rand_int(self, low: int, high: int) -> int:
         """
@@ -588,7 +655,7 @@ class MultiGridEnv(gym.Env, ABC):
         """
         Set agent starting point at an empty position in the grid.
         """
-        pos = (-1, -1)
+        agent.state.pos = (-1, -1)
         pos = self.place_obj(None, top, size, max_tries=max_tries)
         agent.state.pos = pos
 
@@ -658,7 +725,7 @@ class MultiGridEnv(gym.Env, ABC):
         self,
         highlight: bool = True,
         tile_size: int = TILE_PIXELS,
-        agent_pov: bool = False):
+        agent_pov: bool = False) -> NDArray[np.uint8]:
         """
         Returns an RGB image corresponding to the whole environment.
 
@@ -673,7 +740,7 @@ class MultiGridEnv(gym.Env, ABC):
 
         Returns
         -------
-        frame: np.ndarray of shape (H, W, 3)
+        frame: ndarray of shape (H, W, 3)
             A frame representing RGB values for the HxW pixel image
         """
         if agent_pov:

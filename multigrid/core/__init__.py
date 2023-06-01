@@ -1,4 +1,4 @@
-from .actions import Actions
+from .actions import Action
 from .agent import Agent, AgentState
 from .constants import *
 from .grid import Grid
