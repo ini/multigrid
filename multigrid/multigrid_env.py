@@ -40,13 +40,28 @@ class MultiGridEnv(gym.Env, ABC):
 
     Agents are identified by their index, from 0 to (`num_agents - 1`).
 
+    Subclasses of MultiGridEnv should implement :attr:`_gen_grid()`.
+
+    **Observation Space**
+
     The multi-agent observation space is a Dict mapping from agent index to
     corresponding agent observation space.
 
-    Similarly, the multi-agent action space is a Dict mapping from agent index to
+    The standard agent observation is a dictionary with the following entries:
+
+    * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
+        Encoding of the agent's view of the environment
+    * direction : int
+        Agent's direction (0: right, 1: down, 2: left, 3: up)
+    * mission : str
+        Task string corresponding to the current environment configuration
+
+    **Action Space**
+
+    The multi-agent action space is a Dict mapping from agent index to
     corresponding agent action space.
 
-    Subclasses of MultiGridEnv should implement `_gen_grid()`.
+    Agent actions are discrete integers, as enumerated in :class:`.Action`.
 
     Attributes
     ----------
@@ -196,14 +211,16 @@ class MultiGridEnv(gym.Env, ABC):
         })
 
     def reset(
-        self,
-        *,
-        seed: int | None = None,
-        options: dict[str, Any] = {}) -> tuple[
+        self, seed: int | None = None, **kwargs) -> tuple[
             dict[AgentID, ObsType]:
             dict[AgentID, dict[str, Any]]]:
         """
         Reset the environment.
+
+        Parameters
+        ----------
+        seed : int or None
+            Seed for random number generator
 
         Returns
         -------
@@ -212,7 +229,7 @@ class MultiGridEnv(gym.Env, ABC):
         info : dict[AgentID, dict[str, Any]]
             Additional information for each agent
         """
-        super().reset(seed=seed, options=options)
+        super().reset(seed=seed, **kwargs)
 
         # Reinitialize episode-specific variables
         self.mission = self.mission_space.sample()
@@ -289,6 +306,37 @@ class MultiGridEnv(gym.Env, ABC):
         terminated = dict(enumerate(self.agent_state.terminated))
 
         return obs, reward, terminated, truncated, defaultdict(dict)
+
+    def gen_obs(self) -> dict[AgentID, ObsType]:
+        """
+        Generate observations for each agent (partially observable, low-res encoding).
+
+        Returns
+        -------
+        obs : dict[AgentID, ObsType]
+            Mapping from agent ID to observation dict, containing:
+                * 'image': partially observable view of the environment
+                * 'direction': agent's direction / orientation (acting as a compass)
+                * 'mission': textual mission string (instructions for the agent)
+        """
+        direction = self.agent_state.dir
+        image = gen_obs_grid_encoding(
+            self.grid.state,
+            self.agent_state,
+            self.agents[0].view_size,
+            self.agents[0].see_through_walls,
+        )
+
+        obs = {}
+        for i in range(self.num_agents):
+            obs[i] = {
+                'image': image[i],
+                'direction': direction[i],
+                'mission': self.mission,
+            }
+
+        self._current_obs = obs
+        return obs
 
     def handle_actions(
         self, actions: dict[AgentID, Action]) -> dict[AgentID, SupportsFloat]:
@@ -388,58 +436,6 @@ class MultiGridEnv(gym.Env, ABC):
 
         return reward
 
-    def gen_obs(self) -> dict[AgentID, ObsType]:
-        """
-        Generate observations for each agent (partially observable, low-res encoding).
-
-        Returns
-        -------
-        obs : dict[AgentID, ObsType]
-            Mapping from agent ID to observation dict, containing:
-                - 'image': partially observable view of the environment
-                - 'direction': agent's direction/orientation (acting as a compass)
-                - 'mission': textual mission string (instructions for the agent)
-        """
-        direction = self.agent_state.dir
-        image = gen_obs_grid_encoding(
-            self.grid.state,
-            self.agent_state,
-            self.agents[0].view_size,
-            self.agents[0].see_through_walls,
-        )
-
-        obs = {}
-        for i in range(self.num_agents):
-            obs[i] = {
-                'image': image[i],
-                'direction': direction[i],
-                'mission': self.mission,
-            }
-
-        self._current_obs = obs
-        return obs
-
-    def hash(self, size=16):
-        """
-        Compute a hash that uniquely identifies the current state of the environment.
-
-        Parameters
-        ----------
-        size : int
-            Size of the hashing
-        """
-        sample_hash = hashlib.sha256()
-
-        to_encode = [
-            self.grid.encode().tolist(),
-            *[agent.state.pos for agent in self.agents],
-            *[agent.state.dir for agent in self.agents],
-        ]
-        for item in to_encode:
-            sample_hash.update(str(item).encode('utf8'))
-
-        return sample_hash.hexdigest()[:size]
-
     @property
     def steps_remaining(self):
         """
@@ -507,11 +503,14 @@ class MultiGridEnv(gym.Env, ABC):
     @abstractmethod
     def _gen_grid(self, width: int, height: int):
         """
+        :meta public:
+
         Generate the grid for a new episode.
 
         This method should:
+
         * Set `self.grid` and populate it with `WorldObj` instances
-        * Set the positions and orientations of each agent
+        * Set the positions and directions of each agent
 
         Parameters
         ----------
@@ -707,7 +706,7 @@ class MultiGridEnv(gym.Env, ABC):
             # Compute the world coordinates of the bottom-left corner
             # of the agent's view area
             f_vec = agent.dir_vec
-            r_vec = agent.right_vec
+            r_vec = np.array((-f_vec[1], f_vec[0]))
             top_left = (
                 agent.state.pos
                 + f_vec * (agent.view_size - 1)

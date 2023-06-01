@@ -6,7 +6,7 @@ import gymnasium as gym
 import pygame
 from gymnasium import Env
 
-from multigrid.core.actions import Actions
+from multigrid.core.actions import Action
 from multigrid.multigrid_env import MultiGridEnv
 from multigrid.wrappers import ImgObsWrapper, RGBImgPartialObsWrapper
 
@@ -34,7 +34,7 @@ class ManualControl:
                     event.key = pygame.key.name(int(event.key))
                     self.key_handler(event)
 
-    def step(self, action: Actions):
+    def step(self, action: Action):
         _, reward, terminated, truncated, _ = self.env.step(action)
         print(f"step={self.env.step_count}, reward={reward:.2f}")
 
@@ -63,15 +63,15 @@ class ManualControl:
             return
 
         key_to_action = {
-            "left": Actions.left,
-            "right": Actions.right,
-            "up": Actions.forward,
-            "space": Actions.toggle,
-            "pageup": Actions.pickup,
-            "pagedown": Actions.drop,
-            "tab": Actions.pickup,
-            "left shift": Actions.drop,
-            "enter": Actions.done,
+            "left": Action.left,
+            "right": Action.right,
+            "up": Action.forward,
+            "space": Action.toggle,
+            "pageup": Action.pickup,
+            "pagedown": Action.drop,
+            "tab": Action.pickup,
+            "left shift": Action.drop,
+            "enter": Action.done,
         }
         if key in key_to_action.keys():
             action = key_to_action[key]

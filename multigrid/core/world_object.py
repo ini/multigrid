@@ -16,6 +16,7 @@ from ..utils.rendering import (
     point_in_rect,
 )
 
+from numpy.typing import ArrayLike, NDArray
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -53,6 +54,11 @@ LOCKED = STATE_TO_IDX['locked']
 def can_overlap(obj: WorldObj) -> bool:
     """
     Can an agent overlap with this?
+
+    Parameters
+    ----------
+    obj : WorldObj
+        Object to check
     """
     if obj[TYPE] in {EMPTY, FLOOR, GOAL, LAVA}:
         return True
@@ -65,6 +71,11 @@ def can_overlap(obj: WorldObj) -> bool:
 def can_pickup(obj: WorldObj) -> bool:
     """
     Can an agent pick this up?
+
+    Parameters
+    ----------
+    obj : WorldObj
+        Object to check
     """
     return obj in {KEY, BALL, BOX}
 
@@ -72,6 +83,11 @@ def can_pickup(obj: WorldObj) -> bool:
 def can_contain(obj: WorldObj) -> bool:
     """
     Can this contain another object?
+
+    Parameters
+    ----------
+    obj : WorldObj
+        Object to check
     """
     return obj[TYPE] == BOX
 
@@ -79,6 +95,11 @@ def can_contain(obj: WorldObj) -> bool:
 def see_behind(obj: WorldObj) -> bool:
     """
     Can an agent see behind this object?
+
+    Parameters
+    ----------
+    obj : WorldObj
+        Object to check
     """
     if obj[TYPE] == WALL:
         return False
@@ -110,8 +131,8 @@ class WorldObj(np.ndarray):
     cur_pos : tuple[int, int] or None
         The current position of the object
     """
-    dim = 3 # (type, color, state)
     _empty = None
+    dim = 3 # (type, color, state)
 
     def __new__(cls, type: str, color: str):
         """
@@ -139,7 +160,7 @@ class WorldObj(np.ndarray):
     @staticmethod
     def empty() -> 'WorldObj':
         """
-        Return fixed reference to an empty WorldObj instance.
+        Return a fixed reference to an empty WorldObj instance.
         """
         if WorldObj._empty is None:
             WorldObj._empty = WorldObj(type='empty', color='red')
@@ -147,9 +168,14 @@ class WorldObj(np.ndarray):
         return WorldObj._empty
 
     @staticmethod
-    def from_array(arr: np.ndarray) -> 'WorldObj' | None:
+    def from_array(arr: ArrayLike[int]) -> 'WorldObj' | None:
         """
         Convert an array to a WorldObj instance.
+
+        Parameters
+        ----------
+        arr : ArrayLike[int]
+            Array encoding the object type, color, and state
         """
         if arr[TYPE] == EMPTY:
             return None
@@ -267,13 +293,13 @@ class WorldObj(np.ndarray):
         arr = np.array([type_idx, color_idx, state_idx])
         return WorldObj.from_array(arr)
 
-    def render(self, img: np.ndarray[int]):
+    def render(self, img: NDArray[np.uint8]):
         """
-        Draw this object with the given renderer.
+        Draw the world object.
 
         Parameters
         ----------
-        img : np.ndarray[int] of shape (width, height, 3)
+        img : ndarray[int] of shape (width, height, 3)
             RGB image array to render object on
         """
         raise NotImplementedError
@@ -288,6 +314,9 @@ class Goal(WorldObj):
         return super().__new__(cls, type='goal', color='green')
 
     def render(self, img):
+        """
+        :meta private:
+        """
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
 
 
@@ -300,6 +329,9 @@ class Floor(WorldObj):
         return super().__new__(cls, type='floor', color=color)
 
     def render(self, img):
+        """
+        :meta private:
+        """
         # Give the floor a pale color
         color = COLORS[self.color] / 2
         fill_coords(img, point_in_rect(0.031, 1, 0.031, 1), color)
@@ -314,6 +346,9 @@ class Lava(WorldObj):
         return super().__new__(cls, type='lava', color='red')
 
     def render(self, img):
+        """
+        :meta private:
+        """
         c = (255, 128, 0)
 
         # Background color
@@ -338,6 +373,9 @@ class Wall(WorldObj):
         return super().__new__(cls, type='wall', color=color)
 
     def render(self, img):
+        """
+        :meta private:
+        """
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
 
 
@@ -398,6 +436,9 @@ class Door(WorldObj):
             self.state = 'closed' # set state to closed (unless already open)
 
     def toggle(self, env, agent, pos):
+        """
+        :meta private:
+        """
         if self.is_locked:
             # Check if the player has the right key to unlock the door
             carried_obj = agent.state.carrying
@@ -413,6 +454,9 @@ class Door(WorldObj):
         return True
 
     def render(self, img):
+        """
+        :meta private:
+        """
         c = COLORS[self.color]
 
         if self.is_open:
@@ -440,13 +484,16 @@ class Door(WorldObj):
 
 class Key(WorldObj):
     """
-    Key object that can be picked up and used to open locked doors.
+    Key object that can be picked up and used to unlock doors.
     """
 
     def __new__(cls, color: str = 'blue'):
         return super().__new__(cls, type='key', color=color)
 
     def render(self, img):
+        """
+        :meta private:
+        """
         c = COLORS[self.color]
 
         # Vertical quad
@@ -470,6 +517,9 @@ class Ball(WorldObj):
         return super().__new__(cls, type='ball', color=color)
 
     def render(self, img):
+        """
+        :meta private:
+        """
         fill_coords(img, point_in_circle(0.5, 0.5, 0.31), COLORS[self.color])
 
 
@@ -484,11 +534,17 @@ class Box(WorldObj):
         return box
 
     def toggle(self, env, agent, pos):
+        """
+        :meta private:
+        """
         # Replace the box by its contents
         env.grid.set(*pos, self.contains)
         return True
 
     def render(self, img):
+        """
+        :meta private:
+        """
         c = COLORS[self.color]
 
         # Outline

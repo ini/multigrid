@@ -2,9 +2,10 @@ import numpy as np
 
 
 
+#: Tile size for rendering grid cell
 TILE_PIXELS = 32
 
-# Map of color names to RGB values
+#: Map of color names to RGB values
 COLORS = {
     'red': np.array([255, 0, 0]),
     'green': np.array([0, 255, 0]),
@@ -16,12 +17,13 @@ COLORS = {
 
 COLOR_NAMES = sorted(list(COLORS.keys()))
 
-# Used to map colors to integers
+#: Map of color names to integers
 COLOR_TO_IDX = {'red': 0, 'green': 1, 'blue': 2, 'purple': 3, 'yellow': 4, 'grey': 5}
 
+#: Map of integers to color names
 IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
-# Map of object type to integers
+#: Map of object type to integers
 OBJECT_TO_IDX = {
     'unseen': 0,
     'empty': 1,
@@ -36,18 +38,20 @@ OBJECT_TO_IDX = {
     'agent': 10,
 }
 
+#: Map of integers to object type
 IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
 
-# Map of state names to integers
+#: Map of state names to integers
 STATE_TO_IDX = {
     'open': 0,
     'closed': 1,
     'locked': 2,
 }
 
+#: Map of integers to state names
 IDX_TO_STATE = dict(zip(STATE_TO_IDX.values(), STATE_TO_IDX.keys()))
 
-# Map of agent direction indices to vectors
+#: Map of agent direction indices to vectors
 DIR_TO_VEC = [
     # Pointing right (positive X)
     np.array((1, 0)),

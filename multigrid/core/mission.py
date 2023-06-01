@@ -4,7 +4,7 @@ import numpy as np
 
 from gymnasium import spaces
 from gymnasium.utils import seeding
-from typing import Any, Callable, Sequence
+from typing import Callable, Sequence
 
 
 
@@ -105,8 +105,8 @@ class MissionSpace(spaces.Space[str]):
         """
         Return the multi-discrete placeholder space.
 
-        Example
-        -------
+        Examples
+        --------
         >>> mission_space = MissionSpace(
         ...     mission_func=lambda color, obj: f"Get the {color} {obj}.",
         ...     ordered_placeholders=[['red', 'green', 'blue'], ['ball', 'box']])
@@ -122,6 +122,11 @@ class MissionSpace(spaces.Space[str]):
     def get(self, idx: Sequence[int]) -> str:
         """
         Get the mission string corresponding to the given index.
+
+        Parameters
+        ----------
+        idx : Sequence[int]
+            Index of the mission string in the multi-discrete placeholder space
         """
         placeholders = [self.ordered_placeholders[i][idx[i]] for i in range(len(idx))]
         return self.mission_func(*placeholders)
@@ -136,11 +141,16 @@ class MissionSpace(spaces.Space[str]):
         idx = self.np_random.integers(0, self.placeholder_space().nvec)
         return self.get(idx)
 
-    def contains(self, x: Any) -> bool:
+    def contains(self, mission_string: str) -> bool:
         """
-        Return boolean specifying if x is a valid member of this space.
+        Check if an item is a valid member of this mission space.
+
+        Parameters
+        ----------
+        mission_string : str
+            Mission string to be checked
         """
-        return x in self.mission_to_index
+        return mission_string in self.mission_to_index
 
     def __repr__(self) -> str:
         """

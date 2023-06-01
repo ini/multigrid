@@ -4,11 +4,12 @@ import numpy as np
 
 from collections import defaultdict
 from functools import cached_property
+from numpy.typing import NDArray
 from typing import Any, Callable, Iterable
 
 from .agent import Agent
 from .constants import OBJECT_TO_IDX, TILE_PIXELS
-from .world_object import Wall, WorldObj
+from .world_object import Wall, WorldObj, TYPE
 
 from ..utils.rendering import (
     downsample,
@@ -25,7 +26,7 @@ class Grid:
     """
 
     # Static cache of pre-renderer tiles
-    tile_cache: dict[tuple[Any, ...], Any] = {}
+    _tile_cache: dict[tuple[Any, ...], Any] = {}
 
     def __init__(self, width: int, height: int):
         """
@@ -39,7 +40,7 @@ class Grid:
         assert width >= 3
         assert height >= 3
         self.world_objects: dict[tuple[int, int], WorldObj] = {} # indexed by location
-        self.state: np.ndarray[int] = np.zeros((width, height, WorldObj.dim), dtype=int)
+        self.state: NDArray[np.int_] = np.zeros((width, height, WorldObj.dim), dtype=int)
         self.state[...] = WorldObj.empty()
 
     def __contains__(self, key: Any) -> bool:
@@ -90,43 +91,66 @@ class Grid:
         from copy import deepcopy
         return deepcopy(self)
 
-    def set(self, i: int, j: int, v: WorldObj | None):
+    def set(self, x: int, y: int, obj: WorldObj | None):
         """
         Set a world object at the given coordinates.
+
+        Parameters
+        ----------
+        x : int
+            Grid x-coordinate
+        y : int
+            Grid y-coordinate
+        obj : WorldObj or None
+            Object to place
         """
-        assert 0 <= i < self.width
-        assert 0 <= j < self.height
+        assert 0 <= x < self.width
+        assert 0 <= y < self.height
 
         # Update world object dictionary
-        self.world_objects[i, j] = v
+        self.world_objects[x, y] = obj
 
         # Update grid state
-        if isinstance(v, WorldObj):
-            self.state[i, j] = v
-        elif v is None:
-            self.state[i, j] = WorldObj.empty()
+        if isinstance(obj, WorldObj):
+            self.state[x, y] = obj
+        elif obj is None:
+            self.state[x, y] = WorldObj.empty()
         else:
-            raise TypeError(f"cannot set grid value to {type(v)}")
+            raise TypeError(f"cannot set grid value to {type(obj)}")
 
-    def get(self, i: int, j: int) -> WorldObj | None:
+    def get(self, x: int, y: int) -> WorldObj | None:
         """
         Get the world object at the given coordinates.
+
+        Parameters
+        ----------
+        x : int
+            Grid x-coordinate
+        y : int
+            Grid y-coordinate
         """
-        assert 0 <= i < self.width
-        assert 0 <= j < self.height
+        assert 0 <= x < self.width
+        assert 0 <= y < self.height
 
         # Create WorldObj instance if none exists
-        if (i, j) not in self.world_objects:
-            self.world_objects[i, j] = WorldObj.from_array(self.state[i, j])
+        if (x, y) not in self.world_objects:
+            self.world_objects[x, y] = WorldObj.from_array(self.state[x, y])
 
-        return self.world_objects[i, j]
+        return self.world_objects[x, y]
 
-    def update(self, i: int, j: int):
+    def update(self, x: int, y: int):
         """
         Update the grid state from the world object at the given coordinates.
+
+        Parameters
+        ----------
+        x : int
+            Grid x-coordinate
+        y : int
+            Grid y-coordinate
         """
-        if (i, j) in self.world_objects:
-            self.state[i, j] = self.world_objects[i, j]
+        if (x, y) in self.world_objects:
+            self.state[x, y] = self.world_objects[x, y]
 
     def horz_wall(
         self,
@@ -135,6 +159,17 @@ class Grid:
         obj_type: Callable[[], WorldObj] = Wall):
         """
         Create a horizontal wall.
+
+        Parameters
+        ----------
+        x : int
+            Leftmost x-coordinate of wall
+        y : int
+            Y-coordinate of wall
+        length : int or None
+            Length of wall. If None, wall extends to the right edge of the grid.
+        obj_type : Callable() -> WorldObj
+            Function that returns a WorldObj instance to use for the wall
         """
         length = self.width - x if length is None else length
         self.state[x:x+length, y] = obj_type()
@@ -146,6 +181,17 @@ class Grid:
         obj_type: Callable[[], WorldObj] = Wall):
         """
         Create a vertical wall.
+
+        Parameters
+        ----------
+        x : int
+            X-coordinate of wall
+        y : int
+            Topmost y-coordinate of wall
+        length : int or None
+            Length of wall. If None, wall extends to the bottom edge of the grid.
+        obj_type : Callable() -> WorldObj
+            Function that returns a WorldObj instance to use for the wall
         """
         length = self.height - y if length is None else length
         self.state[x, y:y+length] = obj_type()
@@ -153,6 +199,17 @@ class Grid:
     def wall_rect(self, x: int, y: int, w: int, h: int):
         """
         Create a walled rectangle.
+
+        Parameters
+        ----------
+        x : int
+            X-coordinate of top-left corner
+        y : int
+            Y-coordinate of top-left corner
+        w : int
+            Width of rectangle
+        h : int
+            Height of rectangle
         """
         self.horz_wall(x, y, w)
         self.horz_wall(x, y + h - 1, w)
@@ -166,9 +223,22 @@ class Grid:
         agent: Agent | None = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
-        subdivs: int = 3) -> np.ndarray:
+        subdivs: int = 3) -> NDArray[np.uint8]:
         """
         Render a tile and cache the result.
+
+        Parameters
+        ----------
+        obj : WorldObj or None
+            Object to render
+        agent : Agent or None
+            Agent to render
+        highlight : bool
+            Whether to highlight the tile
+        tile_size : int
+            Tile size (in pixels)
+        subdivs : int
+            Downsampling factor for supersampling / anti-aliasing
         """
         # Hash map lookup key for the cache
         key: tuple[Any, ...] = (highlight, tile_size)
@@ -178,12 +248,11 @@ class Grid:
             key += (None, None)
         key = obj.encode() + key if obj else key
 
-        if key in cls.tile_cache:
-            return cls.tile_cache[key]
+        if key in cls._tile_cache:
+            return cls._tile_cache[key]
 
         img = np.zeros(
-            shape=(tile_size * subdivs, tile_size * subdivs, 3), dtype=np.uint8
-        )
+            shape=(tile_size * subdivs, tile_size * subdivs, 3), dtype=np.uint8)
 
         # Draw the grid lines (top and left edges)
         fill_coords(img, point_in_rect(0, 0.031, 0, 1), (100, 100, 100))
@@ -205,7 +274,7 @@ class Grid:
         img = downsample(img, subdivs)
 
         # Cache the rendered tile
-        cls.tile_cache[key] = img
+        cls._tile_cache[key] = img
 
         return img
 
@@ -213,7 +282,7 @@ class Grid:
         self,
         tile_size: int,
         agents: Iterable[Agent] = (),
-        highlight_mask: np.ndarray | None = None) -> np.ndarray:
+        highlight_mask: NDArray[np.bool_] | None = None) -> NDArray[np.uint8]:
         """
         Render this grid at a given scale.
 
@@ -223,7 +292,7 @@ class Grid:
             Tile size (in pixels)
         agents: Iterable[Agent]
             Agents to render
-        highlight_mask: np.ndarray
+        highlight_mask: ndarray
             Boolean mask indicating which grid locations to highlight
         """
         if highlight_mask is None:
@@ -262,9 +331,14 @@ class Grid:
 
         return img
 
-    def encode(self, vis_mask: np.ndarray | None = None) -> np.ndarray:
+    def encode(self, vis_mask: NDArray[np.bool_] | None = None) -> NDArray[np.int_]:
         """
         Produce a compact numpy encoding of the grid.
+
+        Parameters
+        ----------
+        vis_mask : ndarray[bool] of shape (width, height)
+            Visibility mask
         """
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
@@ -274,20 +348,26 @@ class Grid:
         return encoding
 
     @staticmethod
-    def decode(array: np.ndarray) -> tuple['Grid', np.ndarray]:
+    def decode(array: NDArray[np.int_]) -> tuple['Grid', NDArray[np.bool_]]:
         """
-        Decode an array grid encoding back into a grid.
-        """
-        width, height, channels = array.shape
-        assert channels == 3
+        Decode an array grid encoding back into a `Grid` instance.
 
-        vis_mask = np.ones(shape=(width, height), dtype=bool)
+        Parameters
+        ----------
+        array : ndarray[int] of shape (width, height, dim)
+            Grid encoding
+
+        Returns
+        -------
+        grid : Grid
+            Decoded `Grid` instance
+        vis_mask : ndarray[bool] of shape (width, height)
+            Visibility mask
+        """
+        width, height, dim = array.shape
+        assert dim == WorldObj.dim
+
+        vis_mask = (array[..., TYPE] != OBJECT_TO_IDX['unseen'])
         grid = Grid(width, height)
-        for i in range(width):
-            for j in range(height):
-                type_idx, color_idx, state = array[i, j]
-                v = WorldObj.decode(type_idx, color_idx, state)
-                grid.set(i, j, v)
-                vis_mask[i, j] = type_idx != OBJECT_TO_IDX['unseen']
-
+        grid.state[vis_mask] = array[vis_mask]
         return grid, vis_mask

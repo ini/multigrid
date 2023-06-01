@@ -21,10 +21,10 @@ from ..utils.rendering import (
 
 class AgentState(np.ndarray):
     """
-    State for an `Agent` object.
+    State for an :class:`.Agent` object.
 
-    AgentState objects also support vectorized operations,
-    in which case the AgentState object represents a "batch" of states
+    `AgentState` objects also support vectorized operations,
+    in which case the `AgentState` object represents a "batch" of states
     over multiple agents.
 
     Attributes
@@ -46,21 +46,22 @@ class AgentState(np.ndarray):
 
     >>> agent_state = AgentState(3)
     >>> agent_state
-    AgentState(3,)
+    AgentState(3)
+
+    Access and set state attributes for one agent at a time:
+
     >>> a = agent_state[0]
-    >>> b = agent_state[1]
-    >>> c = agent_state[2]
-
-    Access and set state attributes one at a time:
-
+    >>> a
+    AgentState()
     >>> a.color
     'red'
     >>> a.color = 'yellow'
+    >>> b = agent_state[1]
     >>> b.pos
     array([-1, -1])
     >>> b.pos = (23, 45)
 
-    The underlying vectorized state is updated as well:
+    The underlying vectorized state is automatically updated as well:
 
     >>> agent_state.color
     array(['yellow', 'green', 'blue'])
@@ -83,7 +84,7 @@ class AgentState(np.ndarray):
     >>> c.dir
     0
     """
-    dim = 6 + WorldObj.dim
+    dim = 9
     _colors = np.array(list(COLOR_TO_IDX.keys()))
     _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
 
@@ -99,7 +100,8 @@ class AgentState(np.ndarray):
         return obj
 
     def __repr__(self):
-        return f'{self.__class__.__name__}{self.shape[:-1]}'
+        shape = str(self.shape[:-1]).replace(",)", ")")
+        return f'{self.__class__.__name__}{shape}'
 
     def __getitem__(self, idx):
         out = super().__getitem__(idx)
@@ -173,7 +175,7 @@ class AgentState(np.ndarray):
     @property
     def carrying(self) -> WorldObj | None | NDArray[np.object_]:
         """
-        Return the WorldObj the agent is carrying.
+        Return the object the agent is carrying.
         """
         out = self._carried_obj
         return out.item() if out.ndim == 0 else out
@@ -181,22 +183,30 @@ class AgentState(np.ndarray):
     @carrying.setter
     def carrying(self, obj: WorldObj | None | ArrayLike[WorldObj | None]):
         """
-        Set the WorldObj of the object the agent is carrying.
+        Set the object the agent is carrying.
         """
         self[..., 6:6+WorldObj.dim] = WorldObj.empty() if obj is None else obj
         self._carried_obj[...].fill(obj)
-
-    def world_obj_encoding(self) -> NDArray[np.int_]:
-        """
-        Encode a description of this agent as a 3-tuple of integers
-        (i.e. type, color, direction).
-        """
-        return self[..., :WorldObj.dim].view(np.ndarray)
 
 
 class Agent:
     """
     Class representing an agent in the environment.
+
+    **Observation Space**
+
+    Observations are dictionaries with the following entries:
+
+    * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
+        Encoding of the agent's view of the environment
+    * direction : int
+        Agent's direction (0: right, 1: down, 2: left, 3: up)
+    * mission : str
+        Task string corresponding to the current environment configuration
+
+    **Action Space**
+
+    Actions are discrete integers, as enumerated in :class:`.Action`.
 
     Attributes
     ----------
@@ -208,12 +218,22 @@ class Agent:
         Action space for the agent
     observation_space : gym.spaces.Dict
         Observation space for the agent
+    dir_vec : ndarray[int]
+        Direction vector for the agent, pointing in the direction of forward movement
+    front_pos : tuple[int, int]
+        Position of the cell that is directly in front of the agent
     """
     # Properties
-    pos = PropertyAlias('state', AgentState.pos)
-    dir = PropertyAlias('state', AgentState.dir)
-    carrying = PropertyAlias('state', AgentState.carrying)
-    terminated = PropertyAlias('state', AgentState.terminated)
+    color = PropertyAlias(
+        'state', AgentState.color, doc='Alias for :attr:`AgentState.color`.')
+    dir = PropertyAlias(
+        'state', AgentState.dir, doc='Alias for :attr:`AgentState.dir`.')
+    pos = PropertyAlias(
+        'state', AgentState.pos, doc='Alias for :attr:`AgentState.pos`.')
+    terminated = PropertyAlias(
+        'state', AgentState.terminated, doc='Alias for :attr:`AgentState.terminated`.')
+    carrying = PropertyAlias(
+        'state', AgentState.carrying, doc='Alias for :attr:`AgentState.carrying`.')
 
     def __init__(
         self,
@@ -264,18 +284,8 @@ class Agent:
         # Current agent state
         self.mission: str = None
 
-    def reset(self, mission: str = 'maximize reward'):
-        """
-        Reset the agent to an initial state.
-        """
-        self.mission = mission
-        self.state.pos = (-1, -1)
-        self.state.dir = -1
-        self.state.terminated = False
-        self.state.carrying = None
-
     @property
-    def dir_vec(self) -> np.ndarray[int]:
+    def dir_vec(self) -> NDArray[np.int_]:
         """
         Get the direction vector for the agent, pointing in the direction
         of forward movement.
@@ -283,29 +293,50 @@ class Agent:
         return DIR_TO_VEC[self.state.dir % 4]
 
     @property
-    def right_vec(self) -> np.ndarray[int]:
-        """
-        Get the direction vector pointing to agent's right.
-        """
-        dx, dy = self.dir_vec
-        return np.array((-dy, dx))
-
-    @property
     def front_pos(self) -> tuple[int, int]:
         """
-        Get the position of the cell that is right in front of the agent.
+        Get the position of the cell that is directly in front of the agent.
         """
         return front_pos(*self.state.pos, self.state.dir)
+
+    def reset(self, mission: str = 'maximize reward'):
+        """
+        Reset the agent to an initial state.
+
+        Parameters
+        ----------
+        mission : str
+            Mission string to use for the new episode
+        """
+        self.mission = mission
+        self.state.pos = (-1, -1)
+        self.state.dir = -1
+        self.state.terminated = False
+        self.state.carrying = None
 
     def encode(self) -> tuple[int, int, int]:
         """
         Encode a description of this agent as a 3-tuple of integers.
-        """
-        return tuple(self.state.world_obj_encoding())
 
-    def render(self, img: np.ndarray[int]):
+        Returns
+        -------
+        type_idx : int
+            The index of the agent type in `OBJECT_TO_IDX`
+        color_idx : int
+            The index of the agent color in `COLOR_TO_IDX`
+        state_idx : int
+            The direction of the agent (0: right, 1: down, 2: left, 3: up)
+        """
+        return (OBJECT_TO_IDX['agent'], COLOR_TO_IDX[self.state.color], self.state.dir)
+
+    def render(self, img: NDArray[np.uint8]):
         """
         Draw the agent.
+
+        Parameters
+        ----------
+        img : ndarray[int] of shape (width, height, 3)
+            RGB image array to render agent on
         """
         c = COLORS[self.state.color]
         tri_fn = point_in_triangle(
