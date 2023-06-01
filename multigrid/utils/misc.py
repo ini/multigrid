@@ -17,21 +17,19 @@ class PropertyAlias(property):
     """
     A class property that is an alias for an attribute property.
 
-    Instead of:
-    ```
-    >>> @property
-    >>> def x(self):
-    ...     self.attr.x
+    Instead of::
 
-    >>> @x.setter
-    >>> def x(self, value):
-    ...     self.attr.x = value
-    ```
+        @property
+        def x(self):
+            self.attr.x
 
-    we can simply declare:
-    ```
-    >>> x = PropertyAlias('attr', AttributeClass.x)
-    ```
+        @x.setter
+        def x(self, value):
+            self.attr.x = value
+
+    we can simply just declare::
+
+        x = PropertyAlias('attr', AttributeClass.x)
     """
 
     def __init__(self, attr_name: str, attr_property: property, doc: str = '') -> None:

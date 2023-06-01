@@ -38,9 +38,7 @@ class MissionSpace(spaces.Space[str]):
     >>> observation_space.sample()
     'Get the green ball.'
 
-    >>> observation_space = MissionSpace(
-    ...     mission_func=lambda : "Get the ball.",
-    ...     ordered_placeholders=None)
+    >>> observation_space = MissionSpace(mission_func=lambda: "Get the ball.")
     >>> observation_space.sample()
     'Get the ball.'
     """

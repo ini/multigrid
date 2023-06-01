@@ -56,19 +56,11 @@ class AgentState(np.ndarray):
     >>> a.color
     'red'
     >>> a.color = 'yellow'
-    >>> b = agent_state[1]
-    >>> b.pos
-    array([-1, -1])
-    >>> b.pos = (23, 45)
 
     The underlying vectorized state is automatically updated as well:
 
     >>> agent_state.color
     array(['yellow', 'green', 'blue'])
-    >>> agent_state.pos
-    array([[-1, -1],
-       [23, 45],
-       [-1, -1]])
 
     Access and set state attributes all at once:
 
@@ -79,10 +71,6 @@ class AgentState(np.ndarray):
     array([2, 3, 0])
     >>> a.dir
     2
-    >>> b.dir
-    3
-    >>> c.dir
-    0
     """
     dim = 9
     _colors = np.array(list(COLOR_TO_IDX.keys()))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import numpy as np
 import numba as nb
 
@@ -131,7 +132,6 @@ class WorldObj(np.ndarray):
     cur_pos : tuple[int, int] or None
         The current position of the object
     """
-    _empty = None
     dim = 3 # (type, color, state)
 
     def __new__(cls, type: str, color: str):
@@ -158,14 +158,12 @@ class WorldObj(np.ndarray):
         return f"{self.__class__.__name__}(color={self.color})"
 
     @staticmethod
+    @functools.cache
     def empty() -> 'WorldObj':
         """
-        Return a fixed reference to an empty WorldObj instance.
+        Return an empty WorldObj instance.
         """
-        if WorldObj._empty is None:
-            WorldObj._empty = WorldObj(type='empty', color='red')
-
-        return WorldObj._empty
+        return WorldObj(type='empty', color=IDX_TO_COLOR[0])
 
     @staticmethod
     def from_array(arr: ArrayLike[int]) -> 'WorldObj' | None:
@@ -310,7 +308,10 @@ class Goal(WorldObj):
     Goal object an agent may be searching for.
     """
 
+    @functools.cache # reuse instances, since object is immutable
     def __new__(cls):
+        """
+        """
         return super().__new__(cls, type='goal', color='green')
 
     def render(self, img):
@@ -325,7 +326,14 @@ class Floor(WorldObj):
     Colored floor tile an agent can walk over.
     """
 
+    @functools.cache # reuse instances, since object is immutable
     def __new__(cls, color: str = 'blue'):
+        """
+        Parameters
+        ----------
+        color : str
+            Color name
+        """
         return super().__new__(cls, type='floor', color=color)
 
     def render(self, img):
@@ -342,7 +350,10 @@ class Lava(WorldObj):
     Lava object an agent can fall onto.
     """
 
+    @functools.cache # reuse instances, since object is immutable
     def __new__(cls):
+        """
+        """
         return super().__new__(cls, type='lava', color='red')
 
     def render(self, img):
@@ -369,7 +380,14 @@ class Wall(WorldObj):
     Wall object that agents cannot move through.
     """
 
+    @functools.cache # reuse instances, since object is immutable
     def __new__(cls, color: str = 'grey'):
+        """
+        Parameters
+        ----------
+        color : str
+            Color name
+        """
         return super().__new__(cls, type='wall', color=color)
 
     def render(self, img):
@@ -393,6 +411,16 @@ class Door(WorldObj):
 
     def __new__(
         cls, color: str = 'blue', is_open: bool = False, is_locked: bool = False):
+        """
+        Parameters
+        ----------
+        color : str
+            Color name
+        is_open : bool
+            Whether the door is open
+        is_locked : bool
+            Whether the door is locked
+        """
         door = super().__new__(cls, type='door', color=color)
         door.is_open = is_open
         door.is_locked = is_locked
@@ -488,6 +516,12 @@ class Key(WorldObj):
     """
 
     def __new__(cls, color: str = 'blue'):
+        """
+        Parameters
+        ----------
+        color : str
+            Color name
+        """
         return super().__new__(cls, type='key', color=color)
 
     def render(self, img):
@@ -514,6 +548,12 @@ class Ball(WorldObj):
     """
 
     def __new__(cls, color: str = 'blue'):
+        """
+        Parameters
+        ----------
+        color : str
+            Color name
+        """
         return super().__new__(cls, type='ball', color=color)
 
     def render(self, img):
@@ -529,6 +569,14 @@ class Box(WorldObj):
     """
 
     def __new__(cls, color: str = 'yellow', contains: WorldObj | None = None):
+        """
+        Parameters
+        ----------
+        color : str
+            Color name
+        contains : WorldObj or None
+            Contents of the box
+        """
         box = super().__new__(cls, type='box', color=color)
         box.contains = contains
         return box
