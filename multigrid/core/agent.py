@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from gymnasium import spaces
-from typing import TYPE_CHECKING
+from numpy.typing import ArrayLike, NDArray
 
 from .actions import Action
 from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
@@ -17,9 +17,6 @@ from ..utils.rendering import (
     rotate_fn,
 )
 
-if TYPE_CHECKING:
-    from .grid import Grid
-
 
 
 class AgentState(np.ndarray):
@@ -32,15 +29,15 @@ class AgentState(np.ndarray):
 
     Attributes
     ----------
-    color : str
+    color : str or ndarray[str]
         Agent color
-    dir : int
+    dir : int or ndarray[int]
         Agent direction (0: right, 1: down, 2: left, 3: up)
-    pos : np.ndarray[int]
+    pos : ndarray[int]
         Agent (x, y) position
-    terminated : bool
+    terminated : bool or ndarray[bool]
         Whether the agent has terminated
-    carrying : WorldObj or None
+    carrying : WorldObj or None or ndarray
         Object the agent is carrying
 
     Examples
@@ -48,31 +45,29 @@ class AgentState(np.ndarray):
     Create a vectorized agent state for 3 agents:
 
     >>> agent_state = AgentState(3)
+    >>> agent_state
+    AgentState(3,)
     >>> a = agent_state[0]
     >>> b = agent_state[1]
     >>> c = agent_state[2]
-    >>> agent_state
-    AgentState([[10,  0, -1, -1, -1,  0,  0,  0,  0,  0],
-                [10,  1, -1, -1, -1,  0,  0,  0,  0,  0],
-                [10,  2, -1, -1, -1,  0,  0,  0,  0,  0]])
 
     Access and set state attributes one at a time:
 
     >>> a.color
     'red'
     >>> a.color = 'yellow'
-    >>> a
-    AgentState([10,  4, -1, -1, -1,  0,  0,  0,  0,  0])
-    >>> agent_state[1].pos = (23, 45)
-    >>> b
-    AgentState([10,  1, -1, 23, 45,  0,  0,  0,  0,  0])
+    >>> b.pos
+    array([-1, -1])
+    >>> b.pos = (23, 45)
 
     The underlying vectorized state is updated as well:
 
-    >>> agent_state
-    AgentState([[10,  4, -1, -1, -1,  0,  0,  0,  0,  0],
-                [10,  1, -1, 23, 45,  0,  0,  0,  0,  0],
-                [10,  2, -1, -1, -1,  0,  0,  0,  0,  0]])
+    >>> agent_state.color
+    array(['yellow', 'green', 'blue'])
+    >>> agent_state.pos
+    array([[-1, -1],
+       [23, 45],
+       [-1, -1]])
 
     Access and set state attributes all at once:
 
@@ -93,16 +88,18 @@ class AgentState(np.ndarray):
     _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
 
     def __new__(cls, *dims: int):
-        obj = super().__new__(cls, shape=dims+(cls.dim,), dtype=int)
+        obj = np.zeros(dims + (cls.dim,), dtype=int).view(cls)
+        obj._carried_obj = np.empty(dims, dtype=object) # object references
         obj[..., 0] = OBJECT_TO_IDX['agent'] # type
         obj[..., 1].flat = np.arange(np.prod(dims), dtype=int) # color
         obj[..., 1] %= len(COLOR_TO_IDX)
-        obj[..., 2] = -1 # dir
-        obj[..., 3:5] = -1 # pos
-        obj[..., 5] = False # terminated
-        obj[..., 6:] = 0 # carrying (encoding)
-        obj._carried_obj = np.empty(dims, dtype=object) # carrying (object reference)
+        obj.dir = -1
+        obj.pos = (-1, -1)
+        obj.terminated = False
         return obj
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}{self.shape[:-1]}'
 
     def __getitem__(self, idx):
         out = super().__getitem__(idx)
@@ -111,66 +108,70 @@ class AgentState(np.ndarray):
         return out
 
     @property
-    def color(self) -> str:
+    def color(self) -> str | NDArray[np.str_]:
         """
         Return the name of the agent color.
         """
-        out = self._colors[self[..., 1]]
+        out = super().__getitem__((..., 1))
+        out = self._colors[out]
         return out.item() if out.ndim == 0 else out
 
     @color.setter
-    def color(self, value: str):
+    def color(self, value: str | ArrayLike[str]):
         """
         Set the agent color.
         """
         self[..., 1] = self._color_to_idx(value)
 
     @property
-    def dir(self) -> int:
+    def dir(self) -> int | NDArray[np.int_]:
         """
         Return the agent direction (0: right, 1: down, 2: left, 3: up).
         """
-        out = self[..., 2].view(np.ndarray)
+        out = super().__getitem__((..., 2))
+        out = out.view(np.ndarray)
         return out.item() if out.ndim == 0 else out
 
     @dir.setter
-    def dir(self, value: int):
+    def dir(self, value: int | ArrayLike[int]):
         """
         Set the agent direction.
         """
         self[..., 2] = value
 
     @property
-    def pos(self) -> np.ndarray[int]:
+    def pos(self) -> NDArray[np.int_]:
         """
         Return the agent's (x, y) position.
         """
-        return self[..., 3:5].view(np.ndarray)
+        out = super().__getitem__((..., slice(3, 5)))
+        return out.view(np.ndarray)
 
     @pos.setter
-    def pos(self, value: np.ndarray[int]):
+    def pos(self, value: ArrayLike[int]):
         """
         Set the agent's (x, y) position.
         """
         self[..., 3:5] = value
 
     @property
-    def terminated(self) -> bool:
+    def terminated(self) -> bool | NDArray[np.bool_]:
         """
         Return whether the agent has terminated.
         """
-        out = self[..., 5].view(np.ndarray)
+        out = super().__getitem__((..., 5))
+        out = out.view(np.ndarray)
         return bool(out.item()) if out.ndim == 0 else out
 
     @terminated.setter
-    def terminated(self, value: bool):
+    def terminated(self, value: bool | ArrayLike[bool]):
         """
         Set whether the agent has terminated.
         """
         self[..., 5] = value
 
     @property
-    def carrying(self) -> WorldObj | None:
+    def carrying(self) -> WorldObj | None | NDArray[np.object_]:
         """
         Return the WorldObj the agent is carrying.
         """
@@ -178,14 +179,14 @@ class AgentState(np.ndarray):
         return out.item() if out.ndim == 0 else out
 
     @carrying.setter
-    def carrying(self, obj: WorldObj | None):
+    def carrying(self, obj: WorldObj | None | ArrayLike[WorldObj | None]):
         """
         Set the WorldObj of the object the agent is carrying.
         """
         self[..., 6:6+WorldObj.dim] = WorldObj.empty() if obj is None else obj
         self._carried_obj[...].fill(obj)
 
-    def world_obj_encoding(self) -> np.ndarray[int]:
+    def world_obj_encoding(self) -> NDArray[np.int_]:
         """
         Encode a description of this agent as a 3-tuple of integers
         (i.e. type, color, direction).
@@ -208,6 +209,7 @@ class Agent:
     observation_space : gym.spaces.Dict
         Observation space for the agent
     """
+    # Properties
     pos = PropertyAlias('state', AgentState.pos)
     dir = PropertyAlias('state', AgentState.dir)
     carrying = PropertyAlias('state', AgentState.carrying)
@@ -294,70 +296,6 @@ class Agent:
         Get the position of the cell that is right in front of the agent.
         """
         return front_pos(*self.state.pos, self.state.dir)
-
-    def to_world_obj(self) -> WorldObj:
-        arr = np.array([*self.state.world_obj_encoding(), 0])
-        return arr.view(WorldObj)
-
-    def get_view_coords(self, i, j) -> tuple[int, int]:
-        """
-        Translate and rotate absolute grid coordinates (i, j) into the
-        agent's partially observable view (sub-grid). Note that the resulting
-        coordinates may be negative or outside of the agent's view size.
-        """
-        ax, ay = self.state.pos
-        dx, dy = self.dir_vec
-        rx, ry = self.right_vec
-
-        # Compute the absolute coordinates of the top-left view corner
-        sz = self.view_size
-        hs = self.view_size // 2
-        tx = ax + (dx * (sz - 1)) - (rx * hs)
-        ty = ay + (dy * (sz - 1)) - (ry * hs)
-
-        lx = i - tx
-        ly = j - ty
-
-        # Project the coordinates of the object relative to the top-left
-        # corner onto the agent's own coordinate system
-        vx = rx * lx + ry * ly
-        vy = -(dx * lx + dy * ly)
-
-        return vx, vy
-
-    def relative_coords(self, x: int, y: int) -> tuple[int, int] | None:
-        """
-        Check if a grid position belongs to the agent's field of view,
-        and returns the corresponding coordinates.
-        """
-        vx, vy = self.get_view_coords(x, y)
-
-        if not (0 <= vx < self.view_size) or not (0 <= vy < self.view_size):
-            return None
-
-        return vx, vy
-
-    def in_view(self, x: int, y: int) -> bool:
-        """
-        Check if a grid position is visible to the agent.
-        """
-        return self.relative_coords(x, y) is not None
-
-    def sees(self, x: int, y: int, grid: 'Grid') -> bool:
-        """
-        Check if a non-empty grid position is visible to the agent.
-        """
-        coordinates = self.relative_coords(x, y)
-        if coordinates is None:
-            return False
-        vx, vy = coordinates
-
-        obs_grid, _ = self.gen_obs_grid(grid)
-        obs_cell = obs_grid.get(vx, vy)
-        world_cell = grid.get(x, y)
-
-        assert world_cell is not None
-        return obs_cell is not None and obs_cell.type == world_cell.type
 
     def encode(self) -> tuple[int, int, int]:
         """

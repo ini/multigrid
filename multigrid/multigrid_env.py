@@ -74,7 +74,7 @@ class MultiGridEnv(gym.Env, ABC):
         max_steps: int = 100,
         see_through_walls: bool = False,
         agent_view_size: int = 7,
-        allow_agent_overlap: bool = False,
+        allow_agent_overlap: bool = True,
         give_joint_reward: bool = False,
         is_competitive: bool = True,
         render_mode: str | None = None,

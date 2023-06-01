@@ -19,8 +19,8 @@ from ..utils.rendering import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..multigrid_env import MultiGridEnv
     from .agent import Agent
+    from ..multigrid_env import MultiGridEnv
 
 
 
