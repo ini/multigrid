@@ -52,7 +52,7 @@ class MultiGridEnv(gym.Env, ABC):
         Encoding of the agent's view of the environment
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
-    * mission : str
+    * mission : Mission
         Task string corresponding to the current environment configuration
 
     **Action Space**
@@ -80,7 +80,7 @@ class MultiGridEnv(gym.Env, ABC):
 
     def __init__(
         self,
-        mission_space: MissionSpace,
+        mission_space: MissionSpace = MissionSpace.from_string('maximize reward'),
         agents: Iterable[Agent] | int = 1,
         grid_size: int | None = None,
         width: int | None = None,
@@ -102,7 +102,7 @@ class MultiGridEnv(gym.Env, ABC):
         mission_space : MissionSpace
             Space of mission strings (i.e. agent instructions)
         agents : int or Iterable[Agent]
-            Number of agents in the environment (or provide a list of agents)
+            Number of agents in the environment (or provide :class:`Agent` instances)
         grid_size : int
             Size of the environment grid (width and height)
         width : int
