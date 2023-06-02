@@ -3,11 +3,11 @@ from __future__ import annotations
 import numpy as np
 
 from gymnasium import spaces
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike, NDArray as ndarray
 
 from .actions import Action
 from .constants import Color, Direction, Type
-from .mission import MissionSpace
+from .mission import Mission, MissionSpace
 from .world_object import WorldObj
 
 from ..utils.misc import front_pos, PropertyAlias
@@ -29,9 +29,9 @@ class AgentState(np.ndarray):
 
     Attributes
     ----------
-    color : str or ndarray[str]
+    color : Color or ndarray[str]
         Agent color
-    dir : int or ndarray[int]
+    dir : Direction or ndarray[int]
         Agent direction (0: right, 1: down, 2: left, 3: up)
     pos : ndarray[int]
         Agent (x, y) position
@@ -96,7 +96,7 @@ class AgentState(np.ndarray):
         return out
 
     @property
-    def color(self) -> Color | NDArray[np.str_]:
+    def color(self) -> Color | ndarray[np.str]:
         """
         Return the agent color.
         """
@@ -111,7 +111,7 @@ class AgentState(np.ndarray):
         self[..., 1] = self._color_to_idx(value)
 
     @property
-    def dir(self) -> Direction | NDArray[np.int_]:
+    def dir(self) -> Direction | ndarray[np.int]:
         """
         Return the agent direction (0: right, 1: down, 2: left, 3: up).
         """
@@ -127,7 +127,7 @@ class AgentState(np.ndarray):
         self[..., 2] = value
 
     @property
-    def pos(self) -> NDArray[np.int_]:
+    def pos(self) -> ndarray[np.int]:
         """
         Return the agent's (x, y) position.
         """
@@ -142,7 +142,7 @@ class AgentState(np.ndarray):
         self[..., 3:5] = value
 
     @property
-    def terminated(self) -> bool | NDArray[np.bool_]:
+    def terminated(self) -> bool | ndarray[np.bool]:
         """
         Return whether the agent has terminated.
         """
@@ -158,7 +158,7 @@ class AgentState(np.ndarray):
         self[..., 5] = value
 
     @property
-    def carrying(self) -> WorldObj | None | NDArray[np.object_]:
+    def carrying(self) -> WorldObj | None | ndarray[np.object]:
         """
         Return the object the agent is carrying.
         """
@@ -186,7 +186,7 @@ class Agent:
         Encoding of the agent's view of the environment
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
-    * mission : str
+    * mission : Mission
         Task string corresponding to the current environment configuration
 
     **Action Space**
@@ -199,7 +199,7 @@ class Agent:
         Index of the agent in the environment
     state : AgentState
         State of the agent
-    mission : str
+    mission : Mission
         Current mission string for the agent
     action_space : gym.spaces.Discrete
         Action space for the agent
@@ -243,7 +243,7 @@ class Agent:
         """
         self.index: int = index
         self.state: AgentState = AgentState() if state is None else state
-        self.mission: str = None
+        self.mission: Mission = None
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Action))
@@ -260,7 +260,7 @@ class Agent:
             'image': spaces.Box(
                 low=0,
                 high=255,
-                shape=(view_size, view_size, 3),
+                shape=(view_size, view_size, WorldObj.dim),
                 dtype='uint8',
             ),
             'direction': spaces.Discrete(len(Direction)),
@@ -274,13 +274,13 @@ class Agent:
         """
         return front_pos(*self.state.pos, self.state.dir)
 
-    def reset(self, mission: str = 'maximize reward'):
+    def reset(self, mission: Mission = Mission('maximize reward')):
         """
         Reset the agent to an initial state.
 
         Parameters
         ----------
-        mission : str
+        mission : Mission
             Mission string to use for the new episode
         """
         self.mission = mission
@@ -304,7 +304,7 @@ class Agent:
         """
         return (Type.agent.to_index(), self.state.color.to_index(), self.state.dir)
 
-    def render(self, img: NDArray[np.uint8]):
+    def render(self, img: ndarray[np.uint8]):
         """
         Draw the agent.
 

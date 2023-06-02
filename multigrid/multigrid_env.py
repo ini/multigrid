@@ -9,7 +9,7 @@ import pygame.freetype
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
-from numpy.typing import NDArray
+from numpy.typing import NDArray as ndarray
 from typing import Any, Iterable, SupportsFloat, TypeVar
 
 from .core.actions import Action
@@ -744,7 +744,7 @@ class MultiGridEnv(gym.Env, ABC):
         self,
         highlight: bool = True,
         tile_size: int = TILE_PIXELS,
-        agent_pov: bool = False) -> NDArray[np.uint8]:
+        agent_pov: bool = False) -> ndarray[np.uint8]:
         """
         Returns an RGB image corresponding to the whole environment.
 

@@ -4,7 +4,7 @@ import numpy as np
 
 from collections import defaultdict
 from functools import cached_property
-from numpy.typing import NDArray
+from numpy.typing import NDArray as ndarray
 from typing import Any, Callable, Iterable
 
 from .agent import Agent
@@ -40,7 +40,7 @@ class Grid:
         assert width >= 3
         assert height >= 3
         self.world_objects: dict[tuple[int, int], WorldObj] = {} # indexed by location
-        self.state: NDArray[np.int_] = np.zeros((width, height, WorldObj.dim), dtype=int)
+        self.state: ndarray[np.int] = np.zeros((width, height, WorldObj.dim), dtype=int)
         self.state[...] = WorldObj.empty()
 
     def __contains__(self, key: Any) -> bool:
@@ -223,7 +223,7 @@ class Grid:
         agent: Agent | None = None,
         highlight: bool = False,
         tile_size: int = TILE_PIXELS,
-        subdivs: int = 3) -> NDArray[np.uint8]:
+        subdivs: int = 3) -> ndarray[np.uint8]:
         """
         Render a tile and cache the result.
 
@@ -282,7 +282,7 @@ class Grid:
         self,
         tile_size: int,
         agents: Iterable[Agent] = (),
-        highlight_mask: NDArray[np.bool_] | None = None) -> NDArray[np.uint8]:
+        highlight_mask: ndarray[np.bool] | None = None) -> ndarray[np.uint8]:
         """
         Render this grid at a given scale.
 
@@ -331,7 +331,7 @@ class Grid:
 
         return img
 
-    def encode(self, vis_mask: NDArray[np.bool_] | None = None) -> NDArray[np.int_]:
+    def encode(self, vis_mask: ndarray[np.bool] | None = None) -> ndarray[np.int]:
         """
         Produce a compact numpy encoding of the grid.
 
@@ -348,7 +348,7 @@ class Grid:
         return encoding
 
     @staticmethod
-    def decode(array: NDArray[np.int_]) -> tuple['Grid', NDArray[np.bool_]]:
+    def decode(array: ndarray[np.int]) -> tuple['Grid', ndarray[np.bool]]:
         """
         Decode an array grid encoding back into a `Grid` instance.
 

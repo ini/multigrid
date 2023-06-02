@@ -4,9 +4,7 @@ import numpy as np
 from ..core.world_object import Wall
 from ..core.world_object import see_behind
 
-from numpy.typing import NDArray
-
-shape_dim = tuple
+from numpy.typing import NDArray as ndarray
 
 
 
@@ -21,10 +19,10 @@ ENCODE_DIM = len(WALL_ENCODING)
 
 @nb.njit(cache=True)
 def gen_obs_grid_encoding(
-    grid_state: NDArray[np.int_],
-    agent_state: NDArray[np.int_],
+    grid_state: ndarray[np.int_],
+    agent_state: ndarray[np.int_],
     agent_view_size: int,
-    see_through_walls: bool) -> NDArray[np.int_]:
+    see_through_walls: bool) -> ndarray[np.int_]:
     """
     Generate encoding for the sub-grid observed by an agent (including visibility mask).
 
@@ -60,9 +58,9 @@ def gen_obs_grid_encoding(
 
 @nb.njit(cache=True)
 def gen_obs_grid_vis_mask(
-    grid_state: NDArray[np.int_],
-    agent_state: NDArray[np.int_],
-    agent_view_size: int) -> NDArray[np.int_]:
+    grid_state: ndarray[np.int_],
+    agent_state: ndarray[np.int_],
+    agent_view_size: int) -> ndarray[np.int_]:
     """
     Generate visibility mask for the sub-grid observed by an agent.
 
@@ -86,9 +84,9 @@ def gen_obs_grid_vis_mask(
 
 @nb.njit(cache=True)
 def gen_obs_grid(
-    grid_state: NDArray[np.int_],
-    agent_state: NDArray[np.int_],
-    agent_view_size: int) -> NDArray[np.int_]:
+    grid_state: ndarray[np.int_],
+    agent_state: ndarray[np.int_],
+    agent_view_size: int) -> ndarray[np.int_]:
     """
     Generate the sub-grid observed by each agent (WITHOUT visibility mask).
 
@@ -163,7 +161,7 @@ def gen_obs_grid(
     return obs_grid
 
 @nb.njit(cache=True)
-def get_see_behind_mask(grid_array: NDArray[np.int_]) -> NDArray[np.int_]:
+def get_see_behind_mask(grid_array: ndarray[np.int_]) -> ndarray[np.int_]:
     """
     Return boolean mask indicating which grid locations can be seen through.
 
@@ -187,7 +185,7 @@ def get_see_behind_mask(grid_array: NDArray[np.int_]) -> NDArray[np.int_]:
     return see_behind_mask
 
 @nb.njit(cache=True)
-def get_vis_mask(obs_grid: NDArray[np.int_]) -> NDArray[np.bool_]:
+def get_vis_mask(obs_grid: ndarray[np.int_]) -> ndarray[np.bool_]:
     """
     Generate a boolean mask indicating which grid locations are visible to each agent.
 
@@ -228,9 +226,9 @@ def get_vis_mask(obs_grid: NDArray[np.int_]) -> NDArray[np.bool_]:
 
 @nb.njit(cache=True)
 def get_view_exts(
-    agent_dir: NDArray[np.int_],
-    agent_pos: NDArray[np.int_],
-    agent_view_size: int) -> NDArray[np.int_]:
+    agent_dir: ndarray[np.int_],
+    agent_pos: ndarray[np.int_],
+    agent_view_size: int) -> ndarray[np.int_]:
     """
     Get the extents of the square set of grid cells visible to each agent.
 

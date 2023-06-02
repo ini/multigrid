@@ -4,7 +4,7 @@ import functools
 import numpy as np
 import numba as nb
 
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike, NDArray as ndarray
 from typing import TYPE_CHECKING
 
 from .constants import Color, State, Type
@@ -286,7 +286,7 @@ class WorldObj(np.ndarray):
         arr = np.array([type_idx, color_idx, state_idx])
         return WorldObj.from_array(arr)
 
-    def render(self, img: NDArray[np.uint8]):
+    def render(self, img: ndarray[np.uint8]):
         """
         Draw the world object.
 

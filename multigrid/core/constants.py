@@ -4,7 +4,7 @@ import enum
 import functools
 import numpy as np
 
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike, NDArray as ndarray
 
 
 
@@ -55,6 +55,8 @@ def _enum_index(enum_item: enum.Enum):
 
 class StrEnum(str, enum.Enum):
     """
+    Enum where each member is a string with a corresponding integer index.
+
     :meta private:
     """
 
@@ -62,9 +64,10 @@ class StrEnum(str, enum.Enum):
         return self.to_index()
 
     @classmethod
-    def from_index(cls, index: int | ArrayLike[int]) -> enum.Enum | NDArray[np.str_]:
+    def from_index(cls, index: int | ArrayLike[int]) -> enum.Enum | ndarray[np.str]:
         """
         Return the enum item corresponding to the given index.
+        Also supports vector inputs.
 
         Parameters
         ----------
@@ -81,7 +84,7 @@ class StrEnum(str, enum.Enum):
 
     def to_index(self) -> int:
         """
-        Return the index of this enum item.
+        Return the integer index of this enum item.
         """
         return _enum_index(self)
 
@@ -114,7 +117,7 @@ class Color(StrEnum):
     yellow = 'yellow'
     grey = 'grey'
 
-    def rgb(self) -> NDArray[np.uint8]:
+    def rgb(self) -> ndarray[np.uint8]:
         """
         Return the RGB value of this ``Color``.
         """
@@ -139,7 +142,7 @@ class Direction(enum.IntEnum):
     left = 2
     up = 3
 
-    def to_vec(self) -> NDArray[np.int64]:
+    def to_vec(self) -> ndarray[np.int]:
         """
         Return the vector corresponding to this ``Direction``.
         """
