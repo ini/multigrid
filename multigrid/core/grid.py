@@ -104,9 +104,6 @@ class Grid:
         obj : WorldObj or None
             Object to place
         """
-        assert 0 <= x < self.width
-        assert 0 <= y < self.height
-
         # Update world object dictionary
         self.world_objects[x, y] = obj
 
@@ -129,9 +126,6 @@ class Grid:
         y : int
             Grid y-coordinate
         """
-        assert 0 <= x < self.width
-        assert 0 <= y < self.height
-
         # Create WorldObj instance if none exists
         if (x, y) not in self.world_objects:
             self.world_objects[x, y] = WorldObj.from_array(self.state[x, y])

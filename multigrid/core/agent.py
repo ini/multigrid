@@ -18,6 +18,15 @@ from ..utils.rendering import (
 )
 
 
+# AgentState indices
+TYPE = 0
+COLOR = 1
+DIR = 2
+POS = slice(3, 5)
+TERMINATED = 5
+CARRYING = slice(6, 6 + WorldObj.dim)
+
+
 
 class AgentState(np.ndarray):
     """
@@ -72,17 +81,22 @@ class AgentState(np.ndarray):
     >>> a.dir
     2
     """
-    dim = 9
-    _color_to_idx = np.vectorize(Color.to_index)
+    dim = 6 + WorldObj.dim
 
     def __new__(cls, *dims: int):
         obj = np.zeros(dims + (cls.dim,), dtype=int).view(cls)
-        obj._carried_obj = np.empty(dims, dtype=object) # object references
-        obj[..., 0] = Type.agent # type
-        obj[..., 1].flat = np.arange(np.prod(dims), dtype=int) % len(Color) # color
+
+        # Set default values
+        obj[..., TYPE] = Type.agent # type
+        obj[..., COLOR].flat = np.arange(np.prod(dims), dtype=int) % len(Color) # color
         obj.dir = -1
         obj.pos = (-1, -1)
         obj.terminated = False
+
+        # Other attributes
+        obj._carried_obj = np.empty(dims, dtype=object) # object references
+        obj._view = obj.view(np.ndarray) # view of the underlying array (faster indexing)
+
         return obj
 
     def __repr__(self):
@@ -92,6 +106,7 @@ class AgentState(np.ndarray):
     def __getitem__(self, idx):
         out = super().__getitem__(idx)
         if out.shape and out.shape[-1] == self.dim:
+            out._view = self._view[idx, ...]
             out._carried_obj = self._carried_obj[idx, ...] # set carried object reference
         return out
 
@@ -100,23 +115,21 @@ class AgentState(np.ndarray):
         """
         Return the agent color.
         """
-        out = super().__getitem__((..., 1))
-        return Color.from_index(out)
+        return Color.from_index(self._view[..., COLOR])
 
     @color.setter
     def color(self, value: str | ArrayLike[str]):
         """
         Set the agent color.
         """
-        self[..., 1] = self._color_to_idx(value)
+        self[..., COLOR] = np.vectorize(Color.to_index)(value)
 
     @property
     def dir(self) -> Direction | ndarray[np.int]:
         """
         Return the agent direction (0: right, 1: down, 2: left, 3: up).
         """
-        out = super().__getitem__((..., 2))
-        out = out.view(np.ndarray)
+        out = self._view[..., DIR]
         return Direction(out) if out.ndim == 0 else out
 
     @dir.setter
@@ -124,30 +137,28 @@ class AgentState(np.ndarray):
         """
         Set the agent direction.
         """
-        self[..., 2] = value
+        self[..., DIR] = value
 
     @property
     def pos(self) -> ndarray[np.int]:
         """
         Return the agent's (x, y) position.
         """
-        out = super().__getitem__((..., slice(3, 5)))
-        return out.view(np.ndarray)
+        return self._view[..., POS]
 
     @pos.setter
     def pos(self, value: ArrayLike[int]):
         """
         Set the agent's (x, y) position.
         """
-        self[..., 3:5] = value
+        self[..., POS] = value
 
     @property
     def terminated(self) -> bool | ndarray[np.bool]:
         """
         Return whether the agent has terminated.
         """
-        out = super().__getitem__((..., 5))
-        out = out.view(np.ndarray).astype(bool)
+        out = self._view[..., TERMINATED].astype(bool)
         return out.item() if out.ndim == 0 else out
 
     @terminated.setter
@@ -155,7 +166,7 @@ class AgentState(np.ndarray):
         """
         Set whether the agent has terminated.
         """
-        self[..., 5] = value
+        self[..., TERMINATED] = value
 
     @property
     def carrying(self) -> WorldObj | None | ndarray[np.object]:
@@ -170,7 +181,7 @@ class AgentState(np.ndarray):
         """
         Set the object the agent is carrying.
         """
-        self[..., 6:6+WorldObj.dim] = WorldObj.empty() if obj is None else obj
+        self[..., CARRYING] = WorldObj.empty() if obj is None else obj
         self._carried_obj[...].fill(obj)
 
 
@@ -272,7 +283,9 @@ class Agent:
         """
         Get the position of the cell that is directly in front of the agent.
         """
-        return front_pos(*self.state.pos, self.state.dir)
+        agent_dir = self.state._view[DIR]
+        agent_pos = self.state._view[POS]
+        return front_pos(*agent_pos, agent_dir)
 
     def reset(self, mission: Mission = Mission('maximize reward')):
         """

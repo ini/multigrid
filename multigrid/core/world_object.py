@@ -127,7 +127,7 @@ class WorldObj(np.ndarray):
     cur_pos : tuple[int, int] or None
         The current position of the object
     """
-    dim = 3 # (type, color, state)
+    dim = len([TYPE, COLOR, STATE])
 
     def __new__(cls, type: str, color: str):
         """
