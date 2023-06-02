@@ -4,21 +4,16 @@ import functools
 import numpy as np
 import numba as nb
 
-from .constants import (
-    OBJECT_TO_IDX, IDX_TO_OBJECT,
-    COLOR_TO_IDX, IDX_TO_COLOR, COLORS,
-    STATE_TO_IDX, IDX_TO_STATE,
-)
+from numpy.typing import ArrayLike, NDArray
+from typing import TYPE_CHECKING
 
+from .constants import Color, State, Type
 from ..utils.rendering import (
     fill_coords,
     point_in_circle,
     point_in_line,
     point_in_rect,
 )
-
-from numpy.typing import ArrayLike, NDArray
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -32,20 +27,20 @@ COLOR = 1
 STATE = 2
 
 # Object type indices
-EMPTY = OBJECT_TO_IDX['empty']
-WALL = OBJECT_TO_IDX['wall']
-FLOOR = OBJECT_TO_IDX['floor']
-DOOR = OBJECT_TO_IDX['door']
-KEY = OBJECT_TO_IDX['key']
-BALL = OBJECT_TO_IDX['ball']
-BOX = OBJECT_TO_IDX['box']
-GOAL = OBJECT_TO_IDX['goal']
-LAVA = OBJECT_TO_IDX['lava']
+EMPTY = Type.empty.to_index()
+WALL = Type.wall.to_index()
+FLOOR = Type.floor.to_index()
+DOOR = Type.door.to_index()
+KEY = Type.key.to_index()
+BALL = Type.ball.to_index()
+BOX = Type.box.to_index()
+GOAL = Type.goal.to_index()
+LAVA = Type.lava.to_index()
 
 # Object state indices
-OPEN = STATE_TO_IDX['open']
-CLOSED = STATE_TO_IDX['closed']
-LOCKED = STATE_TO_IDX['locked']
+OPEN = State.open.to_index()
+CLOSED = State.closed.to_index()
+LOCKED = State.locked.to_index()
 
 
 
@@ -119,12 +114,12 @@ class WorldObj(np.ndarray):
 
     Attributes
     ----------
-    type : str
-        The name of the object type
-    color : str
-        The name of the object color
-    state : str
-        The name of the object state
+    type : Type
+        The object type
+    color : Color
+        The object color
+    state : State
+        The object state
     contains : WorldObj or None
         The object contained by this object, if any
     init_pos : tuple[int, int] or None
@@ -139,13 +134,13 @@ class WorldObj(np.ndarray):
         Parameters
         ----------
         type : str
-            The name of the object type
+            Object type
         color : str
-            The name of the object color
+            Object color
         """
         obj = np.zeros(cls.dim, dtype=int).view(cls)
-        obj[TYPE] = OBJECT_TO_IDX[type]
-        obj[COLOR] = COLOR_TO_IDX[color]
+        obj[TYPE] = Type(type).to_index()
+        obj[COLOR] = Color(color).to_index()
         obj.contains: WorldObj | None = None # object contained by this object
         obj.init_pos = None # initial position of the object
         obj.cur_pos = None # current position of the object
@@ -163,7 +158,7 @@ class WorldObj(np.ndarray):
         """
         Return an empty WorldObj instance.
         """
-        return WorldObj(type='empty', color=IDX_TO_COLOR[0])
+        return WorldObj(type='empty', color=Color.from_index(0))
 
     @staticmethod
     def from_array(arr: ArrayLike[int]) -> 'WorldObj' | None:
@@ -198,46 +193,46 @@ class WorldObj(np.ndarray):
         raise ValueError(f'Unknown object type: {arr[TYPE]}')
 
     @property
-    def type(self) -> str:
+    def type(self) -> Type:
         """
-        Return the name of the object type.
+        Return the object type.
         """
-        return IDX_TO_OBJECT[self[TYPE]]
+        return Type.from_index(self[TYPE])
 
     @type.setter
     def type(self, value: str):
         """
-        Set the name of the object type.
+        Set the object type.
         """
-        self[TYPE] = OBJECT_TO_IDX[value]
+        self[TYPE] = Type(value)
 
     @property
-    def color(self) -> str:
+    def color(self) -> Color:
         """
-        Return the name of the object color.
+        Return the object color.
         """
-        return IDX_TO_COLOR[self[COLOR]]
+        return Color.from_index(self[COLOR])
 
     @color.setter
     def color(self, value: str):
         """
-        Set the name of the object color.
+        Set the object color.
         """
-        self[COLOR] = COLOR_TO_IDX[value]
+        self[COLOR] = Color(value)
 
     @property
     def state(self) -> str:
         """
         Return the name of the object state.
         """
-        return IDX_TO_STATE[self[STATE]]
+        return State.from_index(self[STATE])
 
     @state.setter
     def state(self, value: str):
         """
         Set the name of the object state.
         """
-        self[STATE] = STATE_TO_IDX[value]
+        self[STATE] = State(value)
 
     def toggle(self, env: MultiGridEnv, agent: Agent, pos: tuple[int, int]) -> bool:
         """
@@ -266,11 +261,11 @@ class WorldObj(np.ndarray):
         Returns
         -------
         type_idx : int
-            The index of the object type in `OBJECT_TO_IDX`
+            The index of the object type
         color_idx : int
-            The index of the object color in `COLOR_TO_IDX`
+            The index of the object color
         state_idx : int
-            The index of the object state in `STATE_TO_IDX`
+            The index of the object state
         """
         return tuple(self)
 
@@ -282,11 +277,11 @@ class WorldObj(np.ndarray):
         Parameters
         ----------
         type_idx : int
-            The index of the object type in `OBJECT_TO_IDX`
+            The index of the object type
         color_idx : int
-            The index of the object color in `COLOR_TO_IDX`
+            The index of the object color
         state_idx : int
-            The index of the object state in `STATE_TO_IDX`
+            The index of the object state
         """
         arr = np.array([type_idx, color_idx, state_idx])
         return WorldObj.from_array(arr)
@@ -318,7 +313,7 @@ class Goal(WorldObj):
         """
         :meta private:
         """
-        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
+        fill_coords(img, point_in_rect(0, 1, 0, 1), self.color.rgb())
 
 
 class Floor(WorldObj):
@@ -332,7 +327,7 @@ class Floor(WorldObj):
         Parameters
         ----------
         color : str
-            Color name
+            Object color
         """
         return super().__new__(cls, type='floor', color=color)
 
@@ -341,7 +336,7 @@ class Floor(WorldObj):
         :meta private:
         """
         # Give the floor a pale color
-        color = COLORS[self.color] / 2
+        color = self.color.rgb() / 2
         fill_coords(img, point_in_rect(0.031, 1, 0.031, 1), color)
 
 
@@ -386,7 +381,7 @@ class Wall(WorldObj):
         Parameters
         ----------
         color : str
-            Color name
+            Object color
         """
         return super().__new__(cls, type='wall', color=color)
 
@@ -394,7 +389,7 @@ class Wall(WorldObj):
         """
         :meta private:
         """
-        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
+        fill_coords(img, point_in_rect(0, 1, 0, 1), self.color.rgb())
 
 
 class Door(WorldObj):
@@ -415,7 +410,7 @@ class Door(WorldObj):
         Parameters
         ----------
         color : str
-            Color name
+            Object color
         is_open : bool
             Whether the door is open
         is_locked : bool
@@ -485,7 +480,7 @@ class Door(WorldObj):
         """
         :meta private:
         """
-        c = COLORS[self.color]
+        c = self.color.rgb()
 
         if self.is_open:
             fill_coords(img, point_in_rect(0.88, 1.00, 0.00, 1.00), c)
@@ -520,7 +515,7 @@ class Key(WorldObj):
         Parameters
         ----------
         color : str
-            Color name
+            Object color
         """
         return super().__new__(cls, type='key', color=color)
 
@@ -528,7 +523,7 @@ class Key(WorldObj):
         """
         :meta private:
         """
-        c = COLORS[self.color]
+        c = self.color.rgb()
 
         # Vertical quad
         fill_coords(img, point_in_rect(0.50, 0.63, 0.31, 0.88), c)
@@ -552,7 +547,7 @@ class Ball(WorldObj):
         Parameters
         ----------
         color : str
-            Color name
+            Object color
         """
         return super().__new__(cls, type='ball', color=color)
 
@@ -560,7 +555,7 @@ class Ball(WorldObj):
         """
         :meta private:
         """
-        fill_coords(img, point_in_circle(0.5, 0.5, 0.31), COLORS[self.color])
+        fill_coords(img, point_in_circle(0.5, 0.5, 0.31), self.color.rgb())
 
 
 class Box(WorldObj):
@@ -573,9 +568,9 @@ class Box(WorldObj):
         Parameters
         ----------
         color : str
-            Color name
+            Object color
         contains : WorldObj or None
-            Contents of the box
+            Object contents
         """
         box = super().__new__(cls, type='box', color=color)
         box.contains = contains
@@ -593,11 +588,9 @@ class Box(WorldObj):
         """
         :meta private:
         """
-        c = COLORS[self.color]
-
         # Outline
-        fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), c)
+        fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), self.color.rgb())
         fill_coords(img, point_in_rect(0.18, 0.82, 0.18, 0.82), (0, 0, 0))
 
         # Horizontal slit
-        fill_coords(img, point_in_rect(0.16, 0.84, 0.47, 0.53), c)
+        fill_coords(img, point_in_rect(0.16, 0.84, 0.47, 0.53), self.color.rgb())

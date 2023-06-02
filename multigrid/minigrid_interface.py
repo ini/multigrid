@@ -43,7 +43,7 @@ class MiniGridInterface(MultiGridEnv):
         Reset the environment.
         """
         result = super().reset(*args, **kwargs)
-        return (item[0] for item in result)
+        return tuple(item[0] for item in result)
 
     def step(self, action: ActType) -> tuple[
         ObsType,
@@ -56,7 +56,7 @@ class MiniGridInterface(MultiGridEnv):
         using the provided agent action.
         """
         result = super().step({0: action})
-        return (item[0] for item in result)
+        return tuple(item[0] for item in result)
 
     @property
     def action_space(self) -> spaces.Space:
@@ -166,9 +166,9 @@ class MiniGridInterface(MultiGridEnv):
         """
         assert len(self.agents) == 1, (
            "This property is not supported for multi-agent envs. "
-           "Use `env.agents[i].dir_vec` instead."
+           "Use `env.agents[i].dir.to_vec()` instead."
         )
-        return self.agents[0].dir_vec
+        return self.agents[0].dir.to_vec()
 
     @property
     def front_pos(self):

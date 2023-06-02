@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from .agent import Agent
-from .constants import COLOR_NAMES
+from .constants import Color
 from .grid import Grid
 from .world_object import Ball, Box, Door, Key, WorldObj
 
@@ -339,7 +339,7 @@ class RoomGrid(MultiGridEnv):
         return agent.state.pos
 
     def connect_all(
-        self, door_colors: list[str] = COLOR_NAMES, max_itrs: int = 5000
+        self, door_colors: list[Color] = list(Color), max_itrs: int = 5000
     ) -> list[Door]:
         """
         Make sure that all rooms are reachable by the agent from its
@@ -420,7 +420,7 @@ class RoomGrid(MultiGridEnv):
         dists = []
 
         while len(dists) < num_distractors:
-            color = self._rand_elem(COLOR_NAMES)
+            color = self._rand_color()
             type = self._rand_elem(["key", "ball", "box"])
             obj = (type, color)
 

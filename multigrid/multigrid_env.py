@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gymnasium as gym
-import hashlib
 import math
 import numpy as np
 import pygame
@@ -15,7 +14,7 @@ from typing import Any, Iterable, SupportsFloat, TypeVar
 
 from .core.actions import Action
 from .core.agent import Agent, AgentState
-from .core.constants import COLOR_NAMES, OBJECT_TO_IDX, TILE_PIXELS
+from .core.constants import Color, Type, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
@@ -28,7 +27,7 @@ from .utils.obs import gen_obs_grid_encoding
 
 T = TypeVar('T')
 AgentID = int
-ObsType = dict[str, NDArray[np.int_] | int | str]
+ObsType = dict[str, Any]
 
 
 
@@ -100,6 +99,8 @@ class MultiGridEnv(gym.Env, ABC):
         """
         Parameters
         ----------
+        mission_space : MissionSpace
+            Space of mission strings (i.e. agent instructions)
         agents : int or Iterable[Agent]
             Number of agents in the environment (or provide a list of agents)
         grid_size : int
@@ -146,8 +147,8 @@ class MultiGridEnv(gym.Env, ABC):
             self.agents: list[Agent] = []
             for i in range(agents):
                 agent = Agent(
-                    i,
-                    mission_space,
+                    index=i,
+                    mission_space=mission_space,
                     state=self.agent_state[i],
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
@@ -231,15 +232,14 @@ class MultiGridEnv(gym.Env, ABC):
         """
         super().reset(seed=seed, **kwargs)
 
-        # Reinitialize episode-specific variables
+        # Reset agents
+        self.mission_space.seed(seed)
         self.mission = self.mission_space.sample()
         for agent in self.agents:
-            agent.reset(self.mission)
+            agent.reset(mission=self.mission)
 
         # Generate a new random grid at the start of each episode
         self._gen_grid(self.width, self.height)
-        self.grid.locations_to_update = -np.ones((self.num_agents, 2), dtype=int)
-        self.grid.locations_to_remove = -np.ones((self.num_agents, 2), dtype=int)
 
         # These fields should be defined by _gen_grid
         assert np.all(self.agent_state.pos >= 0)
@@ -332,7 +332,7 @@ class MultiGridEnv(gym.Env, ABC):
             obs[i] = {
                 'image': image[i],
                 'direction': direction[i],
-                'mission': self.mission,
+                'mission': self.agents[i].mission,
             }
 
         self._current_obs = obs
@@ -574,7 +574,7 @@ class MultiGridEnv(gym.Env, ABC):
         """
         Generate a random color name (string).
         """
-        return self._rand_elem(COLOR_NAMES)
+        return self._rand_elem(Color)
 
     def _rand_pos(
         self, x_low: int, x_high: int, y_low: int, y_high: int) -> tuple[int, int]:
@@ -697,7 +697,7 @@ class MultiGridEnv(gym.Env, ABC):
         obs_shape = self.agents[0].observation_space['image'].shape[:-1]
         vis_masks = np.zeros((self.num_agents, *obs_shape), dtype=bool)
         for i, agent_obs in self._current_obs.items():
-            vis_masks[i] = (agent_obs['image'][..., 0] != OBJECT_TO_IDX['unseen'])
+            vis_masks[i] = (agent_obs['image'][..., 0] != Type.unseen.to_index())
 
         # Mask of which cells to highlight
         highlight_mask = np.zeros((self.width, self.height), dtype=bool)

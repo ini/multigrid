@@ -6,7 +6,7 @@ from gymnasium import spaces
 from numpy.typing import ArrayLike, NDArray
 
 from .actions import Action
-from .constants import COLORS, COLOR_TO_IDX, OBJECT_TO_IDX, DIR_TO_VEC
+from .constants import Color, Direction, Type
 from .mission import MissionSpace
 from .world_object import WorldObj
 
@@ -23,8 +23,8 @@ class AgentState(np.ndarray):
     """
     State for an :class:`.Agent` object.
 
-    `AgentState` objects also support vectorized operations,
-    in which case the `AgentState` object represents a "batch" of states
+    ``AgentState`` objects also support vectorized operations,
+    in which case the ``AgentState`` object represents a "batch" of states
     over multiple agents.
 
     Attributes
@@ -73,15 +73,13 @@ class AgentState(np.ndarray):
     2
     """
     dim = 9
-    _colors = np.array(list(COLOR_TO_IDX.keys()))
-    _color_to_idx = np.vectorize(COLOR_TO_IDX.__getitem__)
+    _color_to_idx = np.vectorize(Color.to_index)
 
     def __new__(cls, *dims: int):
         obj = np.zeros(dims + (cls.dim,), dtype=int).view(cls)
         obj._carried_obj = np.empty(dims, dtype=object) # object references
-        obj[..., 0] = OBJECT_TO_IDX['agent'] # type
-        obj[..., 1].flat = np.arange(np.prod(dims), dtype=int) # color
-        obj[..., 1] %= len(COLOR_TO_IDX)
+        obj[..., 0] = Type.agent # type
+        obj[..., 1].flat = np.arange(np.prod(dims), dtype=int) % len(Color) # color
         obj.dir = -1
         obj.pos = (-1, -1)
         obj.terminated = False
@@ -98,13 +96,12 @@ class AgentState(np.ndarray):
         return out
 
     @property
-    def color(self) -> str | NDArray[np.str_]:
+    def color(self) -> Color | NDArray[np.str_]:
         """
-        Return the name of the agent color.
+        Return the agent color.
         """
         out = super().__getitem__((..., 1))
-        out = self._colors[out]
-        return out.item() if out.ndim == 0 else out
+        return Color.from_index(out)
 
     @color.setter
     def color(self, value: str | ArrayLike[str]):
@@ -114,13 +111,13 @@ class AgentState(np.ndarray):
         self[..., 1] = self._color_to_idx(value)
 
     @property
-    def dir(self) -> int | NDArray[np.int_]:
+    def dir(self) -> Direction | NDArray[np.int_]:
         """
         Return the agent direction (0: right, 1: down, 2: left, 3: up).
         """
         out = super().__getitem__((..., 2))
         out = out.view(np.ndarray)
-        return out.item() if out.ndim == 0 else out
+        return Direction(out) if out.ndim == 0 else out
 
     @dir.setter
     def dir(self, value: int | ArrayLike[int]):
@@ -150,8 +147,8 @@ class AgentState(np.ndarray):
         Return whether the agent has terminated.
         """
         out = super().__getitem__((..., 5))
-        out = out.view(np.ndarray)
-        return bool(out.item()) if out.ndim == 0 else out
+        out = out.view(np.ndarray).astype(bool)
+        return out.item() if out.ndim == 0 else out
 
     @terminated.setter
     def terminated(self, value: bool | ArrayLike[bool]):
@@ -202,12 +199,12 @@ class Agent:
         Index of the agent in the environment
     state : AgentState
         State of the agent
+    mission : str
+        Current mission string for the agent
     action_space : gym.spaces.Discrete
         Action space for the agent
     observation_space : gym.spaces.Dict
         Observation space for the agent
-    dir_vec : ndarray[int]
-        Direction vector for the agent, pointing in the direction of forward movement
     front_pos : tuple[int, int]
         Position of the cell that is directly in front of the agent
     """
@@ -246,6 +243,7 @@ class Agent:
         """
         self.index: int = index
         self.state: AgentState = AgentState() if state is None else state
+        self.mission: str = None
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Action))
@@ -254,6 +252,7 @@ class Agent:
         assert view_size % 2 == 1
         assert view_size >= 3
         self.view_size = view_size
+        self.see_through_walls = see_through_walls
 
         # Observations are dictionaries containing an
         # encoding of the grid and a textual 'mission' string
@@ -264,21 +263,9 @@ class Agent:
                 shape=(view_size, view_size, 3),
                 dtype='uint8',
             ),
-            'direction': spaces.Discrete(len(DIR_TO_VEC)),
+            'direction': spaces.Discrete(len(Direction)),
             'mission': mission_space,
         })
-        self.see_through_walls = see_through_walls
-
-        # Current agent state
-        self.mission: str = None
-
-    @property
-    def dir_vec(self) -> NDArray[np.int_]:
-        """
-        Get the direction vector for the agent, pointing in the direction
-        of forward movement.
-        """
-        return DIR_TO_VEC[self.state.dir % 4]
 
     @property
     def front_pos(self) -> tuple[int, int]:
@@ -309,13 +296,13 @@ class Agent:
         Returns
         -------
         type_idx : int
-            The index of the agent type in `OBJECT_TO_IDX`
+            The index of the agent type
         color_idx : int
-            The index of the agent color in `COLOR_TO_IDX`
-        state_idx : int
+            The index of the agent color
+        agent_dir : int
             The direction of the agent (0: right, 1: down, 2: left, 3: up)
         """
-        return (OBJECT_TO_IDX['agent'], COLOR_TO_IDX[self.state.color], self.state.dir)
+        return (Type.agent.to_index(), self.state.color.to_index(), self.state.dir)
 
     def render(self, img: NDArray[np.uint8]):
         """
@@ -326,7 +313,6 @@ class Agent:
         img : ndarray[int] of shape (width, height, 3)
             RGB image array to render agent on
         """
-        c = COLORS[self.state.color]
         tri_fn = point_in_triangle(
             (0.12, 0.19),
             (0.87, 0.50),
@@ -335,4 +321,4 @@ class Agent:
 
         # Rotate the agent based on its direction
         tri_fn = rotate_fn(tri_fn, cx=0.5, cy=0.5, theta=0.5 * np.pi * self.state.dir)
-        fill_coords(img, tri_fn, c)
+        fill_coords(img, tri_fn, self.state.color.rgb())

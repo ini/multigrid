@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from typing import Any, Callable, Iterable
 
 from .agent import Agent
-from .constants import OBJECT_TO_IDX, TILE_PIXELS
+from .constants import Type, TILE_PIXELS
 from .world_object import Wall, WorldObj, TYPE
 
 from ..utils.rendering import (
@@ -367,7 +367,7 @@ class Grid:
         width, height, dim = array.shape
         assert dim == WorldObj.dim
 
-        vis_mask = (array[..., TYPE] != OBJECT_TO_IDX['unseen'])
+        vis_mask = (array[..., TYPE] != Type.unseen.to_index())
         grid = Grid(width, height)
         grid.state[vis_mask] = array[vis_mask]
         return grid, vis_mask
