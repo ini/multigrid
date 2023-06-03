@@ -523,9 +523,8 @@ class MultiGridEnv(gym.Env, ABC):
 
     def _reward(self) -> float:
         """
-        Compute the reward to be given upon success
+        Compute the reward to be given upon success.
         """
-
         return 1 - 0.9 * (self.step_count / self.max_steps)
 
     def _rand_int(self, low: int, high: int) -> int:
@@ -705,7 +704,7 @@ class MultiGridEnv(gym.Env, ABC):
         for agent in self.agents:
             # Compute the world coordinates of the bottom-left corner
             # of the agent's view area
-            f_vec = agent.dir_vec
+            f_vec = agent.state.dir.to_vec()
             r_vec = np.array((-f_vec[1], f_vec[0]))
             top_left = (
                 agent.state.pos
