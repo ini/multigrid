@@ -18,6 +18,10 @@ from ..utils.rendering import (
 )
 
 
+
+# Typing
+Point = tuple[int, int]
+
 # AgentState indices
 TYPE = 0
 COLOR = 1
@@ -42,7 +46,7 @@ class AgentState(np.ndarray):
         Agent color
     dir : Direction or ndarray[int]
         Agent direction (0: right, 1: down, 2: left, 3: up)
-    pos : ndarray[int]
+    pos : Point or ndarray[int]
         Agent (x, y) position
     terminated : bool or ndarray[bool]
         Whether the agent has terminated
@@ -122,12 +126,12 @@ class AgentState(np.ndarray):
         """
         Set the agent color.
         """
-        self[..., COLOR] = np.vectorize(Color.to_index)(value)
+        self[..., COLOR] = np.vectorize(lambda c: Color(c).to_index())(value)
 
     @property
     def dir(self) -> Direction | ndarray[np.int]:
         """
-        Return the agent direction (0: right, 1: down, 2: left, 3: up).
+        Return the agent direction.
         """
         out = self._view[..., DIR]
         return Direction(out) if out.ndim == 0 else out
@@ -140,14 +144,15 @@ class AgentState(np.ndarray):
         self[..., DIR] = value
 
     @property
-    def pos(self) -> ndarray[np.int]:
+    def pos(self) -> Point | ndarray[np.int]:
         """
         Return the agent's (x, y) position.
         """
-        return self._view[..., POS]
+        out = self._view[..., POS]
+        return Point(out) if out.ndim == 0 else out
 
     @pos.setter
-    def pos(self, value: ArrayLike[int]):
+    def pos(self, value: Point | ArrayLike[int]):
         """
         Set the agent's (x, y) position.
         """
@@ -234,7 +239,7 @@ class Agent:
     def __init__(
         self,
         index: int,
-        mission_space: MissionSpace,
+        mission_space: MissionSpace = MissionSpace.from_string('maximize reward'),
         state: AgentState | None = None,
         view_size: int = 7,
         see_through_walls: bool = False):
@@ -256,9 +261,6 @@ class Agent:
         self.state: AgentState = AgentState() if state is None else state
         self.mission: Mission = None
 
-        # Actions are discrete integer values
-        self.action_space = spaces.Discrete(len(Action))
-
         # Number of cells (width and height) in the agent view
         assert view_size % 2 == 1
         assert view_size >= 3
@@ -277,6 +279,9 @@ class Agent:
             'direction': spaces.Discrete(len(Direction)),
             'mission': mission_space,
         })
+
+        # Actions are discrete integer values
+        self.action_space = spaces.Discrete(len(Action))
 
     @property
     def front_pos(self) -> tuple[int, int]:
