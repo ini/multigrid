@@ -20,7 +20,7 @@ class Mission(np.ndarray):
         index : Iterable[int]
             Index of mission string in :class:`MissionSpace`
         """
-        mission = np.array(index)# if len(index) > 0 else np.array(0)
+        mission = np.array(index)
         mission = mission.view(cls)
         mission.string = string
         return mission.view(cls)

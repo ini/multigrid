@@ -47,15 +47,17 @@ LOCKED = State.locked.to_index()
 ### World Object Qualities
 
 @nb.njit(cache=True)
-def can_overlap(obj: WorldObj) -> bool:
+def can_overlap(obj: WorldObj | None) -> bool:
     """
     Can an agent overlap with this?
 
     Parameters
     ----------
-    obj : WorldObj
+    obj : WorldObj or None
         Object to check
     """
+    if obj is None:
+        return True
     if obj[TYPE] in {EMPTY, FLOOR, GOAL, LAVA}:
         return True
     elif obj[TYPE] == DOOR and obj[STATE] == OPEN:
@@ -64,19 +66,19 @@ def can_overlap(obj: WorldObj) -> bool:
     return False
 
 @nb.njit(cache=True)
-def can_pickup(obj: WorldObj) -> bool:
+def can_pickup(obj: WorldObj | None) -> bool:
     """
     Can an agent pick this up?
 
     Parameters
     ----------
-    obj : WorldObj
+    obj : WorldObj or None
         Object to check
     """
-    return obj in {KEY, BALL, BOX}
+    return obj is not None and obj[TYPE] in {KEY, BALL, BOX}
 
 @nb.njit(cache=True)
-def can_contain(obj: WorldObj) -> bool:
+def can_contain(obj: WorldObj | None) -> bool:
     """
     Can this contain another object?
 
@@ -85,18 +87,20 @@ def can_contain(obj: WorldObj) -> bool:
     obj : WorldObj
         Object to check
     """
-    return obj[TYPE] == BOX
+    return obj is not None and obj[TYPE] == BOX
 
 @nb.njit(cache=True)
-def see_behind(obj: WorldObj) -> bool:
+def see_behind(obj: WorldObj | None) -> bool:
     """
     Can an agent see behind this object?
 
     Parameters
     ----------
-    obj : WorldObj
+    obj : WorldObj or None
         Object to check
     """
+    if obj is None:
+        return True
     if obj[TYPE] == WALL:
         return False
     elif obj[TYPE] == DOOR and obj[STATE] != OPEN:

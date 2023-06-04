@@ -50,7 +50,7 @@ class AgentState(np.ndarray):
         Agent (x, y) position
     terminated : bool or ndarray[bool]
         Whether the agent has terminated
-    carrying : WorldObj or None or ndarray
+    carrying : WorldObj or None or ndarray[object]
         Object the agent is carrying
 
     Examples
@@ -182,7 +182,7 @@ class AgentState(np.ndarray):
         return out.item() if out.ndim == 0 else out
 
     @carrying.setter
-    def carrying(self, obj: WorldObj | None | ArrayLike[WorldObj | None]):
+    def carrying(self, obj: WorldObj | None | ArrayLike[object]):
         """
         Set the object the agent is carrying.
         """

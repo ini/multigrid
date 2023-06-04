@@ -9,7 +9,7 @@ from typing import Any, Callable, Iterable
 
 from .agent import Agent
 from .constants import Type, TILE_PIXELS
-from .world_object import Wall, WorldObj, TYPE
+from .world_object import Wall, WorldObj, COLOR, TYPE
 
 from ..utils.rendering import (
     downsample,
@@ -42,26 +42,6 @@ class Grid:
         self.world_objects: dict[tuple[int, int], WorldObj] = {} # indexed by location
         self.state: ndarray[np.int] = np.zeros((width, height, WorldObj.dim), dtype=int)
         self.state[...] = WorldObj.empty()
-
-    def __contains__(self, key: Any) -> bool:
-        if isinstance(key, WorldObj):
-            return key in self.world_objects.values()
-        elif isinstance(key, np.ndarray):
-            np.may_share_memory(key, self.state)
-        elif isinstance(key, tuple):
-            for i in range(self.width):
-                for j in range(self.height):
-                    e = self.get(i, j)
-                    if e is None:
-                        continue
-                    if (e.color, e.type) == key:
-                        return True
-                    if key[0] is None and key[1] == e.type:
-                        return True
-        return False
-
-    def __eq__(self, other: 'Grid') -> bool:
-        return np.array_equal(self.state, other.state)
 
     @cached_property
     def width(self) -> int:
@@ -298,18 +278,16 @@ class Grid:
             {tuple(agent.pos): agent for agent in agents}
         )
 
-        # Compute the total grid size
+        # Initialize pixel array
         width_px = self.width * tile_size
         height_px = self.height * tile_size
-
         img = np.zeros(shape=(height_px, width_px, 3), dtype=np.uint8)
 
         # Render the grid
         for j in range(0, self.height):
             for i in range(0, self.width):
-                cell = self.get(i, j)
-
                 assert highlight_mask is not None
+                cell = self.get(i, j)
                 tile_img = Grid.render_tile(
                     cell,
                     agent=location_to_agent[i, j],

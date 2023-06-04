@@ -248,7 +248,7 @@ class MultiGridEnv(gym.Env, ABC):
         # Check that agents don't overlap with other objects
         for agent in self.agents:
             start_cell = self.grid.get(*agent.state.pos)
-            assert start_cell is None or can_overlap(start_cell)
+            assert can_overlap(start_cell)
 
         # Step count since episode start
         self.step_count = 0
@@ -382,7 +382,7 @@ class MultiGridEnv(gym.Env, ABC):
                     if any(np.array_equal(fwd_pos, pos) for pos in self.agent_state.pos):
                         continue
 
-                if can_overlap(self.grid.state[fwd_pos]):
+                if can_overlap(fwd_obj):
                     agent.state.pos = fwd_pos
 
                 if fwd_obj is not None:
@@ -404,7 +404,7 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if can_pickup(self.grid.state[fwd_pos]):
+                if can_pickup(fwd_obj):
                     if agent.state.carrying is None:
                         agent.state.carrying = fwd_obj
                         self.grid.set(*fwd_pos, None)
