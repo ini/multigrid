@@ -366,6 +366,9 @@ class MultiGridEnv(gym.Env, ABC):
         for i in order:
             agent, action = self.agents[i], actions[i]
 
+            if agent.state.terminated:
+                continue
+
             # Rotate left
             if action == Action.left:
                 agent.state.dir = (agent.state.dir - 1) % 4
@@ -405,7 +408,7 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_obj = self.grid.get(*fwd_pos)
 
                 if agent.state.carrying:
-                    if fwd_pos not in self.agent_state.pos:
+                    if fwd_obj is None and fwd_pos not in self.agent_state.pos:
                         self.grid.set(*fwd_pos, agent.state.carrying)
                         agent.state.carrying.cur_pos = fwd_pos
                         agent.state.carrying = None
