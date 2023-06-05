@@ -1,74 +1,88 @@
 from __future__ import annotations
 
-from multigrid.core.constants import COLOR_NAMES
+from multigrid.core.constants import Color, Type
 from multigrid.core.mission import MissionSpace
 from multigrid.core.roomgrid import RoomGrid
 from multigrid.core.world_object import Ball
-from multigrid.minigrid_interface import MiniGridInterface
 
 
-class BlockedUnlockPickupEnv(MiniGridInterface, RoomGrid):
 
+class BlockedUnlockPickupEnv(RoomGrid):
     """
+    .. image:: https://i.imgur.com/eQmGwgQ.gif
 
-    ## Description
+    **Description**
 
-    The agent has to pick up a box which is placed in another room, behind a
-    locked door. The door is also blocked by a ball which the agent has to move
-    before it can unlock the door. Hence, the agent has to learn to move the
-    ball, pick up the key, open the door and pick up the object in the other
-    room. This environment can be solved without relying on language.
+    The objective is to pick up a box which is placed in another room, behind a
+    locked door. The door is also blocked by a ball which must be moved before
+    the door can be unlocked. Hence, agents must learn to move the ball,
+    pick up the key, open the door and pick up the object in the other
+    room.
 
-    ## Mission Space
+    **Mission Space**
 
-    "pick up the {color} {type}"
+    "pick up the ``{color}`` box"
 
-    {color} is the color of the box. Can be "red", "green", "blue", "purple",
-    "yellow" or "grey".
+    ``{color}`` is the color of the box. Can be any :class:`.Color`.
 
-    {type} is the type of the object. Can be "box" or "key".
+    **Observation Space**
 
-    ## Action Space
+    The multi-agent observation space is a Dict mapping from agent index to
+    corresponding agent observation space.
 
-    | Num | Name         | Action            |
-    |-----|--------------|-------------------|
-    | 0   | left         | Turn left         |
-    | 1   | right        | Turn right        |
-    | 2   | forward      | Move forward      |
-    | 3   | pickup       | Pick up an object |
-    | 4   | drop         | Unused            |
-    | 5   | toggle       | Unused            |
-    | 6   | done         | Unused            |
+    Each agent observation is a dictionary with the following entries:
 
-    ## Observation Encoding
+    * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
+        Encoding of the agent's view of the environment,
+        where each grid object is encoded as a 3 dimensional tuple:
+        (:class:`.Type`, :class:`.Color`, :class:`.State`)
+    * direction : int
+        Agent's direction (0: right, 1: down, 2: left, 3: up)
+    * mission : Mission
+        Task string corresponding to the current environment configuration
 
-    - Each tile is encoded as a 3 dimensional tuple:
-        `(OBJECT_IDX, COLOR_IDX, STATE)`
-    - `OBJECT_TO_IDX` and `COLOR_TO_IDX` mapping can be found in
-        [minigrid/minigrid.py](minigrid/minigrid.py)
-    - `STATE` refers to the door state with 0=open, 1=closed and 2=locked
+    **Action Space**
 
-    ## Rewards
+    The multi-agent action space is a Dict mapping from agent index to
+    corresponding agent action space.
 
-    A reward of '1 - 0.9 * (step_count / max_steps)' is given for success, and '0' for failure.
+    Agent actions are discrete integer values, given by:
 
-    ## Termination
+    +-----+--------------+-----------------------------+
+    | Num | Name         | Action                      |
+    +=====+==============+=============================+
+    | 0   | left         | Turn left                   |
+    +-----+--------------+-----------------------------+
+    | 1   | right        | Turn right                  |
+    +-----+--------------+-----------------------------+
+    | 2   | forward      | Move forward                |
+    +-----+--------------+-----------------------------+
+    | 3   | pickup       | Pick up an object           |
+    +-----+--------------+-----------------------------+
+    | 4   | drop         | Drop an object              |
+    +-----+--------------+-----------------------------+
+    | 5   | toggle       | Toggle / activate an object |
+    +-----+--------------+-----------------------------+
+    | 6   | done         | Done completing task        |
+    +-----+--------------+-----------------------------+
+
+    **Rewards**
+
+    A reward of ``1 - 0.9 * (step_count / max_steps)`` is given for success,
+    and ``0`` for failure.
+
+    **Termination**
 
     The episode ends if any one of the following conditions is met:
 
-    1. The agent picks up the correct box.
-    2. Timeout (see `max_steps`).
-
-    ## Registered Configurations
-
-    - `MiniGrid-BlockedUnlockPickup-v0`
-
+    * Agent picks up the correct box
+    * Timeout (see ``max_steps``)
     """
 
-    def __init__(self, max_steps: int | None = None, **kwargs):
+    def __init__(self, max_steps: int | None = None, joint_reward=True, **kwargs):
         mission_space = MissionSpace(
             mission_func=self._gen_mission,
-            ordered_placeholders=[COLOR_NAMES, ["box", "key"]],
+            ordered_placeholders=[list(Color), [Type.box, Type.key]],
         )
 
         room_size = 6
@@ -81,6 +95,7 @@ class BlockedUnlockPickupEnv(MiniGridInterface, RoomGrid):
             num_cols=2,
             room_size=room_size,
             max_steps=max_steps,
+            joint_reward=joint_reward,
             **kwargs,
         )
 
@@ -89,6 +104,9 @@ class BlockedUnlockPickupEnv(MiniGridInterface, RoomGrid):
         return f"pick up the {color} {obj_type}"
 
     def _gen_grid(self, width, height):
+        """
+        :meta private:
+        """
         super()._gen_grid(width, height)
 
         # Add a box to the room on the right
@@ -101,17 +119,20 @@ class BlockedUnlockPickupEnv(MiniGridInterface, RoomGrid):
         # Add a key to unlock the door
         self.add_object(0, 0, "key", door.color)
 
-        self.place_agent(0, 0)
+        for agent in self.agents:
+            self.place_agent(agent, 0, 0)
 
         self.obj = obj
         self.mission = f"pick up the {obj.color} {obj.type}"
 
-    def step(self, action):
-        obs, reward, terminated, truncated, info = super().step(action)
+    def step(self, actions):
+        """
+        :meta private:
+        """
+        obs, reward, terminated, truncated, info = super().step(actions)
+        for agent in self.agents:
+            if agent.state.carrying == self.obj:
+                self.on_goal(agent, reward)
 
-        if action == self.actions.pickup:
-            if self.carrying and self.carrying == self.obj:
-                reward = self._reward()
-                terminated = True
-
+        terminated = {agent.index: agent.state.terminated for agent in self.agents}
         return obs, reward, terminated, truncated, info
