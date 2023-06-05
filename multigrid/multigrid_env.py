@@ -383,8 +383,13 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_obj = self.grid.get(*fwd_pos)
 
                 if can_overlap(fwd_obj):
-                    if self.allow_agent_overlap or fwd_pos not in self.agent_state.pos:
+                    if self.allow_agent_overlap:
                         agent.state.pos = fwd_pos
+                    else:
+                        agent_present = np.bitwise_and.reduce(
+                            self.agent_state.pos == fwd_pos, axis=1).any()
+                        if not agent_present:
+                            agent.state.pos = fwd_pos
 
                 if fwd_obj is not None:
                     if fwd_obj.type == 'lava':
@@ -407,8 +412,10 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if agent.state.carrying:
-                    if fwd_obj is None and fwd_pos not in self.agent_state.pos:
+                if agent.state.carrying and fwd_obj is None:
+                    agent_present = np.bitwise_and.reduce(
+                        self.agent_state.pos == fwd_pos, axis=1).any()
+                    if not agent_present:
                         self.grid.set(*fwd_pos, agent.state.carrying)
                         agent.state.carrying.cur_pos = fwd_pos
                         agent.state.carrying = None
@@ -652,7 +659,7 @@ class MultiGridEnv(gym.Env, ABC):
                 continue
 
             # Don't place the object where agents are
-            if pos in self.agent_state.pos:
+            if np.bitwise_and.reduce(self.agent_state.pos == pos, axis=1).any():
                 continue
 
             # Check if there is a filtering criterion
@@ -796,7 +803,7 @@ class MultiGridEnv(gym.Env, ABC):
                 pygame.init()
                 pygame.display.init()
                 self.window = pygame.display.set_mode(
-                    (self.screen_size, self.screen_size)
+                    (self.screen_size, 0.6 * self.screen_size)
                 )
                 pygame.display.set_caption('multigrid')
             if self.clock is None:
@@ -813,7 +820,7 @@ class MultiGridEnv(gym.Env, ABC):
             bg.fill((255, 255, 255))
             bg.blit(surf, (offset / 2, 0))
 
-            bg = pygame.transform.smoothscale(bg, (self.screen_size, self.screen_size))
+            bg = pygame.transform.smoothscale(bg, (self.screen_size, 0.6 * self.screen_size))
 
             font_size = 22
             text = self.mission
