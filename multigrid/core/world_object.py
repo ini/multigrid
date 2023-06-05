@@ -5,7 +5,7 @@ import numpy as np
 import numba as nb
 
 from numpy.typing import ArrayLike, NDArray as ndarray
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .constants import Color, State, Type
 from ..utils.rendering import (
@@ -155,6 +155,9 @@ class WorldObj(np.ndarray):
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(color={self.color})"
+
+    def __eq__(self, other: Any):
+        return self is other
 
     @staticmethod
     @functools.cache

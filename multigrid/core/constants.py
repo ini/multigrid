@@ -2,7 +2,7 @@ import enum
 import numpy as np
 
 from numpy.typing import NDArray as ndarray
-from ..utils.enum import StrEnum
+from ..utils.enum import IndexedEnum
 
 
 
@@ -31,7 +31,7 @@ DIR_TO_VEC = [
 
 
 
-class Type(StrEnum):
+class Type(str, IndexedEnum):
     """
     Enumeration of object types.
     """
@@ -48,7 +48,7 @@ class Type(StrEnum):
     agent = 'agent'
 
 
-class Color(StrEnum):
+class Color(str, IndexedEnum):
     """
     Enumeration of object colors.
     """
@@ -66,7 +66,7 @@ class Color(StrEnum):
         return COLORS[self]
 
 
-class State(StrEnum):
+class State(str, IndexedEnum):
     """
     Enumeration of object states.
     """

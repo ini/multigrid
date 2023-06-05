@@ -9,7 +9,7 @@ from typing import Any, Callable, Iterable
 
 from .agent import Agent
 from .constants import Type, TILE_PIXELS
-from .world_object import Wall, WorldObj, COLOR, TYPE
+from .world_object import Wall, WorldObj, TYPE
 
 from ..utils.rendering import (
     downsample,
@@ -23,6 +23,17 @@ from ..utils.rendering import (
 class Grid:
     """
     Represent a grid and operations on it.
+
+    Attributes
+    ----------
+    width : int
+        Width of the grid
+    height : int
+        Height of the grid
+    world_objects : dict[tuple[int, int], WorldObj]
+        Dictionary of world objects in the grid, indexed by location
+    state : ndarray[int] of shape (width, height, WorldObj.dim)
+        Grid state, where each (i, j) entry is a WorldObj encoding
     """
 
     # Static cache of pre-renderer tiles
@@ -63,13 +74,6 @@ class Grid:
         Return a list of all world objects in the grid.
         """
         return [self.get(i, j) for i in range(self.width) for j in range(self.height)]
-
-    def copy(self) -> 'Grid':
-        """
-        Return a copy of this grid object.
-        """
-        from copy import deepcopy
-        return deepcopy(self)
 
     def set(self, x: int, y: int, obj: WorldObj | None):
         """

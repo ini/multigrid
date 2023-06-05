@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from gymnasium import spaces
 from numpy.typing import NDArray as ndarray
-from typing import Any, Iterable, SupportsFloat, TypeVar
+from typing import Any, Iterable, Literal, SupportsFloat, TypeVar
 
 from .core.actions import Action
 from .core.agent import Agent, AgentState
@@ -37,9 +37,7 @@ class MultiGridEnv(gym.Env, ABC):
     """
     Multi-agent 2D gridworld game environment.
 
-    Agents are identified by their index, from 0 to (`num_agents - 1`).
-
-    Subclasses of MultiGridEnv should implement :attr:`_gen_grid()`.
+    Agents are identified by their index, from ``0`` to ``NUM_AGENTS-1``.
 
     **Observation Space**
 
@@ -49,7 +47,9 @@ class MultiGridEnv(gym.Env, ABC):
     The standard agent observation is a dictionary with the following entries:
 
     * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
-        Encoding of the agent's view of the environment
+        Encoding of the agent's view of the environment,
+        where each grid object is encoded as a 3 dimensional tuple:
+        (:class:`.Type`, :class:`.Color`, :class:`.State`)
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
     * mission : Mission
@@ -89,8 +89,8 @@ class MultiGridEnv(gym.Env, ABC):
         see_through_walls: bool = False,
         agent_view_size: int = 7,
         allow_agent_overlap: bool = True,
-        give_joint_reward: bool = False,
-        is_competitive: bool = True,
+        joint_reward: bool = False,
+        termination_mode: Literal['any', 'all'] = 'any',
         render_mode: str | None = None,
         screen_size: int | None = 640,
         highlight: bool = True,
@@ -117,10 +117,11 @@ class MultiGridEnv(gym.Env, ABC):
             Size of agent view (must be odd)
         allow_agent_overlap : bool
             Whether agents are allowed to overlap
-        give_joint_reward : bool
+        joint_reward : bool
             Whether all agents receive the same joint reward
-        is_competitive : bool
-            Whether the task is competitive (i.e. only one agent can get the reward)
+        termination_mode : 'any' or 'all'
+            Whether to terminate when any agent completes its mission
+            or when all agents complete their missions
         render_mode : str
             Rendering mode (human or rgb_array)
         screen_size : int
@@ -188,8 +189,8 @@ class MultiGridEnv(gym.Env, ABC):
 
         # Other
         self.allow_agent_overlap = allow_agent_overlap
-        self.give_joint_reward = give_joint_reward
-        self.is_competitive = is_competitive
+        self.joint_reward = joint_reward
+        self.termination_mode = termination_mode
 
     @property
     def observation_space(self) -> spaces.Dict[AgentID, spaces.Space]:
@@ -350,10 +351,10 @@ class MultiGridEnv(gym.Env, ABC):
 
         Returns
         -------
-        reward : dict[AgentID, SupportsFloat]
+        rewards : dict[AgentID, SupportsFloat]
             Reward for each agent
         """
-        reward = {agent_index: 0 for agent_index in range(self.num_agents)}
+        rewards = {agent_index: 0 for agent_index in range(self.num_agents)}
 
         # Randomize agent action order
         if self.num_agents == 1:
@@ -378,26 +379,15 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if not self.allow_agent_overlap:
-                    if any(np.array_equal(fwd_pos, pos) for pos in self.agent_state.pos):
-                        continue
-
                 if can_overlap(fwd_obj):
-                    agent.state.pos = fwd_pos
+                    if self.allow_agent_overlap or fwd_pos not in self.agent_state.pos:
+                        agent.state.pos = fwd_pos
 
                 if fwd_obj is not None:
                     if fwd_obj.type == 'lava':
                         agent.state.terminated = True
                     elif fwd_obj.type == 'goal':
-                        if self.is_competitive:
-                            self.agent_state.terminated = True # terminate all agents
-                        else:
-                            agent.state.terminated = True # terminate this agent only
-                        if self.give_joint_reward:
-                            for key in reward:
-                                reward[key] = self._reward() # reward all agents
-                        else:
-                            reward[i] = self._reward() # reward this agent only
+                        self.on_goal(agent, rewards)
 
             # Pick up an object
             elif action == Action.pickup:
@@ -414,10 +404,11 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if not fwd_obj and agent.state.carrying:
-                    self.grid.set(*fwd_pos, agent.state.carrying)
-                    agent.state.carrying.cur_pos = fwd_pos
-                    agent.state.carrying = None
+                if agent.state.carrying:
+                    if fwd_pos not in self.agent_state.pos:
+                        self.grid.set(*fwd_pos, agent.state.carrying)
+                        agent.state.carrying.cur_pos = fwd_pos
+                        agent.state.carrying = None
 
             # Toggle/activate an object
             elif action == Action.toggle:
@@ -434,7 +425,29 @@ class MultiGridEnv(gym.Env, ABC):
             else:
                 raise ValueError(f"Unknown action: {action}")
 
-        return reward
+        return rewards
+
+    def on_goal(self, agent: Agent, rewards: dict[AgentID, SupportsFloat]):
+        """
+        Callback for when an agent completes its mission.
+
+        Parameters
+        ----------
+        agent : Agent
+            Agent that completed its mission
+        rewards : dict[AgentID, SupportsFloat]
+            Reward dictionary to be updated
+        """
+        if self.termination_mode == 'any':
+            self.agent_state.terminated = True # terminate all if any agent reaches goal
+        else:
+            agent.state.terminated = True # terminate this agent only
+
+        if self.joint_reward:
+            for key in rewards:
+                rewards[key] = self._reward() # reward all agents
+        else:
+            rewards[agent.index] = self._reward() # reward this agent only
 
     @property
     def steps_remaining(self):
@@ -509,7 +522,7 @@ class MultiGridEnv(gym.Env, ABC):
 
         This method should:
 
-        * Set `self.grid` and populate it with `WorldObj` instances
+        * Set ``self.grid`` and populate it with :class:`.WorldObj` instances
         * Set the positions and directions of each agent
 
         Parameters
@@ -636,7 +649,7 @@ class MultiGridEnv(gym.Env, ABC):
                 continue
 
             # Don't place the object where agents are
-            if any(np.array_equal(pos, agent.state.pos) for agent in self.agents):
+            if pos in self.agent_state.pos:
                 continue
 
             # Check if there is a filtering criterion

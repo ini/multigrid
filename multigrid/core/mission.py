@@ -84,7 +84,9 @@ class MissionSpace(spaces.MultiDiscrete):
         """
         Get a string representation of this space.
         """
-        return f'MissionSpace({self.mission_func.__name__}, {self.arg_groups})'
+        if self.arg_groups:
+            return f'MissionSpace({self.mission_func.__name__}, {self.arg_groups})'
+        return f"MissionSpace('{self.mission_func()}')"
 
     def get(self, idx: Iterable[int]) -> Mission:
         """

@@ -19,9 +19,6 @@ from ..utils.rendering import (
 
 
 
-# Typing
-Point = tuple[int, int]
-
 # AgentState indices
 TYPE = 0
 COLOR = 1
@@ -46,7 +43,7 @@ class AgentState(np.ndarray):
         Agent color
     dir : Direction or ndarray[int]
         Agent direction (0: right, 1: down, 2: left, 3: up)
-    pos : Point or ndarray[int]
+    pos : tuple[int, int] or ndarray[int]
         Agent (x, y) position
     terminated : bool or ndarray[bool]
         Whether the agent has terminated
@@ -88,6 +85,12 @@ class AgentState(np.ndarray):
     dim = 6 + WorldObj.dim
 
     def __new__(cls, *dims: int):
+        """
+        Parameters
+        ----------
+        dims : int, optional
+            Shape of vectorized agent state
+        """
         obj = np.zeros(dims + (cls.dim,), dtype=int).view(cls)
 
         # Set default values
@@ -144,15 +147,15 @@ class AgentState(np.ndarray):
         self[..., DIR] = value
 
     @property
-    def pos(self) -> Point | ndarray[np.int]:
+    def pos(self) -> tuple[int, int] | ndarray[np.int]:
         """
         Return the agent's (x, y) position.
         """
         out = self._view[..., POS]
-        return Point(out) if out.ndim == 0 else out
+        return tuple(out) if out.ndim == 1 else out
 
     @pos.setter
-    def pos(self, value: Point | ArrayLike[int]):
+    def pos(self, value: ArrayLike[int] | ArrayLike[ArrayLike[int]]):
         """
         Set the agent's (x, y) position.
         """
@@ -221,20 +224,7 @@ class Agent:
         Action space for the agent
     observation_space : gym.spaces.Dict
         Observation space for the agent
-    front_pos : tuple[int, int]
-        Position of the cell that is directly in front of the agent
     """
-    # Properties
-    color = PropertyAlias(
-        'state', AgentState.color, doc='Alias for :attr:`AgentState.color`.')
-    dir = PropertyAlias(
-        'state', AgentState.dir, doc='Alias for :attr:`AgentState.dir`.')
-    pos = PropertyAlias(
-        'state', AgentState.pos, doc='Alias for :attr:`AgentState.pos`.')
-    terminated = PropertyAlias(
-        'state', AgentState.terminated, doc='Alias for :attr:`AgentState.terminated`.')
-    carrying = PropertyAlias(
-        'state', AgentState.carrying, doc='Alias for :attr:`AgentState.carrying`.')
 
     def __init__(
         self,
@@ -282,6 +272,18 @@ class Agent:
 
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Action))
+
+    # Property Aliases
+    color = PropertyAlias(
+        'state', AgentState.color, doc='Alias for :attr:`AgentState.color`.')
+    dir = PropertyAlias(
+        'state', AgentState.dir, doc='Alias for :attr:`AgentState.dir`.')
+    pos = PropertyAlias(
+        'state', AgentState.pos, doc='Alias for :attr:`AgentState.pos`.')
+    terminated = PropertyAlias(
+        'state', AgentState.terminated, doc='Alias for :attr:`AgentState.terminated`.')
+    carrying = PropertyAlias(
+        'state', AgentState.carrying, doc='Alias for :attr:`AgentState.carrying`.')
 
     @property
     def front_pos(self) -> tuple[int, int]:
