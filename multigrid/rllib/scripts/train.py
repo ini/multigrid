@@ -9,11 +9,10 @@ from ray.tune.registry import get_trainable_cls
 
 
 
-def policy_mapping_fn(agent_id, episode, worker, **kwargs) -> str:
+def policy_mapping_fn(agent_id: int, *args, **kwargs) -> str:
     """
     Map an environment agent ID to an RLlib policy ID.
     """
-    print(type(agent_id), type(episode), type(worker))
     return f'policy_{agent_id}'
 
 def model_config(framework: str = 'torch', custom_model_config: dict = {}):
@@ -76,7 +75,7 @@ def train(algo: str, config: AlgorithmConfig, stop_conditions: dict, out_dir: st
                 checkpoint_frequency=20,
                 checkpoint_at_end=True,
             ),
-            storage_path=out_dir,
+            local_dir=out_dir,
         ),
     )
     results = tuner.fit()
@@ -105,7 +104,8 @@ if __name__ == "__main__":
         '--num-timesteps', type=int, default=1e7,
         help="Total number of timesteps to train.")
     parser.add_argument(
-        '--out-dir', type=str, default='~/ray_results/', help="Output directory.")
+        '--save-dir', type=str, default='~/ray_results/',
+        help="Directory for saving results and trained models.")
 
     args = parser.parse_args()
     config = algorithm_config(**vars(args))

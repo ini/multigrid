@@ -1,3 +1,4 @@
+from gymnasium import spaces
 from ray.rllib.models.tf.complex_input_net import (
     ComplexInputNetwork as TFComplexInputNetwork
 )
@@ -22,12 +23,20 @@ class TFModel(TFModelV2):
     For configuration options, see ``rllib/models/catalog.py``.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        obs_space: spaces.Space,
+        action_space: spaces.Space,
+        num_outputs: int,
+        model_config: dict,
+        name: str,
+        **kwargs):
         """
         See ``TFModelV2.__init__()``.
         """
-        super().__init__(*args, **kwargs)
-        self.model = TFComplexInputNetwork(*args, **kwargs)
+        super().__init__(obs_space, action_space, num_outputs, model_config, name)
+        self.model = TFComplexInputNetwork(
+            obs_space, action_space, num_outputs, model_config, name)
         self.forward = self.model.forward
         self.value_function = self.model.value_function
 
@@ -62,14 +71,3 @@ class TorchModel(TorchModelV2, nn.Module):
             obs_space, action_space, num_outputs, model_config, name)
         self.forward = self.model.forward
         self.value_function = self.model.value_function
-
-        self.central_critic = TorchComplexInputNetwork(
-            joint_obs_space, action_space, 1, model_config, name)
-
-    def central_value_function(self, obs, other_agent_obs, other_agent_actions):
-        print("CVF", type(obs))
-        obs = torch.cat([obs, other_agent_obs], dim=1)
-        inputs = {'obs': obs}
-        # print("CVF", other_agent_obs.shape, other_agent_actions.shape)
-        out, _ = self.central_critic(inputs, [], None)
-        return torch.reshape(out, [-1])
