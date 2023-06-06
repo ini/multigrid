@@ -9,7 +9,9 @@ from multigrid.core.world_object import Ball
 
 class BlockedUnlockPickupEnv(RoomGrid):
     """
-    **Description**
+    ***********
+    Description
+    ***********
 
     The objective is to pick up a box which is placed in another room, behind a
     locked door. The door is also blocked by a ball which must be moved before
@@ -17,13 +19,17 @@ class BlockedUnlockPickupEnv(RoomGrid):
     pick up the key, open the door and pick up the object in the other
     room.
 
-    **Mission Space**
+    *************
+    Mission Space
+    *************
 
     "pick up the ``{color}`` box"
 
     ``{color}`` is the color of the box. Can be any :class:`.Color`.
 
-    **Observation Space**
+    *****************
+    Observation Space
+    *****************
 
     The multi-agent observation space is a Dict mapping from agent index to
     corresponding agent observation space.
@@ -39,7 +45,9 @@ class BlockedUnlockPickupEnv(RoomGrid):
     * mission : Mission
         Task string corresponding to the current environment configuration
 
-    **Action Space**
+    ************
+    Action Space
+    ************
 
     The multi-agent action space is a Dict mapping from agent index to
     corresponding agent action space.
@@ -64,12 +72,16 @@ class BlockedUnlockPickupEnv(RoomGrid):
     | 6   | done         | Done completing task        |
     +-----+--------------+-----------------------------+
 
-    **Rewards**
+    *******
+    Rewards
+    *******
 
     A reward of ``1 - 0.9 * (step_count / max_steps)`` is given for success,
     and ``0`` for failure.
 
-    **Termination**
+    ***********
+    Termination
+    ***********
 
     The episode ends if any one of the following conditions is met:
 
