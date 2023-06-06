@@ -24,7 +24,7 @@ def get_env_creator(env_specifier: str | type) -> Callable[[], gym.Env]:
     else:
         raise ValueError(f'Invalid environment specifier: {env_specifier}')
 
-def rllib_multi_agent_env(
+def to_rllib_env(
     env_cls: type, *wrappers: Callable[[], gym.Env], default_config: dict = {}) -> type:
     """
     Convert a ``MultiGridEnv`` environment class to an RLLib ``MultiAgentEnv`` class.
