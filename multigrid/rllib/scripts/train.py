@@ -61,7 +61,7 @@ def algorithm_config(
         )
     )
 
-def train(algo: str, config: AlgorithmConfig, stop_conditions: dict, out_dir: str):
+def train(algo: str, config: AlgorithmConfig, stop_conditions: dict, save_dir: str):
     """
     Train an RLlib algorithm.
     """
@@ -75,7 +75,7 @@ def train(algo: str, config: AlgorithmConfig, stop_conditions: dict, out_dir: st
                 checkpoint_frequency=20,
                 checkpoint_at_end=True,
             ),
-            local_dir=out_dir,
+            local_dir=save_dir,
         ),
     )
     results = tuner.fit()
@@ -115,4 +115,4 @@ if __name__ == "__main__":
     print('\n', '-' * 64, '\n', "Training with following configuration:", '\n', '-' * 64)
     print()
     pprint(config.to_dict())
-    train(args.algo, config, stop_conditions, args.out_dir)
+    train(args.algo, config, stop_conditions, args.save_dir)
