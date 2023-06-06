@@ -20,7 +20,8 @@ class TFModel(TFModelV2):
     Essentially a wrapper for ``ComplexInputNetwork`` that correctly deals with
     ``Dict`` observation spaces.
 
-    For configuration options, see ``rllib/models/catalog.py``.
+    For configuration options (i.e. ``model_config``),
+    see https://docs.ray.io/en/latest/rllib/rllib-models.html.
     """
 
     def __init__(
@@ -41,7 +42,6 @@ class TFModel(TFModelV2):
         self.value_function = self.model.value_function
 
 
-from gymnasium import spaces
 class TorchModel(TorchModelV2, nn.Module):
     """
     Basic torch model to use with RLlib.
@@ -49,7 +49,8 @@ class TorchModel(TorchModelV2, nn.Module):
     Essentially a wrapper for ``ComplexInputNetwork`` that correctly deals with
     ``Dict`` observation spaces.
 
-    For configuration options, see ``rllib/models/catalog.py``.
+    For configuration options (i.e. ``model_config``),
+    see https://docs.ray.io/en/latest/rllib/rllib-models.html.
     """
 
     def __init__(
