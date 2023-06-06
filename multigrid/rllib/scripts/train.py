@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import ray
 
@@ -5,8 +7,8 @@ from multigrid.rllib.model import TFModel, TorchModel
 from pprint import pprint
 from ray import air, tune
 from ray.rllib.algorithms import AlgorithmConfig
+from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
-
 
 
 def policy_mapping_fn(agent_id: int, *args, **kwargs) -> str:
@@ -39,6 +41,7 @@ def algorithm_config(
     framework: str = 'torch',
     num_workers: int = 0,
     num_gpus: int = 0,
+    lr: float = NotProvided,
     **kwargs) -> AlgorithmConfig:
     """
     Return the RL algorithm configuration dictionary.
@@ -57,7 +60,7 @@ def algorithm_config(
         )
         .training(
             model=model_config(framework),
-            lr=tune.grid_search([1e-3, 1e-4, 1e-5, 1e-6]),
+            lr=lr,
         )
     )
 
@@ -65,7 +68,7 @@ def train(algo: str, config: AlgorithmConfig, stop_conditions: dict, save_dir: s
     """
     Train an RLlib algorithm.
     """
-    ray.init()
+    ray.init(num_cpus=(config.num_rollout_workers + 1))
     tuner = tune.Tuner(
         algo,
         param_space=config.to_dict(),
@@ -108,6 +111,7 @@ if __name__ == "__main__":
         help="Directory for saving results and trained models.")
 
     args = parser.parse_args()
+    args.lr = tune.grid_search([1e-3, 1e-4, 1e-5, 1e-6])
     config = algorithm_config(**vars(args))
     stop_conditions = {'timesteps_total': args.num_timesteps}
 

@@ -20,7 +20,7 @@ class Mission(np.ndarray):
         index : Iterable[int]
             Index of mission string in :class:`MissionSpace`
         """
-        mission = np.array(index)
+        mission = np.array(index) if index else np.array(0)
         mission = mission.view(cls)
         mission.string = string
         return mission.view(cls)
@@ -78,7 +78,7 @@ class MissionSpace(spaces.MultiDiscrete):
         self.mission_func = mission_func
         self.arg_groups = ordered_placeholders
         nvec = tuple(len(group) for group in self.arg_groups)
-        super().__init__(nvec=nvec)
+        super().__init__(nvec=nvec if nvec else (1,))
 
     def __repr__(self) -> str:
         """
@@ -97,8 +97,10 @@ class MissionSpace(spaces.MultiDiscrete):
         idx : Iterable[int]
             Index of desired argument in each argument group
         """
-        args = (self.arg_groups[axis][index] for axis, index in enumerate(idx))
-        return Mission(string=self.mission_func(*args), index=idx)
+        if self.arg_groups:
+            args = (self.arg_groups[axis][index] for axis, index in enumerate(idx))
+            return Mission(string=self.mission_func(*args), index=idx)
+        return Mission(string=self.mission_func())
 
     def sample(self) -> Mission:
         """
