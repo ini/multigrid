@@ -9,8 +9,6 @@ from multigrid.core.world_object import Ball
 
 class BlockedUnlockPickupEnv(RoomGrid):
     """
-    .. image:: https://i.imgur.com/eQmGwgQ.gif
-
     **Description**
 
     The objective is to pick up a box which is placed in another room, behind a
