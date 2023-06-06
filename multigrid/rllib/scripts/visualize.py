@@ -51,7 +51,7 @@ if __name__ == '__main__':
         '--framework', type=str, choices=['torch', 'tf', 'tf2'], default='torch',
         help="Deep learning framework to use.")
     parser.add_argument(
-        '--env', type=str, default='MultiGrid-BlockedUnlockPickup-v0',
+        '--env', type=str, default='MultiGrid-Empty-8x8-v0',
         help="MultiGrid environment to use.")
     parser.add_argument(
         '--num-agents', type=int, default=2, help="Number of agents in environment.")

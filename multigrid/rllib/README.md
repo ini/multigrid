@@ -10,13 +10,13 @@ Using MultiGrid environments with RLlib requires installation of [rllib](https:/
 
 ## Getting Started
 
-Train a 2-agent environment using PPO:
+Train 2 agents on the `MultiGrid-Empty-8x8-v0` environment using the PPO algorithm:
 
-    python scripts/train.py --algo PPO --framework torch --env MultiGrid-BlockedUnlockPickup-v0 --num-agents 2 --num-timesteps 10000000 --save-dir ~/saved/
+    python scripts/train.py --algo PPO --framework torch --env MultiGrid-Empty-8x8-v0 --num-agents 2 --num-timesteps 10000000 --save-dir ~/saved/
 
 Visualize agent behavior:
 
-    python scripts/visualize.py --algo PPO --framework torch --env MultiGrid-BlockedUnlockPickup-v0 --num-agents 2 --num-episodes 100 --save-dir ~/saved/
+    python scripts/visualize.py --algo PPO --framework torch --env MultiGrid-Empty-8x8-v0 --num-agents 2 --num-episodes 100 --save-dir ~/saved/
 
 ## Environments
 
