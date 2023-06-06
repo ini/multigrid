@@ -1,8 +1,9 @@
 
 from ray.tune.registry import register_env
 
-from .env import to_rllib_env
+from .env_utils import to_rllib_env
 from ..envs.minigrid import *
+
 
 
 ### Blocked Unlock Pickup
