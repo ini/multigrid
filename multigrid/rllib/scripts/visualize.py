@@ -1,5 +1,6 @@
 import argparse
 import glob
+import numpy as np
 import os
 
 from ray.rllib.algorithms import Algorithm
@@ -11,15 +12,17 @@ def load_from_path(algorithm: Algorithm, path: str) -> Algorithm:
     """
     Load the latest checkpoint from the given path.
     """
-    checkpoints = glob.glob(f'{path}/checkpoint_*/') or [path]
+    checkpoints = glob.glob(f'{path}/**/checkpoint_*/', recursive=True) or [path]
     lastest_checkpoint = sorted(checkpoints, key=os.path.getmtime)[-1]
+    print(f"Loading checkpoint from {lastest_checkpoint}")
     algorithm.restore(lastest_checkpoint)
     return algorithm
 
-def visualize(algorithm: Algorithm, num_episodes: int = 100):
+def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]:
     """
     Visualize trajectories from trained agents.
     """
+    frames = []
     env = algorithm.env_creator(algorithm.config.env_config)
 
     for episode in range(num_episodes):
@@ -29,6 +32,7 @@ def visualize(algorithm: Algorithm, num_episodes: int = 100):
         terminated, truncated = {'__all__': False}, {'__all__': False}
         obs, info = env.reset(seed=episode)
         while not terminated['__all__'] and not truncated['__all__']:
+            frames.append(np.transpose(env.get_frame(), axes=(2, 1, 0)))
             action = {
                 agent_id: algorithm.compute_single_action(
                     obs[agent_id], policy_id=policy_mapping_fn(agent_id))
@@ -39,6 +43,8 @@ def visualize(algorithm: Algorithm, num_episodes: int = 100):
                 episode_reward[agent_id] += reward[agent_id]
 
         print('Rewards:', episode_reward)
+
+    return frames
 
 
 
@@ -59,7 +65,9 @@ if __name__ == '__main__':
         '--num-episodes', type=int, default=1, help="Number of episodes to visualize.")
     parser.add_argument(
         '--save-dir', type=str, default='~/ray_results/',
-        help="Directory for saved policy checkpoint.")
+        help="Checkpoint directory for saved models.")
+    parser.add_argument(
+        '--gif', type=str, help="Store output as GIF at given path.")
 
     args = parser.parse_args()
     config = algorithm_config(
@@ -69,4 +77,12 @@ if __name__ == '__main__':
         num_gpus=0,
     )
     algorithm = config.build()
-    visualize(algorithm, num_episodes=args.num_episodes)
+    load_from_path(algorithm, args.save_dir)
+    frames = visualize(algorithm, num_episodes=args.num_episodes)
+
+    if args.gif:
+        from array2gif import write_gif
+        filename = args.gif if args.gif.endswith('.gif') else f'{args.gif}.gif'
+        fps = algorithm.env_creator(algorithm.config.env_config).metadata['render_fps']
+        print(f"Saving GIF to {filename}")
+        write_gif(np.array(frames), filename, fps=fps)

@@ -61,7 +61,7 @@ def algorithm_config(
     framework: str = 'torch',
     num_workers: int = 0,
     num_gpus: int = 0,
-    lr: float = NotProvided,
+    lr: float | None = None,
     **kwargs) -> AlgorithmConfig:
     """
     Return the RL algorithm configuration dictionary.
@@ -80,7 +80,7 @@ def algorithm_config(
         )
         .training(
             model=model_config(framework),
-            lr=lr,
+            lr=(lr or NotProvided),
         )
     )
 
@@ -127,14 +127,16 @@ if __name__ == "__main__":
         '--num-timesteps', type=int, default=1e7,
         help="Total number of timesteps to train.")
     parser.add_argument(
+        '--lr', type=float, help="Learning rate for training.")
+    parser.add_argument(
         '--save-dir', type=str, default='~/ray_results/',
         help="Directory for saving results and trained models.")
 
     args = parser.parse_args()
-    args.lr = tune.grid_search([1e-3, 1e-4, 1e-5, 1e-6])
     config = algorithm_config(**vars(args))
     stop_conditions = {'timesteps_total': args.num_timesteps}
 
+    print()
     print(f"Running with following CLI options: {args}")
     print('\n', '-' * 64, '\n', "Training with following configuration:", '\n', '-' * 64)
     print()

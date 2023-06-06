@@ -6,15 +6,17 @@ from ray.tune.registry import _global_registry, ENV_CREATOR
 from ray.rllib.env import MultiAgentEnv
 from typing import Callable
 
+from ..multigrid_env import MultiGridEnv
 
 
-def get_env_creator(env_specifier: str | type) -> Callable[[], gym.Env]:
+
+def get_env_creator(env_specifier: str | type[gym.Env]) -> Callable[[], gym.Env]:
     """
     Get the environment creator callable for the specified environment.
 
     Parameters
     ----------
-    env_specifier : str or type
+    env_specifier : str or type[gym.Env]
         Environment specifier (e.g. 'CartPole-v1' or gym.CartPoleEnv)
     """
     if isinstance(env_specifier, str):
@@ -25,22 +27,24 @@ def get_env_creator(env_specifier: str | type) -> Callable[[], gym.Env]:
         raise ValueError(f'Invalid environment specifier: {env_specifier}')
 
 def to_rllib_env(
-    env_cls: type, *wrappers: Callable[[], gym.Env], default_config: dict = {}) -> type:
+    env_cls: type[MultiGridEnv],
+    *wrappers: gym.Wrapper,
+    default_config: dict = {}) -> type[MultiAgentEnv]:
     """
     Convert a ``MultiGridEnv`` environment class to an RLLib ``MultiAgentEnv`` class.
 
     Parameters
     ----------
-    env_cls : type
+    env_cls : type[MultiGridEnv]
         ``MultiGridEnv`` environment class
-    wrappers : Callable() -> gym.Env
+    wrappers : gym.Wrapper
         Gym wrappers to apply to the environment
     default_config : dict
         Default configuration for the environment
 
     Returns
     -------
-    rllib_env_cls : type
+    rllib_env_cls : type[MultiAgentEnv]
         RLlib ``MultiAgentEnv`` environment class
     """
     class RLlibMultiAgentEnv(gym.Wrapper, MultiAgentEnv):

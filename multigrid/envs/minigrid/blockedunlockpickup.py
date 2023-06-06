@@ -31,7 +31,7 @@ class BlockedUnlockPickupEnv(RoomGrid):
     Each agent observation is a dictionary with the following entries:
 
     * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
-        Encoding of the agent's view of the environment,
+        Encoding of the agent's partially observable view of the environment,
         where each grid object is encoded as a 3 dimensional tuple:
         (:class:`.Type`, :class:`.Color`, :class:`.State`)
     * direction : int
