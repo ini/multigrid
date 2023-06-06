@@ -7,9 +7,29 @@ from multigrid.rllib.model import TFModel, TorchModel
 from pprint import pprint
 from ray import air, tune
 from ray.rllib.algorithms import AlgorithmConfig
+from ray.rllib.utils.framework import try_import_tf, try_import_torch
 from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
 
+
+
+def can_use_gpu() -> bool:
+    """
+    Return whether or not GPU training is available.
+    """
+    try:
+        _, tf, _ = try_import_tf()
+        return tf.test.is_gpu_available()
+    except:
+        pass
+
+    try:
+        torch, _ = try_import_torch()
+        return torch.cuda.is_available()
+    except:
+        pass
+
+    return False
 
 def policy_mapping_fn(agent_id: int, *args, **kwargs) -> str:
     """
@@ -53,7 +73,7 @@ def algorithm_config(
         .environment(env=env, env_config=env_config)
         .framework(framework)
         .rollouts(num_rollout_workers=num_workers)
-        .resources(num_gpus=num_gpus)
+        .resources(num_gpus=num_gpus if can_use_gpu() else 0)
         .multi_agent(
             policies={f'policy_{i}' for i in range(num_agents)},
             policy_mapping_fn=policy_mapping_fn,
