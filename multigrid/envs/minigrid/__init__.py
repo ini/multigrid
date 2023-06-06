@@ -5,7 +5,7 @@ from .blockedunlockpickup import BlockedUnlockPickupEnv
 # from .distshift import DistShiftEnv
 # from .doorkey import DoorKeyEnv
 # from .dynamicobstacles import DynamicObstaclesEnv
-# from .empty import EmptyEnv
+from .empty import EmptyEnv
 # from .fetch import FetchEnv
 # from .fourrooms import FourRoomsEnv
 # from .gotodoor import GoToDoorEnv
