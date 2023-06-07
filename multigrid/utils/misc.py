@@ -32,7 +32,7 @@ class PropertyAlias(property):
         x = PropertyAlias('attr', AttributeClass.x)
     """
 
-    def __init__(self, attr_name: str, attr_property: property, doc: str = '') -> None:
+    def __init__(self, attr_name: str, attr_property_name: str, doc: str = None) -> None:
         """
         Parameters
         ----------
@@ -43,8 +43,9 @@ class PropertyAlias(property):
         doc : str
             Docstring to append to the property's original docstring
         """
-        fget = lambda obj: attr_property.fget(getattr(obj, attr_name))
-        fset = lambda obj, value: attr_property.fset(getattr(obj, attr_name), value)
-        fdel = lambda obj: attr_property.fdel(getattr(obj, attr_name))
-        super().__init__(fget, fset, fdel, attr_property.__doc__)
-        self.__doc__ = attr_property.__doc__ + doc
+        prop = lambda obj: getattr(type(getattr(obj, attr_name)), attr_property_name)
+        fget = lambda obj: prop(obj).fget(getattr(obj, attr_name))
+        fset = lambda obj, value: prop(obj).fset(getattr(obj, attr_name), value)
+        fdel = lambda obj: prop(obj).fdel(getattr(obj, attr_name))
+        super().__init__(fget, fset, fdel, doc=doc)
+        self.__doc__ = doc
