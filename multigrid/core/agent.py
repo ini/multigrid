@@ -344,4 +344,7 @@ class AgentState(np.ndarray):
         Set the object the agent is carrying.
         """
         self[..., CARRYING] = WorldObj.empty() if obj is None else obj
-        self._carried_obj[...].fill(obj)
+        if isinstance(obj, (WorldObj, type(None))):
+            self._carried_obj[...].fill(obj)
+        else:
+            self._carried_obj[...] = obj
