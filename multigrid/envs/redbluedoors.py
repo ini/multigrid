@@ -9,6 +9,9 @@ from multigrid.core.world_object import Door
 
 class RedBlueDoorEnv(MultiGridEnv):
     """
+    .. image:: https://i.imgur.com/f0qgFkr.gif
+        :width: 400
+
     ***********
     Description
     ***********

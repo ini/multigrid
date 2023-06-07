@@ -19,9 +19,9 @@ def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]
 
         episode_reward = {agent_id: 0.0 for agent_id in env.get_agent_ids()}
         terminated, truncated = {'__all__': False}, {'__all__': False}
-        obs, info = env.reset(seed=episode)
+        obs, info = env.reset()
         while not terminated['__all__'] and not truncated['__all__']:
-            frames.append(np.transpose(env.get_frame(), axes=(2, 1, 0)))
+            frames.append(env.get_frame())
             action = {
                 agent_id: algorithm.compute_single_action(
                     obs[agent_id], policy_id=policy_mapping_fn(agent_id))
@@ -33,6 +33,7 @@ def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]
 
         print('Rewards:', episode_reward)
 
+    env.close()
     return frames
 
 
@@ -78,6 +79,5 @@ if __name__ == '__main__':
     if args.gif:
         from array2gif import write_gif
         filename = args.gif if args.gif.endswith('.gif') else f'{args.gif}.gif'
-        fps = algorithm.env_creator(algorithm.config.env_config).metadata['render_fps']
         print(f"Saving GIF to {filename}")
-        write_gif(np.array(frames), filename, fps=fps)
+        write_gif(np.array(frames), filename, fps=10)
