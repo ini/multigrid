@@ -14,14 +14,9 @@ Compared to `minigrid`, the underlying gridworld logic is **significantly optimi
 
 This package requires Python 3.9 or later.
 
-## Single-Agent MiniGrid Environments
+## Documentation
 
-This library provides the original single-agent `minigrid` environments, using the optimized **`multigrid`** under the hood.
-
-```
-from multigrid.envs.minigrid import EmptyEnv
-my_env = EmptyEnv(size=5)
-```
+Documentation for this package can be found at [ini.io/docs/multigrid](https://ini.io/docs/multigrid).
 
 ## Citation
 
