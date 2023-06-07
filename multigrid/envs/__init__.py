@@ -9,16 +9,16 @@ This module contains implementations of several MultiGrid environments.
 Configurations
 **************
 
-* `Blocked Unlock Pickup <./blockedunlockpickup>`_
+* `Blocked Unlock Pickup <./multigrid.envs.blockedunlockpickup>`_
     * ``MultiGrid-BlockedUnlockPickup-v0``
-* `Empty <./empty>`_
+* `Empty <./multigrid.envs.empty>`_
     * ``MultiGrid-Empty-5x5-v0``
     * ``MultiGrid-Empty-Random-5x5-v0``
     * ``MultiGrid-Empty-6x6-v0``
     * ``MultiGrid-Empty-Random-6x6-v0``
     * ``MultiGrid-Empty-8x8-v0``
     * ``MultiGrid-Empty-16x16-v0``
-* `Locked Hallway <./locked_hallway>`_
+* `Locked Hallway <./multigrid.envs.locked_hallway>`_
     * ``MultiGrid-LockedHallway-4Rooms-v0``
     * ``MultiGrid-LockedHallway-6Rooms-v0``
 """
