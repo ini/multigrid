@@ -9,8 +9,6 @@ from multigrid.core.world_object import Door
 
 class RedBlueDoorEnv(MultiGridEnv):
     """
-    :no-undoc-members:
-
     ***********
     Description
     ***********
