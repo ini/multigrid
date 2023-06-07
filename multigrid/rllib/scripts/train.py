@@ -1,17 +1,38 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import ray
 
 from multigrid.rllib.model import TFModel, TorchModel
+from pathlib import Path
 from pprint import pprint
-from ray import air, tune
+from ray import tune
 from ray.rllib.algorithms import AlgorithmConfig
 from ray.rllib.utils.framework import try_import_tf, try_import_torch
 from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
 
 
+
+def get_checkpoint_dir(search_dir: Path | str | None) -> Path | None:
+    """
+    Recursively search for checkpoints within the given directory.
+
+    If more than one is found, returns the most recently modified checkpoint directory.
+
+    Parameters
+    ----------
+    search_dir : Path or str
+        The directory to search for checkpoints within
+    """
+    if search_dir:
+        checkpoints = Path(search_dir).expanduser().glob('**/*.is_checkpoint')
+        if checkpoints:
+            return sorted(checkpoints, key=os.path.getmtime)[-1].parent
+
+    return None
 
 def can_use_gpu() -> bool:
     """
@@ -84,24 +105,26 @@ def algorithm_config(
         )
     )
 
-def train(algo: str, config: AlgorithmConfig, stop_conditions: dict, save_dir: str):
+def train(
+    algo: str,
+    config: AlgorithmConfig,
+    stop_conditions: dict,
+    save_dir: str,
+    load_dir: str | None = None):
     """
     Train an RLlib algorithm.
     """
     ray.init(num_cpus=(config.num_rollout_workers + 1))
-    tuner = tune.Tuner(
+    tune.run(
         algo,
-        param_space=config.to_dict(),
-        run_config=air.RunConfig(
-            stop=stop_conditions,
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=20,
-                checkpoint_at_end=True,
-            ),
-            local_dir=save_dir,
-        ),
+        stop=stop_conditions,
+        config=config,
+        local_dir=save_dir,
+        verbose=1,
+        restore=get_checkpoint_dir(load_dir),
+        checkpoint_freq=20,
+        checkpoint_at_end=True,
     )
-    results = tuner.fit()
     ray.shutdown()
 
 
@@ -118,6 +141,9 @@ if __name__ == "__main__":
         '--env', type=str, default='MultiGrid-Empty-8x8-v0',
         help="MultiGrid environment to use.")
     parser.add_argument(
+        '--env-config', type=json.loads, default={},
+        help="Environment config dict, given as a JSON string (e.g. '{\"size\": 8}')")
+    parser.add_argument(
         '--num-agents', type=int, default=2, help="Number of agents in environment.")
     parser.add_argument(
         '--num-workers', type=int, default=8, help="Number of rollout workers.")
@@ -129,8 +155,11 @@ if __name__ == "__main__":
     parser.add_argument(
         '--lr', type=float, help="Learning rate for training.")
     parser.add_argument(
+        '--load-dir', type=str,
+        help="Checkpoint directory for loading pre-trained policies.")
+    parser.add_argument(
         '--save-dir', type=str, default='~/ray_results/',
-        help="Directory for saving results and trained models.")
+        help="Directory for saving checkpoints, results, and trained policies.")
 
     args = parser.parse_args()
     config = algorithm_config(**vars(args))
@@ -141,4 +170,4 @@ if __name__ == "__main__":
     print('\n', '-' * 64, '\n', "Training with following configuration:", '\n', '-' * 64)
     print()
     pprint(config.to_dict())
-    train(args.algo, config, stop_conditions, args.save_dir)
+    train(args.algo, config, stop_conditions, args.save_dir, args.load_dir)

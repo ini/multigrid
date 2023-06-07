@@ -1,22 +1,11 @@
 import argparse
-import glob
+import json
 import numpy as np
-import os
 
 from ray.rllib.algorithms import Algorithm
-from train import algorithm_config, policy_mapping_fn
+from train import algorithm_config, get_checkpoint_dir, policy_mapping_fn
 
 
-
-def load_from_path(algorithm: Algorithm, path: str) -> Algorithm:
-    """
-    Load the latest checkpoint from the given path.
-    """
-    checkpoints = glob.glob(f'{path}/**/checkpoint_*/', recursive=True) or [path]
-    lastest_checkpoint = sorted(checkpoints, key=os.path.getmtime)[-1]
-    print(f"Loading checkpoint from {lastest_checkpoint}")
-    algorithm.restore(lastest_checkpoint)
-    return algorithm
 
 def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]:
     """
@@ -60,26 +49,32 @@ if __name__ == '__main__':
         '--env', type=str, default='MultiGrid-Empty-8x8-v0',
         help="MultiGrid environment to use.")
     parser.add_argument(
+        '--env-config', type=json.loads, default={},
+        help="Environment config dict, given as a JSON string (e.g. '{\"size\": 8}')")
+    parser.add_argument(
         '--num-agents', type=int, default=2, help="Number of agents in environment.")
     parser.add_argument(
-        '--num-episodes', type=int, default=1, help="Number of episodes to visualize.")
+        '--num-episodes', type=int, default=10, help="Number of episodes to visualize.")
     parser.add_argument(
-        '--save-dir', type=str, default='~/ray_results/',
-        help="Checkpoint directory for saved models.")
+        '--load-dir', type=str,
+        help="Checkpoint directory for loading pre-trained policies.")
     parser.add_argument(
         '--gif', type=str, help="Store output as GIF at given path.")
 
     args = parser.parse_args()
+    args.env_config.update(render_mode='human')
     config = algorithm_config(
         **vars(args),
-        env_config={'render_mode': 'human'},
         num_workers=0,
         num_gpus=0,
     )
     algorithm = config.build()
-    load_from_path(algorithm, args.save_dir)
-    frames = visualize(algorithm, num_episodes=args.num_episodes)
+    checkpoint = get_checkpoint_dir(args.load_dir)
+    if checkpoint:
+        print(f"Loading checkpoint from {checkpoint}")
+        algorithm.restore(checkpoint)
 
+    frames = visualize(algorithm, num_episodes=args.num_episodes)
     if args.gif:
         from array2gif import write_gif
         filename = args.gif if args.gif.endswith('.gif') else f'{args.gif}.gif'

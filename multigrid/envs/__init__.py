@@ -44,3 +44,8 @@ CONFIGURATIONS = {
     'MultiGrid-RedBlueDoors-6x6-v0': (RedBlueDoorEnv, {'size': 6}),
     'MultiGrid-RedBlueDoors-8x8-v0': (RedBlueDoorEnv, {'size': 8}),
 }
+
+# Register environments with gymnasium
+from gymnasium.envs.registration import register
+for name, (env_cls, config) in CONFIGURATIONS.items():
+    register(id=name, entry_point=env_cls, kwargs=config)

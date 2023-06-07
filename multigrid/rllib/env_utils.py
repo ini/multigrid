@@ -33,6 +33,9 @@ def to_rllib_env(
     """
     Convert a ``MultiGridEnv`` environment class to an RLLib ``MultiAgentEnv`` class.
 
+    Note that this is a wrapper around the environment **class**,
+    not environment instances.
+
     Parameters
     ----------
     env_cls : type[MultiGridEnv]
