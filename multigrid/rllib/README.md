@@ -14,7 +14,7 @@ Train 2 agents on the `MultiGrid-Empty-8x8-v0` environment using the PPO algorit
 
     python scripts/train.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --save-dir ~/saved/empty8x8/
 
-Visualize behavior from the trained agents:
+Visualize behavior from trained agents policies:
 
     python scripts/visualize.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --load-dir ~/saved/empty8x8/
 
@@ -22,6 +22,16 @@ For more options, run ``python scripts/train.py --help`` and ``python scripts/vi
 
 ## Environments
 
-The full list of RLlib-registered configurations of MultiGrid environments can be found in [multigrid/rllib/__init__.py](./__init__.py).
+All of the environment configurations registered in [`multigrid.envs`](../envs/__init__.py) can also be used with RLlib, and are registered via `import multigrid.rllib`.
 
-To register & use them with RLlib: `import multigrid.rllib`.
+To use a specific MultiGrid environment configuration by name:
+
+    >>> import multigrid.rllib
+    >>> from ray.rllib.algorithms.ppo import PPOConfig
+    >>> algorithim_config = PPOConfig().environment(env='MultiGrid-Empty-8x8-v0')
+
+To convert a custom `MultiGridEnv` to an RLlib `MultiAgentEnv`:
+
+    >>> from multigrid.rllib import to_rllib_env
+    >>> MyRLLibEnvClass = to_rllib_env(MyEnvClass)
+    >>> algorithim_config = PPOConfig().environment(env=MyRLLibEnvClass)
