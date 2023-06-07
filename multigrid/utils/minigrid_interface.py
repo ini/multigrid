@@ -4,8 +4,8 @@ from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
 from typing import Any, Sequence, SupportsFloat
 
-from .core.world_object import WorldObj
-from .multigrid_env import MultiGridEnv
+from ..core.world_object import WorldObj
+from ..multigrid_env import MultiGridEnv
 
 
 
@@ -23,7 +23,7 @@ class MiniGridInterface(MultiGridEnv):
 
     >>> from minigrid.core.world_object import Ball, Key, Door
     >>> from minigrid.core.grid import Grid
-    >>> from minigrid.minigrid_env import MiniGridEnv
+    >>> from minigrid import MiniGridEnv
 
     >>> class MyEnv(MiniGridEnv):
     >>>    ... # existing class definition
@@ -32,7 +32,7 @@ class MiniGridInterface(MultiGridEnv):
 
     >>> from multigrid.core.world_object import Ball, Key, Door
     >>> from multigrid.core.grid import Grid
-    >>> from multigrid.minigrid_interface import MiniGridInterface as MiniGridEnv
+    >>> from multigrid.utils.minigrid_interface import MiniGridInterface as MiniGridEnv
 
     >>> class MyEnv(MiniGridEnv):
     >>>    ... # same class definition

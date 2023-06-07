@@ -1,30 +1,31 @@
 from __future__ import annotations
 
-from multigrid import MultiGridEnv
-from multigrid.core.grid import Grid
+from multigrid.core.constants import Color, Type
 from multigrid.core.mission import MissionSpace
-from multigrid.core.world_object import Goal
+from multigrid.core.roomgrid import RoomGrid
+from multigrid.core.world_object import Ball
 
 
 
-class EmptyEnv(MultiGridEnv):
+class BlockedUnlockPickupEnv(RoomGrid):
     """
-    .. image:: https://i.imgur.com/wY0tT7R.gif
-        :width: 200
-
     ***********
     Description
     ***********
 
-    This environment is an empty room, and the goal for each agent is to reach the
-    green goal square before any other agents, which provides a sparse reward.
-    A small penalty is subtracted for the number of steps to reach the goal.
+    The objective is to pick up a box which is placed in another room, behind a
+    locked door. The door is also blocked by a ball which must be moved before
+    the door can be unlocked. Hence, agents must learn to move the ball,
+    pick up the key, open the door and pick up the object in the other
+    room.
 
-    This environment is useful, with small rooms, to validate that your RL algorithm
-    works correctly, and with large rooms to experiment with sparse rewards and
-    exploration. The random variants of the environment have the agents starting
-    at a random position for each episode, while the regular variants have the
-    agent always starting in the corner opposite to the goal.
+    *************
+    Mission Space
+    *************
+
+    "pick up the ``{color}`` box"
+
+    ``{color}`` is the color of the box. Can be any :class:`.Color`.
 
     *****************
     Observation Space
@@ -37,7 +38,7 @@ class EmptyEnv(MultiGridEnv):
 
     * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
         Encoding of the agent's partially observable view of the environment,
-        where each grid object is encoded as a 3 dimensional tuple:
+        where each grid cell is encoded as a 3 dimensional tuple:
         (:class:`.Type`, :class:`.Color`, :class:`.State`)
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
@@ -84,51 +85,65 @@ class EmptyEnv(MultiGridEnv):
 
     The episode ends if any one of the following conditions is met:
 
-    * Any agent reaches the goal
+    * Any agent picks up the correct box
     * Timeout (see ``max_steps``)
     """
 
     def __init__(
-        self,
-        size=8,
-        agent_start_pos=(1, 1),
-        agent_start_dir=0,
-        max_steps: int | None = None,
-        **kwargs):
+        self, room_size=6, max_steps: int | None = None, joint_reward=True, **kwargs):
 
-        self.agent_start_pos = agent_start_pos
-        self.agent_start_dir = agent_start_dir
+        mission_space = MissionSpace(
+            mission_func=self._gen_mission,
+            ordered_placeholders=[list(Color), [Type.box, Type.key]],
+        )
 
         if max_steps is None:
-            max_steps = 4 * size**2
+            max_steps = 16 * room_size**2
 
         super().__init__(
-            mission_space=MissionSpace.from_string("get to the green goal square"),
-            grid_size=size,
-            see_through_walls=True, # set this to True for maximum speed
+            mission_space=mission_space,
+            num_rows=1,
+            num_cols=2,
+            room_size=room_size,
             max_steps=max_steps,
-            joint_reward=False,
-            termination_mode='any',
+            joint_reward=joint_reward,
             **kwargs,
         )
+
+    @staticmethod
+    def _gen_mission(color: str, obj_type: str):
+        return f"pick up the {color} {obj_type}"
 
     def _gen_grid(self, width, height):
         """
         :meta private:
         """
-        # Create an empty grid
-        self.grid = Grid(width, height)
+        super()._gen_grid(width, height)
 
-        # Generate the surrounding walls
-        self.grid.wall_rect(0, 0, width, height)
+        # Add a box to the room on the right
+        obj, _ = self.add_object(1, 0, kind="box")
+        # Make sure the two rooms are directly connected by a locked door
+        door, pos = self.add_door(0, 0, 0, locked=True)
+        # Block the door with a ball
+        color = self._rand_color()
+        self.grid.set(pos[0] - 1, pos[1], Ball(color))
+        # Add a key to unlock the door
+        self.add_object(0, 0, "key", door.color)
 
-        # Place a goal square in the bottom-right corner
-        self.put_obj(Goal(), width - 2, height - 2)
-
-        # Place the agent
         for agent in self.agents:
-            if self.agent_start_pos is not None:
-                agent.state.pos = self.agent_start_pos
-                agent.state.dir = self.agent_start_dir
-            else:
-                self.place_agent(agent)
+            self.place_agent(agent, 0, 0)
+
+        self.obj = obj
+        self.mission = f"pick up the {obj.color} {obj.type}"
+
+    def step(self, actions):
+        """
+        :meta private:
+        """
+        obs, reward, terminated, truncated, info = super().step(actions)
+        for agent in self.agents:
+            if agent.state.carrying == self.obj:
+                self.on_goal(agent, reward)
+
+        terminated = {agent.index: agent.state.terminated for agent in self.agents}
+        return obs, reward, terminated, truncated, info
