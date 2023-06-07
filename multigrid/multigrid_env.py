@@ -308,14 +308,14 @@ class MultiGridEnv(gym.Env, ABC):
         self.step_count += 1
         reward, terminated = self.handle_actions(actions)
 
-        # Rendering
-        if self.render_mode == 'human':
-            self.render()
-
         # Generate observations
         obs = self.gen_obs()
         truncated = self.step_count >= self.max_steps
         truncated = dict(enumerate([truncated] * self.num_agents))
+
+        # Rendering
+        if self.render_mode == 'human':
+            self.render()
 
         return obs, reward, terminated, truncated, defaultdict(dict)
 
