@@ -159,7 +159,7 @@ class RedBlueDoorEnv(MultiGridEnv):
                 fwd_obj = self.grid.get(*agent.front_pos)
                 if fwd_obj == self.blue_door and self.blue_door.is_open:
                     if self.red_door.is_open:
-                        self.on_goal(agent, reward, terminated)
+                        self.on_success(agent, reward, terminated)
                     else:
                         self.on_failure(agent, reward, terminated)
 
