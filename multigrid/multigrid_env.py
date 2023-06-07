@@ -20,6 +20,7 @@ from .core.mission import MissionSpace
 from .core.world_object import WorldObj
 from .core.world_object import can_overlap, can_pickup
 from .utils.obs import gen_obs_grid_encoding
+from .utils.misc import dict_update_all
 
 
 
@@ -80,7 +81,7 @@ class MultiGridEnv(gym.Env, ABC):
 
     def __init__(
         self,
-        mission_space: MissionSpace = MissionSpace.from_string('maximize reward'),
+        mission_space: MissionSpace | str = "maximize reward",
         agents: Iterable[Agent] | int = 1,
         grid_size: int | None = None,
         width: int | None = None,
@@ -90,7 +91,8 @@ class MultiGridEnv(gym.Env, ABC):
         agent_view_size: int = 7,
         allow_agent_overlap: bool = True,
         joint_reward: bool = False,
-        termination_mode: Literal['any', 'all'] = 'any',
+        success_termination_mode: Literal['any', 'all'] = 'any',
+        failure_termination_mode: Literal['any', 'all'] = 'all',
         render_mode: str | None = None,
         screen_size: int | None = 640,
         highlight: bool = True,
@@ -119,9 +121,12 @@ class MultiGridEnv(gym.Env, ABC):
             Whether agents are allowed to overlap
         joint_reward : bool
             Whether all agents receive the same joint reward
-        termination_mode : 'any' or 'all'
+        success_termination_mode : 'any' or 'all'
             Whether to terminate when any agent completes its mission
             or when all agents complete their missions
+        failure_termination_mode : 'any' or 'all'
+            Whether to terminate when any agent fails its mission
+            or when all agents fail their missions
         render_mode : str
             Rendering mode (human or rgb_array)
         screen_size : int
@@ -131,9 +136,11 @@ class MultiGridEnv(gym.Env, ABC):
         tile_size : int
             Width and height of each grid tiles (in pixels)
         """
-        # Initialize mission
-        self.mission_space = mission_space
-        self.mission = mission_space.sample()
+        # Initialize mission space
+        if isinstance(mission_space, str):
+            self.mission_space = MissionSpace.from_string(mission_space)
+        else:
+            self.mission_space = mission_space
 
         # Initialize grid
         width, height = (grid_size, grid_size) if grid_size else (width, height)
@@ -149,7 +156,7 @@ class MultiGridEnv(gym.Env, ABC):
             for i in range(agents):
                 agent = Agent(
                     index=i,
-                    mission_space=mission_space,
+                    mission_space=self.mission_space,
                     state=self.agent_state[i],
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
@@ -190,7 +197,8 @@ class MultiGridEnv(gym.Env, ABC):
         # Other
         self.allow_agent_overlap = allow_agent_overlap
         self.joint_reward = joint_reward
-        self.termination_mode = termination_mode
+        self.success_termination_mode = success_termination_mode
+        self.failure_termination_mode = failure_termination_mode
 
     @property
     def observation_space(self) -> spaces.Dict[AgentID, spaces.Space]:
@@ -294,17 +302,16 @@ class MultiGridEnv(gym.Env, ABC):
             Additional information for each agent
         """
         self.step_count += 1
-        reward = self.handle_actions(actions)
+        reward, terminated = self.handle_actions(actions)
 
         # Rendering
         if self.render_mode == 'human':
             self.render()
 
-        # Generate outputs
+        # Generate observations
         obs = self.gen_obs()
         truncated = self.step_count >= self.max_steps
         truncated = dict(enumerate([truncated] * self.num_agents))
-        terminated = dict(enumerate(self.agent_state.terminated))
 
         return obs, reward, terminated, truncated, defaultdict(dict)
 
@@ -340,7 +347,9 @@ class MultiGridEnv(gym.Env, ABC):
         return obs
 
     def handle_actions(
-        self, actions: dict[AgentID, Action]) -> dict[AgentID, SupportsFloat]:
+        self, actions: dict[AgentID, Action]) -> tuple[
+            dict[AgentID, SupportsFloat],
+            dict[AgentID, bool]]:
         """
         Handle actions taken by agents.
 
@@ -351,10 +360,13 @@ class MultiGridEnv(gym.Env, ABC):
 
         Returns
         -------
-        rewards : dict[AgentID, SupportsFloat]
+        reward : dict[AgentID, SupportsFloat]
             Reward for each agent
+        terminated : dict[AgentID, bool]
+            Whether the episode has been terminated for each agent (success or failure)
         """
-        rewards = {agent_index: 0 for agent_index in range(self.num_agents)}
+        reward = {agent_index: 0 for agent_index in range(self.num_agents)}
+        terminated = dict(enumerate(self.agent_state.terminated))
 
         # Randomize agent action order
         if self.num_agents == 1:
@@ -392,10 +404,10 @@ class MultiGridEnv(gym.Env, ABC):
                             agent.state.pos = fwd_pos
 
                 if fwd_obj is not None:
-                    if fwd_obj.type == 'lava':
-                        agent.state.terminated = True
-                    elif fwd_obj.type == 'goal':
-                        self.on_goal(agent, rewards)
+                    if fwd_obj.type == Type.goal:
+                        self.on_success(agent, reward, terminated)
+                    if fwd_obj.type == Type.lava:
+                        self.on_failure(agent, reward, terminated)
 
             # Pick up an object
             elif action == Action.pickup:
@@ -435,9 +447,13 @@ class MultiGridEnv(gym.Env, ABC):
             else:
                 raise ValueError(f"Unknown action: {action}")
 
-        return rewards
+        return reward, terminated
 
-    def on_goal(self, agent: Agent, rewards: dict[AgentID, SupportsFloat]):
+    def on_success(
+        self,
+        agent: Agent,
+        reward: dict[AgentID, SupportsFloat],
+        terminated: dict[AgentID, bool]):
         """
         Callback for when an agent completes its mission.
 
@@ -445,19 +461,46 @@ class MultiGridEnv(gym.Env, ABC):
         ----------
         agent : Agent
             Agent that completed its mission
-        rewards : dict[AgentID, SupportsFloat]
+        reward : dict[AgentID, SupportsFloat]
             Reward dictionary to be updated
+        terminated : dict[AgentID, bool]
+            Termination dictionary to be updated
         """
-        if self.termination_mode == 'any':
-            self.agent_state.terminated = True # terminate all if any agent reaches goal
+        if self.success_termination_mode == 'any':
+            self.agent_state.terminated = True # terminate all agents
+            dict_update_all(terminated, True)
         else:
             agent.state.terminated = True # terminate this agent only
+            terminated[agent.index] = True
 
         if self.joint_reward:
-            for key in rewards:
-                rewards[key] = self._reward() # reward all agents
+            dict_update_all(reward, self._reward()) # reward all agents
         else:
-            rewards[agent.index] = self._reward() # reward this agent only
+            reward[agent.index] = self._reward() # reward this agent only
+
+    def on_failure(
+        self,
+        agent: Agent,
+        reward: dict[AgentID, SupportsFloat],
+        terminated: dict[AgentID, bool]):
+        """
+        Callback for when an agent fails its mission prematurely.
+
+        Parameters
+        ----------
+        agent : Agent
+            Agent that failed its mission
+        reward : dict[AgentID, SupportsFloat]
+            Reward dictionary to be updated
+        terminated : dict[AgentID, bool]
+            Termination dictionary to be updated
+        """
+        if self.failure_termination_mode == 'any':
+            self.agent_state.terminated = True # terminate all agents
+            dict_update_all(terminated, True)
+        else:
+            agent.state.terminated = True # terminate this agent only
+            terminated[agent.index] = True
 
     @property
     def steps_remaining(self):

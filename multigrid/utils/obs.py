@@ -111,16 +111,19 @@ def gen_obs_grid(
     agent_grid_encoding = agent_state[..., :3]
     agent_dir = agent_state[..., 2]
     agent_pos = agent_state[..., 3:5]
+    agent_terminated = agent_state[..., 5]
     agent_carrying_encoding = agent_state[..., 6:6+ENCODE_DIM]
 
     # Get grid encoding
     if num_agents > 1:
         grid_encoding = np.empty((*grid_state.shape[:-1], ENCODE_DIM), dtype=np.int_)
         grid_encoding[...] = grid_state[..., :ENCODE_DIM]
+
         # Insert agent grid encodings
         for agent in range(num_agents):
-            i, j = agent_pos[agent]
-            grid_encoding[i, j, :ENCODE_DIM] = agent_grid_encoding[agent]
+            if not agent_terminated[agent]:
+                i, j = agent_pos[agent]
+                grid_encoding[i, j, :ENCODE_DIM] = agent_grid_encoding[agent]
     else:
         grid_encoding = grid_state[..., :ENCODE_DIM]
 

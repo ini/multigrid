@@ -21,11 +21,15 @@ Configurations
 * `Locked Hallway <./multigrid.envs.locked_hallway>`_
     * ``MultiGrid-LockedHallway-4Rooms-v0``
     * ``MultiGrid-LockedHallway-6Rooms-v0``
+* `Red Blue Doors <./multigrid.envs.redbluedoors>`_
+    * ``MultiGrid-RedBlueDoors-6x6-v0``
+    * ``MultiGrid-RedBlueDoors-8x8-v0``
 """
 
 from .blockedunlockpickup import BlockedUnlockPickupEnv
 from .empty import EmptyEnv
 from .locked_hallway import LockedHallwayEnv
+from .redbluedoors import RedBlueDoorEnv
 
 CONFIGURATIONS = {
     'MultiGrid-BlockedUnlockPickup-v0': (BlockedUnlockPickupEnv, {}),
@@ -37,4 +41,6 @@ CONFIGURATIONS = {
     'MultiGrid-Empty-16x16-v0': (EmptyEnv, {'size': 16}),
     'MultiGrid-LockedHallway-4Rooms-v0': (LockedHallwayEnv, {'num_rooms': 4}),
     'MultiGrid-LockedHallway-6Rooms-v0': (LockedHallwayEnv, {'num_rooms': 6}),
+    'MultiGrid-RedBlueDoors-6x6-v0': (RedBlueDoorEnv, {'size': 6}),
+    'MultiGrid-RedBlueDoors-8x8-v0': (RedBlueDoorEnv, {'size': 8}),
 }

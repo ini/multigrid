@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from .agent import Agent
-from .constants import Color
+from .constants import Color, Direction
 from .grid import Grid
 from .world_object import Ball, Box, Door, Key, WorldObj
 
@@ -23,47 +23,48 @@ def reject_next_to(env: MultiGridEnv, pos: tuple[int, int]):
 
 
 class Room:
+    """
+    Room as an area inside a grid.
+    """
 
     def __init__(self, top: tuple[int, int], size: tuple[int, int]):
-        # Top-left corner and size (tuples)
+        """
+        Parameters
+        ----------
+        top : tuple[int, int]
+            Top-left position of the room
+        size : tuple[int, int]
+            Room size as (width, height)
+        """
         self.top = top
         self.size = size
 
-        # List of door objects and door positions
-        # Order of the doors is right, down, left, up
-        self.doors: list[bool | Door | None] = [None] * 4
-        self.door_pos: list[tuple[int, int] | None] = [None] * 4
+        Point = tuple[int, int]
 
-        # List of rooms adjacent to this one
-        # Order of the neighbors is right, down, left, up
-        self.neighbors: list[Room | None] = [None] * 4
+        # Mapping of door objects and door positions
+        self.doors: dict[Direction, Door | None] = {d: None for d in Direction}
+        self.door_pos: dict[Direction, Point | None] = {d: None for d in Direction}
 
-        # Indicates if this room is behind a locked door
-        self.locked: bool = False
+        # Mapping of rooms adjacent to this one
+        self.neighbors: dict[Direction, Room | None] = {d: None for d in Direction}
 
-        # List of objects contained
-        self.objs: list[WorldObj] = []
+        # List of objects contained in this room
+        self.objs = []
 
-    def rand_pos(self, env: MultiGridEnv) -> tuple[int, int]:
-        topX, topY = self.top
-        sizeX, sizeY = self.size
-        return env._randPos(topX + 1, topX + sizeX - 1, topY + 1, topY + sizeY - 1)
+    @property
+    def locked(self) -> bool:
+        """
+        Return whether this room is behind a locked door.
+        """
+        return any(door and door.is_locked for door in self.doors.values())
 
     def pos_inside(self, x: int, y: int) -> bool:
         """
-        Check if a position is within the bounds of this room
+        Check if a position is within the bounds of this room.
         """
-
-        topX, topY = self.top
-        sizeX, sizeY = self.size
-
-        if x < topX or y < topY:
-            return False
-
-        if x >= topX + sizeX or y >= topY + sizeY:
-            return False
-
-        return True
+        left_x, top_y = self.top
+        width, height = self.size
+        return left_x <= x < left_x + width and top_y <= y < top_y + height
 
 
 class RoomGrid(MultiGridEnv):
@@ -260,7 +261,6 @@ class RoomGrid(MultiGridEnv):
 
         assert room.doors[door_idx] is None, "door already exists"
 
-        room.locked = locked
         door = Door(color, is_locked=locked)
 
         pos = room.door_pos[door_idx]
@@ -276,7 +276,7 @@ class RoomGrid(MultiGridEnv):
 
         return door, pos
 
-    def remove_wall(self, i: int, j: int, wall_idx: int):
+    def remove_wall(self, i: int, j: int, wall_idx: Direction):
         """
         Remove a wall between two rooms
         """
@@ -293,16 +293,16 @@ class RoomGrid(MultiGridEnv):
         w, h = room.size
 
         # Ordering of walls is right, down, left, up
-        if wall_idx == 0:
+        if wall_idx == Direction.right:
             for i in range(1, h - 1):
                 self.grid.set(tx + w - 1, ty + i, None)
-        elif wall_idx == 1:
+        elif wall_idx == Direction.down:
             for i in range(1, w - 1):
                 self.grid.set(tx + i, ty + h - 1, None)
-        elif wall_idx == 2:
+        elif wall_idx == Direction.left:
             for i in range(1, h - 1):
                 self.grid.set(tx, ty + i, None)
-        elif wall_idx == 3:
+        elif wall_idx == Direction.up:
             for i in range(1, w - 1):
                 self.grid.set(tx + i, ty, None)
         else:

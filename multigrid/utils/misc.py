@@ -1,7 +1,16 @@
 import functools
+from typing import Any
 from ..core.constants import Direction
 
 
+
+def dict_update_all(d: dict, value: Any) -> dict:
+    """
+    Set all values in a dictionary to a given value.
+    """
+    for key in d:
+        d[key] = value
+    return d
 
 @functools.cache
 def front_pos(agent_x: int, agent_y: int, agent_dir: int):

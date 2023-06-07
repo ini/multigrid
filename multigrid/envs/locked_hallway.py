@@ -11,90 +11,6 @@ from ..core.constants import Color, Type
 
 from ..multigrid_env import MultiGridEnv
 
-from ray.rllib.env import MultiAgentEnv
-
-#import matplotlib; matplotlib.use('TkAgg')
-
-
-
-class Room:
-
-    def __init__(
-        self,
-        env: MultiGridEnv,
-        top: tuple[int, int],
-        size: tuple[int, int],
-        door_pos: tuple[int, int],
-        color: str,
-        open: bool = False,
-        locked: bool = True,
-    ):
-        """
-        Parameters
-        ----------
-        env : MultiGridEnv
-            Environment
-        top : tuple[int, int]
-            Top-left position of the room
-        size : tuple[int, int]
-            Tuple of room size as (width, height)
-        door_pos : tuple[int, int]
-            Position of room door
-        color : str
-            Color of room door
-        open : bool, default=False
-            Whether room door is open
-        locked : bool, default=True
-            Whether room door is locked
-        """
-        self.env = env
-        self.top = top
-        self.size = size
-
-        # Get bounds
-        left, top = top
-        width = min(size[0], env.grid.width - left)
-        height = min(size[1], env.grid.height - top)
-
-        # Create walls
-        env.grid.wall_rect(left, top, width, height)
-
-        # Create door
-        self.door_pos = door_pos
-        self.door = Door(color=color, is_open=open, is_locked=locked)
-        env.put_obj(self.door, *door_pos)
-
-    @property
-    def color(self) -> str:
-        """
-        Color of room door.
-        """
-        return self.door.color
-
-    @property
-    def is_open(self) -> bool:
-        """
-        Whether the room door is open.
-        """
-        return self.door.is_open
-
-    @property
-    def is_locked(self) -> bool:
-        """
-        Whether the room door is locked.
-        """
-        return self.door.is_locked
-
-    def place_obj(self, obj: WorldObj):
-        """
-        Place object at random position within room.
-
-        Parameters
-        ----------
-        obj : WorldObj
-            Object to place
-        """
-        self.env.place_obj(obj, top=self.top, size=self.size)
 
 
 
@@ -291,3 +207,83 @@ class LockedHallwayEnv(MultiGridEnv):
                 terminated[agent.index] = True
 
         return obs, reward, terminated, truncated, info
+
+
+class Room:
+
+    def __init__(
+        self,
+        env: MultiGridEnv,
+        top: tuple[int, int],
+        size: tuple[int, int],
+        door_pos: tuple[int, int],
+        color: str,
+        open: bool = False,
+        locked: bool = True,
+    ):
+        """
+        Parameters
+        ----------
+        env : MultiGridEnv
+            Environment
+        top : tuple[int, int]
+            Top-left position of the room
+        size : tuple[int, int]
+            Tuple of room size as (width, height)
+        door_pos : tuple[int, int]
+            Position of room door
+        color : str
+            Color of room door
+        open : bool, default=False
+            Whether room door is open
+        locked : bool, default=True
+            Whether room door is locked
+        """
+        self.env = env
+        self.top = top
+        self.size = size
+
+        # Get bounds
+        left, top = top
+        width = min(size[0], env.grid.width - left)
+        height = min(size[1], env.grid.height - top)
+
+        # Create walls
+        env.grid.wall_rect(left, top, width, height)
+
+        # Create door
+        self.door_pos = door_pos
+        self.door = Door(color=color, is_open=open, is_locked=locked)
+        env.put_obj(self.door, *door_pos)
+
+    @property
+    def color(self) -> str:
+        """
+        Color of room door.
+        """
+        return self.door.color
+
+    @property
+    def is_open(self) -> bool:
+        """
+        Whether the room door is open.
+        """
+        return self.door.is_open
+
+    @property
+    def is_locked(self) -> bool:
+        """
+        Whether the room door is locked.
+        """
+        return self.door.is_locked
+
+    def place_obj(self, obj: WorldObj):
+        """
+        Place object at random position within room.
+
+        Parameters
+        ----------
+        obj : WorldObj
+            Object to place
+        """
+        self.env.place_obj(obj, top=self.top, size=self.size)

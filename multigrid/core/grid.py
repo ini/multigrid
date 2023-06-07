@@ -241,7 +241,7 @@ class Grid:
             obj.render(img)
 
         # Draw the agent
-        if agent is not None:
+        if agent is not None and not agent.state.terminated:
             agent.render(img)
 
         # Highlight the cell if needed

@@ -1,39 +1,32 @@
 from __future__ import annotations
 
 from multigrid import MultiGridEnv
-from multigrid.core import Grid
-from multigrid.core.constants import Direction
-from multigrid.core.world_object import Goal
+from multigrid.core import Action, Grid, MissionSpace
+from multigrid.core.constants import Color
+from multigrid.core.world_object import Door
 
 
 
-class EmptyEnv(MultiGridEnv):
+class RedBlueDoorEnv(MultiGridEnv):
     """
-    .. image:: https://i.imgur.com/wY0tT7R.gif
-        :width: 200
+    :no-undoc-members:
 
     ***********
     Description
     ***********
 
-    This environment is an empty room, and the goal for each agent is to reach the
-    green goal square, which provides a sparse reward. A small penalty is subtracted
-    for the number of steps to reach the goal.
-
-    The standard setting is competitive, where agents race to the goal, and
-    only the winner receives a reward.
-
-    This environment is useful with small rooms, to validate that your RL algorithm
-    works correctly, and with large rooms to experiment with sparse rewards and
-    exploration. The random variants of the environment have the agents starting
-    at a random position for each episode, while the regular variants have the
-    agent always starting in the corner opposite to the goal.
+    This environment is a room with one red and one blue door facing
+    opposite directions. Agents must open the red door and then open the blue door,
+    in that order.
+    
+    The standard setting is cooperative, where all agents receive the reward
+    upon completion of the task.
 
     *************
     Mission Space
     *************
 
-    "get to the green goal square"
+    "open the red door then the blue door"
 
     *****************
     Observation Space
@@ -93,44 +86,37 @@ class EmptyEnv(MultiGridEnv):
 
     The episode ends if any one of the following conditions is met:
 
-    * Any agent reaches the goal
+    * Any agent opens the blue door while the red door is open (success)
+    * Any agent opens the blue door while the red door is not open (failure)
     * Timeout (see ``max_steps``)
 
     *************************
     Registered Configurations
     *************************
 
-    * ``MultiGrid-Empty-5x5-v0``
-    * ``MultiGrid-Empty-Random-5x5-v0``
-    * ``MultiGrid-Empty-6x6-v0``
-    * ``MultiGrid-Empty-Random-6x6-v0``
-    * ``MultiGrid-Empty-8x8-v0``
-    * ``MultiGrid-Empty-16x16-v0``
+    * ``MultiGrid-RedBlueDoors-6x6-v0``
+    * ``MultiGrid-RedBlueDoors-8x8-v0``
     """
 
     def __init__(
         self,
         size: int = 8,
-        agent_start_pos: tuple[int, int] = (1, 1),
-        agent_start_dir: Direction = Direction.right,
         max_steps: int | None = None,
-        joint_reward: bool = False,
+        joint_reward: bool = True,
         success_termination_mode: str = 'any',
+        failure_termination_mode: str = 'any',
         **kwargs):
 
-        self.agent_start_pos = agent_start_pos
-        self.agent_start_dir = agent_start_dir
-
-        if max_steps is None:
-            max_steps = 4 * size**2
-
+        self.size = size
+        mission_space = MissionSpace.from_string("open the red door then the blue door")
         super().__init__(
-            mission_space="get to the green goal square",
-            grid_size=size,
-            see_through_walls=True, # set this to True for maximum speed
-            max_steps=max_steps,
+            mission_space=mission_space,
+            width=(2 * size),
+            height=size,
+            max_steps=max_steps or (20 * size**2),
             joint_reward=joint_reward,
             success_termination_mode=success_termination_mode,
+            failure_termination_mode=failure_termination_mode,
             **kwargs,
         )
 
@@ -141,16 +127,42 @@ class EmptyEnv(MultiGridEnv):
         # Create an empty grid
         self.grid = Grid(width, height)
 
-        # Generate the surrounding walls
+        # Generate the grid walls
+        room_top = (width // 4, 0)
+        room_size = (width // 2, height)
         self.grid.wall_rect(0, 0, width, height)
+        self.grid.wall_rect(*room_top, *room_size)
 
-        # Place a goal square in the bottom-right corner
-        self.put_obj(Goal(), width - 2, height - 2)
-
-        # Place the agent
+        # Place agents in the top-left corner
         for agent in self.agents:
-            if self.agent_start_pos is not None:
-                agent.state.pos = self.agent_start_pos
-                agent.state.dir = self.agent_start_dir
-            else:
-                self.place_agent(agent)
+            self.place_agent(agent, top=room_top, size=room_size)
+
+        # Add a red door at a random position in the left wall
+        x = room_top[0]
+        y = self._rand_int(1, height - 1)
+        self.red_door = Door(Color.red)
+        self.grid.set(x, y, self.red_door)
+
+        # Add a blue door at a random position in the right wall
+        x = room_top[0] + room_size[0] - 1
+        y = self._rand_int(1, height - 1)
+        self.blue_door = Door(Color.blue)
+        self.grid.set(x, y, self.blue_door)
+
+    def step(self, actions):
+        """
+        :meta private:
+        """
+        obs, reward, terminated, truncated, info = super().step(actions)
+
+        for agent_id, action in actions.items():
+            if action == Action.toggle:
+                agent = self.agents[agent_id]
+                fwd_obj = self.grid.get(*agent.front_pos)
+                if fwd_obj == self.blue_door and self.blue_door.is_open:
+                    if self.red_door.is_open:
+                        self.on_goal(agent, reward, terminated)
+                    else:
+                        self.on_failure(agent, reward, terminated)
+
+        return obs, reward, terminated, truncated, info

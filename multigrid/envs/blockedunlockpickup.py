@@ -19,6 +19,9 @@ class BlockedUnlockPickupEnv(RoomGrid):
     pick up the key, open the door and pick up the object in the other
     room.
 
+    The standard setting is cooperative, where all agents receive the reward
+    when the task is completed.
+
     *************
     Mission Space
     *************
@@ -96,7 +99,11 @@ class BlockedUnlockPickupEnv(RoomGrid):
     """
 
     def __init__(
-        self, room_size=6, max_steps: int | None = None, joint_reward=True, **kwargs):
+        self,
+        room_size: int = 6,
+        max_steps: int | None = None,
+        joint_reward: bool = True,
+        **kwargs):
 
         assert room_size >= 4
         if max_steps is None:
@@ -114,6 +121,7 @@ class BlockedUnlockPickupEnv(RoomGrid):
             room_size=room_size,
             max_steps=max_steps,
             joint_reward=joint_reward,
+            success_termination_mode='any',
             **kwargs,
         )
 
@@ -150,7 +158,6 @@ class BlockedUnlockPickupEnv(RoomGrid):
         obs, reward, terminated, truncated, info = super().step(actions)
         for agent in self.agents:
             if agent.state.carrying == self.obj:
-                self.on_goal(agent, reward)
+                self.on_success(agent, reward, terminated)
 
-        terminated = {agent.index: agent.state.terminated for agent in self.agents}
         return obs, reward, terminated, truncated, info
