@@ -98,18 +98,99 @@ class Room:
 
 
 
-class LockedRoomEnv(MultiGridEnv):
+class LockedHallwayEnv(MultiGridEnv):
     """
+    ***********
+    Description
+    ***********
+
+    This environment consists of a hallway with multiple locked rooms on either side.
+    To unlock each door, agents must first find the corresponding key,
+    which may be in a different room. Agents are rewarded for each door they open.
+
+    *************
+    Mission Space
+    *************
+
+    "open all the doors"
+
+    *****************
+    Observation Space
+    *****************
+
+    The multi-agent observation space is a Dict mapping from agent index to
+    corresponding agent observation space.
+
+    Each agent observation is a dictionary with the following entries:
+
+    * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
+        Encoding of the agent's partially observable view of the environment,
+        where each grid cell is encoded as a 3 dimensional tuple:
+        (:class:`.Type`, :class:`.Color`, :class:`.State`)
+    * direction : int
+        Agent's direction (0: right, 1: down, 2: left, 3: up)
+    * mission : Mission
+        Task string corresponding to the current environment configuration
+
+    ************
+    Action Space
+    ************
+
+    The multi-agent action space is a Dict mapping from agent index to
+    corresponding agent action space.
+
+    Agent actions are discrete integer values, given by:
+
+    +-----+--------------+-----------------------------+
+    | Num | Name         | Action                      |
+    +=====+==============+=============================+
+    | 0   | left         | Turn left                   |
+    +-----+--------------+-----------------------------+
+    | 1   | right        | Turn right                  |
+    +-----+--------------+-----------------------------+
+    | 2   | forward      | Move forward                |
+    +-----+--------------+-----------------------------+
+    | 3   | pickup       | Pick up an object           |
+    +-----+--------------+-----------------------------+
+    | 4   | drop         | Drop an object              |
+    +-----+--------------+-----------------------------+
+    | 5   | toggle       | Toggle / activate an object |
+    +-----+--------------+-----------------------------+
+    | 6   | done         | Done completing task        |
+    +-----+--------------+-----------------------------+
+
+    *******
+    Rewards
+    *******
+
+    A reward of ``1 - 0.9 * (step_count / max_steps)`` is given
+    when each door is opened.
+
+    ***********
+    Termination
+    ***********
+
+    The episode ends if any one of the following conditions is met:
+
+    * All doors are opened
+    * Timeout (see ``max_steps``)
+
+    *************************
+    Registered Configurations
+    *************************
+
+    * ``MultiGrid-LockedHallway-4Rooms-v0``
+    * ``MultiGrid-LockedHallway-6Rooms-v0``
     """
 
     def __init__(
         self,
-        grid_size=13,
-        max_steps=None,
-        joint_reward=True,
         num_rooms=4,
         max_hallway_keys=1,
         max_keys_per_room=2,
+        grid_size=13,
+        max_steps=None,
+        joint_reward=True,
         **kwargs):
 
         self.num_rooms = num_rooms

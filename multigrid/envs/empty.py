@@ -92,6 +92,17 @@ class EmptyEnv(MultiGridEnv):
 
     * Any agent reaches the goal
     * Timeout (see ``max_steps``)
+
+    *************************
+    Registered Configurations
+    *************************
+
+    * ``MultiGrid-Empty-5x5-v0``
+    * ``MultiGrid-Empty-Random-5x5-v0``
+    * ``MultiGrid-Empty-6x6-v0``
+    * ``MultiGrid-Empty-Random-6x6-v0``
+    * ``MultiGrid-Empty-8x8-v0``
+    * ``MultiGrid-Empty-16x16-v0``
     """
 
     def __init__(

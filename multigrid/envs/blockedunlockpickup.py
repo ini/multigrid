@@ -87,18 +87,25 @@ class BlockedUnlockPickupEnv(RoomGrid):
 
     * Any agent picks up the correct box
     * Timeout (see ``max_steps``)
+
+    *************************
+    Registered Configurations
+    *************************
+
+    * ``MultiGrid-BlockedUnlockPickup-v0``
     """
 
     def __init__(
         self, room_size=6, max_steps: int | None = None, joint_reward=True, **kwargs):
 
+        assert room_size >= 4
+        if max_steps is None:
+            max_steps = 16 * room_size**2
+
         mission_space = MissionSpace(
             mission_func=self._gen_mission,
             ordered_placeholders=[list(Color), [Type.box, Type.key]],
         )
-
-        if max_steps is None:
-            max_steps = 16 * room_size**2
 
         super().__init__(
             mission_space=mission_space,

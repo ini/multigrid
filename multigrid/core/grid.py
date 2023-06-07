@@ -22,7 +22,7 @@ from ..utils.rendering import (
 
 class Grid:
     """
-    Represent a grid and operations on it.
+    Representation of an environment grid.
 
     Attributes
     ----------
@@ -31,9 +31,9 @@ class Grid:
     height : int
         Height of the grid
     world_objects : dict[tuple[int, int], WorldObj]
-        Dictionary of world objects in the grid, indexed by location
+        Dictionary of world objects in the grid, indexed by (x, y) location
     state : ndarray[int] of shape (width, height, WorldObj.dim)
-        Grid state, where each (i, j) entry is a WorldObj encoding
+        Grid state, where each (x, y) entry is a WorldObj encoding
     """
 
     # Static cache of pre-renderer tiles
