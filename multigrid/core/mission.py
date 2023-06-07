@@ -11,7 +11,7 @@ class Mission(np.ndarray):
     Class representing an agent mission.
     """
 
-    def __new__(cls, string: str, index: Iterable[int] = ()):
+    def __new__(cls, string: str, index: Iterable[int] | None = None):
         """
         Parameters
         ----------
@@ -20,7 +20,7 @@ class Mission(np.ndarray):
         index : Iterable[int]
             Index of mission string in :class:`MissionSpace`
         """
-        mission = index or np.array(0)
+        mission = np.array(0 if index is None else index)
         mission = mission.view(cls)
         mission.string = string
         return mission.view(cls)
