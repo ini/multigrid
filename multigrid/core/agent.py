@@ -35,18 +35,18 @@ class Agent:
 
     :Observation Space:
 
-    Observations are dictionaries with the following entries:
+        Observations are dictionaries with the following entries:
 
-    * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
-        Encoding of the agent's view of the environment
-    * direction : int
-        Agent's direction (0: right, 1: down, 2: left, 3: up)
-    * mission : Mission
-        Task string corresponding to the current environment configuration
+            * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
+                Encoding of the agent's view of the environment
+            * direction : int
+                Agent's direction (0: right, 1: down, 2: left, 3: up)
+            * mission : Mission
+                Task string corresponding to the current environment configuration
 
     :Action Space:
 
-    Actions are discrete integers, as enumerated in :class:`.Action`.
+        Actions are discrete integers, as enumerated in :class:`.Action`.
 
     Attributes
     ----------

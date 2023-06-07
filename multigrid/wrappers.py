@@ -16,9 +16,38 @@ class OneHotObsWrapper(ObservationWrapper):
     """
     Wrapper to get a one-hot encoding of a partially observable
     agent view as observation.
+
+    Examples
+    --------
+    >>> from multigrid.envs import EmptyEnv
+    >>> from multigrid.wrappers import OneHotObsWrapper
+    >>> env = EmptyEnv()
+    >>> obs, _ = env.reset()
+    >>> obs[0]['image'][0, :, :]
+    array([[2, 5, 0],
+            [2, 5, 0],
+            [2, 5, 0],
+            [2, 5, 0],
+            [2, 5, 0],
+            [2, 5, 0],
+            [2, 5, 0]])
+    >>> env = OneHotObsWrapper(env)
+    >>> obs, _ = env.reset()
+    >>> obs[0]['image'][0, :, :]
+    array([[0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0]],
+            dtype=uint8)
     """
 
     def __init__(self, env: MultiGridEnv):
+        """
+        :meta private:
+        """
         super().__init__(env)
         self.dim_sizes = np.array([
             len(Type), len(Color), max(len(State), len(Direction))])
@@ -31,6 +60,9 @@ class OneHotObsWrapper(ObservationWrapper):
                 low=0, high=1, shape=(view_height, view_width, dim), dtype=np.uint8)
 
     def observation(self, obs: dict[AgentID, ObsType]) -> dict[AgentID, ObsType]:
+        """
+        :meta private:
+        """
         for agent_id in obs:
             obs[agent_id]['image'] = self.one_hot(obs[agent_id]['image'], self.dim_sizes)
 
@@ -40,6 +72,9 @@ class OneHotObsWrapper(ObservationWrapper):
     @nb.njit(cache=True)
     def one_hot(x: ndarray[np.int], dim_sizes: ndarray[np.int]) -> ndarray[np.uint8]:
         """
+        Return a one-hot encoding of a 3D integer array,
+        where each 2D slice is encoded separately.
+
         Parameters
         ----------
         x : ndarray[int] of shape (view_height, view_width, dim)
@@ -51,6 +86,8 @@ class OneHotObsWrapper(ObservationWrapper):
         -------
         out : ndarray[uint8] of shape (view_height, view_width, sum(dim_sizes))
             One-hot encoding
+
+        :meta private:
         """
         out = np.zeros((x.shape[0], x.shape[1], sum(dim_sizes)), dtype=np.uint8)
 

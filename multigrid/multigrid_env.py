@@ -36,32 +36,36 @@ ObsType = dict[str, Any]
 
 class MultiGridEnv(gym.Env, ABC):
     """
-    Multi-agent 2D gridworld game environment.
+    Base for multi-agent 2D gridworld environments.
 
-    Agents are identified by their index, from ``0`` to ``NUM_AGENTS-1``.
+    :Agents:
 
-    **Observation Space**
+        The environment can be configured with any fixed number of agents.
+        Agents are represented by :class:`.Agent` instances, and are
+        identified by their index, from ``0`` to ``len(env.agents) - 1``.
 
-    The multi-agent observation space is a Dict mapping from agent index to
-    corresponding agent observation space.
+    :Observation Space:
 
-    The standard agent observation is a dictionary with the following entries:
+        The multi-agent observation space is a Dict mapping from agent index to
+        corresponding agent observation space.
 
-    * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
-        Encoding of the agent's view of the environment,
-        where each grid object is encoded as a 3 dimensional tuple:
-        (:class:`.Type`, :class:`.Color`, :class:`.State`)
-    * direction : int
-        Agent's direction (0: right, 1: down, 2: left, 3: up)
-    * mission : Mission
-        Task string corresponding to the current environment configuration
+        The standard agent observation is a dictionary with the following entries:
 
-    **Action Space**
+            * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
+                Encoding of the agent's view of the environment,
+                where each grid object is encoded as a 3 dimensional tuple:
+                (:class:`.Type`, :class:`.Color`, :class:`.State`)
+            * direction : int
+                Agent's direction (0: right, 1: down, 2: left, 3: up)
+            * mission : Mission
+                Task string corresponding to the current environment configuration
 
-    The multi-agent action space is a Dict mapping from agent index to
-    corresponding agent action space.
+    :Action Space:
 
-    Agent actions are discrete integers, as enumerated in :class:`.Action`.
+        The multi-agent action space is a Dict mapping from agent index to
+        corresponding agent action space.
+
+        Agent actions are discrete integers, as enumerated in :class:`.Action`.
 
     Attributes
     ----------
