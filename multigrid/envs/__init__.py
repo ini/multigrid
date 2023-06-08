@@ -3,7 +3,7 @@
 Environments
 ************
 
-This module contains implementations of several MultiGrid environments.
+This package contains implementations of several MultiGrid environments.
 
 **************
 Configurations

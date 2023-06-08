@@ -47,49 +47,6 @@ LOCKED = State.locked.to_index()
 ### World Object Qualities
 
 @nb.njit(cache=True)
-def can_overlap(obj: WorldObj | None) -> bool:
-    """
-    Can an agent overlap with this?
-
-    Parameters
-    ----------
-    obj : WorldObj or None
-        Object to check
-    """
-    if obj is None:
-        return True
-    if obj[TYPE] in {EMPTY, FLOOR, GOAL, LAVA}:
-        return True
-    elif obj[TYPE] == DOOR and obj[STATE] == OPEN:
-        return True
-
-    return False
-
-@nb.njit(cache=True)
-def can_pickup(obj: WorldObj | None) -> bool:
-    """
-    Can an agent pick this up?
-
-    Parameters
-    ----------
-    obj : WorldObj or None
-        Object to check
-    """
-    return obj is not None and obj[TYPE] in {KEY, BALL, BOX}
-
-@nb.njit(cache=True)
-def can_contain(obj: WorldObj | None) -> bool:
-    """
-    Can this contain another object?
-
-    Parameters
-    ----------
-    obj : WorldObj
-        Object to check
-    """
-    return obj is not None and obj[TYPE] == BOX
-
-@nb.njit(cache=True)
 def see_behind(obj: WorldObj | None) -> bool:
     """
     Can an agent see behind this object?
@@ -146,8 +103,8 @@ class WorldObj(np.ndarray):
         obj[TYPE] = Type(type).to_index()
         obj[COLOR] = Color(color).to_index()
         obj.contains: WorldObj | None = None # object contained by this object
-        obj.init_pos = None # initial position of the object
-        obj.cur_pos = None # current position of the object
+        obj.init_pos: tuple[int, int] | None = None # initial position of the object
+        obj.cur_pos: tuple[int, int] | None = None # current position of the object
         return obj
 
     def __bool__(self) -> bool:
@@ -241,6 +198,24 @@ class WorldObj(np.ndarray):
         """
         self[STATE] = State(value)
 
+    def can_overlap(self) -> bool:
+        """
+        Can an agent overlap with this?
+        """
+        return self is None or self.type == Type.empty
+
+    def can_pickup(self) -> bool:
+        """
+        Can an agent pick this up?
+        """
+        return False
+
+    def can_contain(self) -> bool:
+        """
+        Can this contain another object?
+        """
+        return False
+
     def toggle(self, env: MultiGridEnv, agent: Agent, pos: tuple[int, int]) -> bool:
         """
         Toggle the state of this object or trigger an action this object performs.
@@ -316,6 +291,12 @@ class Goal(WorldObj):
         """
         return super().__new__(cls, type='goal', color='green')
 
+    def can_overlap(self) -> bool:
+        """
+        Can an agent overlap with this?
+        """
+        return True
+
     def render(self, img):
         """
         :meta private:
@@ -338,6 +319,12 @@ class Floor(WorldObj):
         """
         return super().__new__(cls, type='floor', color=color)
 
+    def can_overlap(self) -> bool:
+        """
+        Can an agent overlap with this?
+        """
+        return True
+
     def render(self, img):
         """
         :meta private:
@@ -357,6 +344,12 @@ class Lava(WorldObj):
         """
         """
         return super().__new__(cls, type='lava', color='red')
+
+    def can_overlap(self) -> bool:
+        """
+        Can an agent overlap with this?
+        """
+        return True
 
     def render(self, img):
         """
@@ -465,6 +458,12 @@ class Door(WorldObj):
         elif not self.is_open:
             self.state = 'closed' # set state to closed (unless already open)
 
+    def can_overlap(self) -> bool:
+        """
+        Can an agent overlap with this?
+        """
+        return self.is_open
+
     def toggle(self, env, agent, pos):
         """
         :meta private:
@@ -526,6 +525,12 @@ class Key(WorldObj):
         """
         return super().__new__(cls, type='key', color=color)
 
+    def can_pickup(self) -> bool:
+        """
+        :meta private:
+        """
+        return True
+
     def render(self, img):
         """
         :meta private:
@@ -558,6 +563,12 @@ class Ball(WorldObj):
         """
         return super().__new__(cls, type='ball', color=color)
 
+    def can_pickup(self) -> bool:
+        """
+        :meta private:
+        """
+        return True
+
     def render(self, img):
         """
         :meta private:
@@ -582,6 +593,18 @@ class Box(WorldObj):
         box = super().__new__(cls, type='box', color=color)
         box.contains = contains
         return box
+
+    def can_pickup(self) -> bool:
+        """
+        :meta private:
+        """
+        return True
+
+    def can_contain(self) -> bool:
+        """
+        :meta private:
+        """
+        return True
 
     def toggle(self, env, agent, pos):
         """

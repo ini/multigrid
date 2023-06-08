@@ -18,7 +18,6 @@ from .core.constants import Color, Type, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
-from .core.world_object import can_overlap, can_pickup
 from .utils.obs import gen_obs_grid_encoding
 from .utils.misc import dict_update_all
 
@@ -261,7 +260,7 @@ class MultiGridEnv(gym.Env, ABC):
         # Check that agents don't overlap with other objects
         for agent in self.agents:
             start_cell = self.grid.get(*agent.state.pos)
-            assert can_overlap(start_cell)
+            assert WorldObj.can_overlap(start_cell)
 
         # Step count since episode start
         self.step_count = 0
@@ -397,27 +396,26 @@ class MultiGridEnv(gym.Env, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if can_overlap(fwd_obj):
-                    if self.allow_agent_overlap:
-                        agent.state.pos = fwd_pos
-                    else:
+                if WorldObj.can_overlap(fwd_obj):
+                    if not self.allow_agent_overlap:
                         agent_present = np.bitwise_and.reduce(
                             self.agent_state.pos == fwd_pos, axis=1).any()
-                        if not agent_present:
-                            agent.state.pos = fwd_pos
+                        if agent_present:
+                            continue
 
-                if fwd_obj is not None:
-                    if fwd_obj.type == Type.goal:
-                        self.on_success(agent, reward, terminated)
-                    if fwd_obj.type == Type.lava:
-                        self.on_failure(agent, reward, terminated)
+                    agent.state.pos = fwd_pos
+                    if fwd_obj is not None:
+                        if fwd_obj.type == Type.goal:
+                            self.on_success(agent, reward, terminated)
+                        if fwd_obj.type == Type.lava:
+                            self.on_failure(agent, reward, terminated)
 
             # Pick up an object
             elif action == Action.pickup:
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if can_pickup(fwd_obj):
+                if WorldObj.can_pickup(fwd_obj):
                     if agent.state.carrying is None:
                         agent.state.carrying = fwd_obj
                         self.grid.set(*fwd_pos, None)
