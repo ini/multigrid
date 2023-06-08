@@ -44,7 +44,7 @@ class BlockedUnlockPickupEnv(RoomGrid):
 
     * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
         Encoding of the agent's partially observable view of the environment,
-        where each grid cell is encoded as a 3 dimensional tuple:
+        where the object at each grid cell is encoded as a vector:
         (:class:`.Type`, :class:`.Color`, :class:`.State`)
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
@@ -107,22 +107,29 @@ class BlockedUnlockPickupEnv(RoomGrid):
         max_steps: int | None = None,
         joint_reward: bool = True,
         **kwargs):
-
+        """
+        Parameters
+        ----------
+        room_size : int, default=6
+            Width and height for each of the two rooms
+        max_steps : int, optional
+            Maximum number of steps per episode
+        joint_reward : bool, default=True
+            Whether all agents receive the reward when the task is completed
+        **kwargs
+            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+        """
         assert room_size >= 4
-        if max_steps is None:
-            max_steps = 16 * room_size**2
-
         mission_space = MissionSpace(
             mission_func=self._gen_mission,
             ordered_placeholders=[list(Color), [Type.box, Type.key]],
         )
-
         super().__init__(
             mission_space=mission_space,
             num_rows=1,
             num_cols=2,
             room_size=room_size,
-            max_steps=max_steps,
+            max_steps=max_steps or (16 * room_size**2),
             joint_reward=joint_reward,
             success_termination_mode='any',
             **kwargs,
@@ -139,7 +146,7 @@ class BlockedUnlockPickupEnv(RoomGrid):
         super()._gen_grid(width, height)
 
         # Add a box to the room on the right
-        obj, _ = self.add_object(1, 0, kind="box")
+        obj, _ = self.add_object(1, 0, kind='box')
         # Make sure the two rooms are directly connected by a locked door
         door, pos = self.add_door(0, 0, 0, locked=True)
         # Block the door with a ball

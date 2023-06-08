@@ -46,7 +46,7 @@ class EmptyEnv(MultiGridEnv):
 
     * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
         Encoding of the agent's partially observable view of the environment,
-        where each grid cell is encoded as a 3 dimensional tuple:
+        where the object at each grid cell is encoded as a vector:
         (:class:`.Type`, :class:`.Color`, :class:`.State`)
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
@@ -111,24 +111,39 @@ class EmptyEnv(MultiGridEnv):
     def __init__(
         self,
         size: int = 8,
-        agent_start_pos: tuple[int, int] = (1, 1),
-        agent_start_dir: Direction = Direction.right,
+        agent_start_pos: tuple[int, int] | None = (1, 1),
+        agent_start_dir: Direction | None = Direction.right,
         max_steps: int | None = None,
         joint_reward: bool = False,
         success_termination_mode: str = 'any',
         **kwargs):
-
+        """
+        Parameters
+        ----------
+        size : int, default=8
+            Width and height of the grid
+        agent_start_pos : tuple[int, int], default=(1, 1)
+            Starting position of the agents (random if None)
+        agent_start_dir : Direction, default=Direction.right
+            Starting direction of the agents (random if None)
+        max_steps : int, optional
+            Maximum number of steps per episode
+        joint_reward : bool, default=True
+            Whether all agents receive the reward when the task is completed
+        success_termination_mode : 'any' or 'all', default='any'
+            Whether to terminate the environment when any agent reaches the goal
+            or after all agents reach the goal
+        **kwargs
+            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+        """
         self.agent_start_pos = agent_start_pos
         self.agent_start_dir = agent_start_dir
-
-        if max_steps is None:
-            max_steps = 4 * size**2
 
         super().__init__(
             mission_space="get to the green goal square",
             grid_size=size,
             see_through_walls=True, # set this to True for maximum speed
-            max_steps=max_steps,
+            max_steps=max_steps or (4 * size**2),
             joint_reward=joint_reward,
             success_termination_mode=success_termination_mode,
             **kwargs,
@@ -149,7 +164,7 @@ class EmptyEnv(MultiGridEnv):
 
         # Place the agent
         for agent in self.agents:
-            if self.agent_start_pos is not None:
+            if self.agent_start_pos is not None and self.agent_start_dir is not None:
                 agent.state.pos = self.agent_start_pos
                 agent.state.dir = self.agent_start_dir
             else:

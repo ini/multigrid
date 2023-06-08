@@ -40,7 +40,7 @@ class RedBlueDoorEnv(MultiGridEnv):
 
     * image : ndarray[int] of shape (view_size, view_size, :attr:`.WorldObj.dim`)
         Encoding of the agent's partially observable view of the environment,
-        where each grid cell is encoded as a 3 dimensional tuple:
+        where the object at each grid cell is encoded as a vector:
         (:class:`.Type`, :class:`.Color`, :class:`.State`)
     * direction : int
         Agent's direction (0: right, 1: down, 2: left, 3: up)
@@ -107,7 +107,24 @@ class RedBlueDoorEnv(MultiGridEnv):
         success_termination_mode: str = 'any',
         failure_termination_mode: str = 'any',
         **kwargs):
-
+        """
+        Parameters
+        ----------
+        size : int, default=8
+            Width and height of the grid
+        max_steps : int, optional
+            Maximum number of steps per episode
+        joint_reward : bool, default=True
+            Whether all agents receive the reward when the task is completed
+        success_termination_mode : 'any' or 'all', default='any'
+            Whether to terminate the environment when any agent fails the task
+            or after all agents fail the task
+        failure_termination_mode : 'any' or 'all', default='any'
+            Whether to terminate the environment when any agent fails the task
+            or after all agents fail the task
+        **kwargs
+            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+        """
         self.size = size
         mission_space = MissionSpace.from_string("open the red door then the blue door")
         super().__init__(
@@ -165,5 +182,6 @@ class RedBlueDoorEnv(MultiGridEnv):
                         self.on_success(agent, reward, terminated)
                     else:
                         self.on_failure(agent, reward, terminated)
+                        self.blue_door.is_open = False # close the door again
 
         return obs, reward, terminated, truncated, info
