@@ -153,7 +153,7 @@ class WorldObj(np.ndarray):
     def __bool__(self) -> bool:
         return self.type != 'empty'
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}(color={self.color})"
 
     def __eq__(self, other: Any):

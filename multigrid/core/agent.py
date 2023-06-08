@@ -19,16 +19,6 @@ from ..utils.rendering import (
 
 
 
-# AgentState Indices
-TYPE = 0
-COLOR = 1
-DIR = 2
-POS = slice(3, 5)
-TERMINATED = 5
-CARRYING = slice(6, 6 + WorldObj.dim)
-
-
-
 class Agent:
     """
     Class representing an agent in the environment.
@@ -66,7 +56,6 @@ class Agent:
         self,
         index: int,
         mission_space: MissionSpace = MissionSpace.from_string('maximize reward'),
-        state: AgentState | None = None,
         view_size: int = 7,
         see_through_walls: bool = False):
         """
@@ -76,15 +65,13 @@ class Agent:
             Index of the agent in the environment
         mission_space : MissionSpace
             The mission space for the agent
-        state : AgentState or None
-            AgentState object to use for the agent
         view_size : int
             The size of the agent's view (must be odd)
         see_through_walls : bool
             Whether the agent can see through walls
         """
         self.index: int = index
-        self.state: AgentState = AgentState() if state is None else state
+        self.state: AgentState = AgentState()
         self.mission: Mission = None
 
         # Number of cells (width and height) in the agent view
@@ -109,7 +96,7 @@ class Agent:
         # Actions are discrete integer values
         self.action_space = spaces.Discrete(len(Action))
 
-    # Property Aliases
+    # AgentState Properties
     color = PropertyAlias(
         'state', 'color', doc='Alias for :attr:`AgentState.color`.')
     dir = PropertyAlias(
@@ -126,8 +113,8 @@ class Agent:
         """
         Get the position of the cell that is directly in front of the agent.
         """
-        agent_dir = self.state._view[DIR]
-        agent_pos = self.state._view[POS]
+        agent_dir = self.state._view[AgentState.DIR]
+        agent_pos = self.state._view[AgentState.POS]
         return front_pos(*agent_pos, agent_dir)
 
     def reset(self, mission: Mission = Mission('maximize reward')):
@@ -185,8 +172,7 @@ class AgentState(np.ndarray):
     State for an :class:`.Agent` object.
 
     ``AgentState`` objects also support vectorized operations,
-    in which case the ``AgentState`` object represents a "batch" of states
-    over multiple agents.
+    in which case the ``AgentState`` object represents the states of multiple agents.
 
     Attributes
     ----------
@@ -233,10 +219,16 @@ class AgentState(np.ndarray):
     >>> a.dir
     2
     """
-    dim = max(
-        i.stop if isinstance(i, slice) else i + 1
-        for i in (TYPE, COLOR, DIR, POS, TERMINATED, CARRYING)
-    )
+    # State vector indices
+    TYPE = 0
+    COLOR = 1
+    DIR = 2
+    POS = slice(3, 5)
+    TERMINATED = 5
+    CARRYING = slice(6, 6 + WorldObj.dim)
+
+    # State vector dimension
+    dim = 6 + WorldObj.dim
 
     def __new__(cls, *dims: int):
         """
@@ -248,8 +240,8 @@ class AgentState(np.ndarray):
         obj = np.zeros(dims + (cls.dim,), dtype=int).view(cls)
 
         # Set default values
-        obj[..., TYPE] = Type.agent # type
-        obj[..., COLOR].flat = np.arange(np.prod(dims), dtype=int) % len(Color) # color
+        obj[..., AgentState.TYPE] = Type.agent
+        obj[..., AgentState.COLOR].flat = Color.cycle(np.prod(dims))
         obj.dir = -1
         obj.pos = (-1, -1)
         obj.terminated = False
@@ -269,6 +261,7 @@ class AgentState(np.ndarray):
         if out.shape and out.shape[-1] == self.dim:
             out._view = self._view[idx, ...]
             out._carried_obj = self._carried_obj[idx, ...] # set carried object reference
+
         return out
 
     @property
@@ -276,21 +269,21 @@ class AgentState(np.ndarray):
         """
         Return the agent color.
         """
-        return Color.from_index(self._view[..., COLOR])
+        return Color.from_index(self._view[..., AgentState.COLOR])
 
     @color.setter
     def color(self, value: str | ArrayLike[str]):
         """
         Set the agent color.
         """
-        self[..., COLOR] = np.vectorize(lambda c: Color(c).to_index())(value)
+        self[..., AgentState.COLOR] = np.vectorize(lambda c: Color(c).to_index())(value)
 
     @property
     def dir(self) -> Direction | ndarray[np.int]:
         """
         Return the agent direction.
         """
-        out = self._view[..., DIR]
+        out = self._view[..., AgentState.DIR]
         return Direction(out) if out.ndim == 0 else out
 
     @dir.setter
@@ -298,14 +291,14 @@ class AgentState(np.ndarray):
         """
         Set the agent direction.
         """
-        self[..., DIR] = value
+        self[..., AgentState.DIR] = value
 
     @property
     def pos(self) -> tuple[int, int] | ndarray[np.int]:
         """
         Return the agent's (x, y) position.
         """
-        out = self._view[..., POS]
+        out = self._view[..., AgentState.POS]
         return tuple(out) if out.ndim == 1 else out
 
     @pos.setter
@@ -313,14 +306,14 @@ class AgentState(np.ndarray):
         """
         Set the agent's (x, y) position.
         """
-        self[..., POS] = value
+        self[..., AgentState.POS] = value
 
     @property
     def terminated(self) -> bool | ndarray[np.bool]:
         """
         Return whether the agent has terminated.
         """
-        out = self._view[..., TERMINATED].astype(bool)
+        out = self._view[..., AgentState.TERMINATED].astype(bool)
         return out.item() if out.ndim == 0 else out
 
     @terminated.setter
@@ -328,7 +321,7 @@ class AgentState(np.ndarray):
         """
         Set whether the agent has terminated.
         """
-        self[..., TERMINATED] = value
+        self[..., AgentState.TERMINATED] = value
 
     @property
     def carrying(self) -> WorldObj | None | ndarray[np.object]:
@@ -343,7 +336,7 @@ class AgentState(np.ndarray):
         """
         Set the object the agent is carrying.
         """
-        self[..., CARRYING] = WorldObj.empty() if obj is None else obj
+        self[..., AgentState.CARRYING] = WorldObj.empty() if obj is None else obj
         if isinstance(obj, (WorldObj, type(None))):
             self._carried_obj[...].fill(obj)
         else:

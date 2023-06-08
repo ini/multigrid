@@ -59,6 +59,13 @@ class Color(str, IndexedEnum):
     yellow = 'yellow'
     grey = 'grey'
 
+    @staticmethod
+    def cycle(n: int) -> tuple['Color', ...]:
+        """
+        Return a cycle of ``n`` colors.
+        """
+        return tuple(Color.from_index(i % len(Color)) for i in range(int(n)))
+
     def rgb(self) -> ndarray[np.uint8]:
         """
         Return the RGB value of this ``Color``.

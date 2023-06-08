@@ -161,10 +161,10 @@ class MultiGridEnv(gym.Env, ABC):
                 agent = Agent(
                     index=i,
                     mission_space=self.mission_space,
-                    state=self.agent_state[i],
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
                 )
+                agent.state = self.agent_state[i]
                 self.agents.append(agent)
         elif isinstance(agents, Iterable):
             assert {agent.index for agent in agents} == set(range(len(agents)))
