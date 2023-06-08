@@ -1,10 +1,9 @@
-# multigrid
+# MultiGrid
 
-The **`multigrid`** library provides contains a collection of fast multi-agent discrete gridworld environments for reinforcement learning in Gymnasium. The environments are designed to be fast and easily customizable.
+The **MultiGrid** library provides contains a collection of fast multi-agent discrete gridworld environments for reinforcement learning. This is a multi-agent extension of the [minigrid](https://github.com/Farama-Foundation/Minigrid) library, and the interface is designed to be as similar as possible.
 
-This is a multi-agent extension of the [`minigrid`](https://github.com/Farama-Foundation/Minigrid) library, and the interface is designed to be as similar as possible. 
 
-Compared to `minigrid`, the underlying gridworld logic is **significantly optimized**, with environment simulation 10x to 20x faster by our benchmarks.
+The environments are designed to be fast and easily customizable. Compared to minigrid, the underlying gridworld logic is **significantly optimized**, with environment simulation 10x to 20x faster by our benchmarks.
 
 ## Installation
 
@@ -13,6 +12,10 @@ Compared to `minigrid`, the underlying gridworld logic is **significantly optimi
     pip install -e .
 
 This package requires Python 3.9 or later.
+
+## Environments
+
+The `multigrid.envs` package provides implementations of several multi-agent environments. [You can find the full list here](https://ini.io/docs/multigrid/multigrid.envs).
 
 ## Documentation
 
