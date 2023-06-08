@@ -7,9 +7,9 @@ from multigrid.core.world_object import Door
 
 
 
-class RedBlueDoorEnv(MultiGridEnv):
+class RedBlueDoorsEnv(MultiGridEnv):
     """
-    .. image:: https://i.imgur.com/f0qgFkr.gif
+    .. image:: https://i.imgur.com/usbavAh.gif
         :width: 400
 
     ***********

@@ -29,7 +29,7 @@ Configurations
 from .blockedunlockpickup import BlockedUnlockPickupEnv
 from .empty import EmptyEnv
 from .locked_hallway import LockedHallwayEnv
-from .redbluedoors import RedBlueDoorEnv
+from .redbluedoors import RedBlueDoorsEnv
 
 CONFIGURATIONS = {
     'MultiGrid-BlockedUnlockPickup-v0': (BlockedUnlockPickupEnv, {}),
@@ -41,8 +41,8 @@ CONFIGURATIONS = {
     'MultiGrid-Empty-16x16-v0': (EmptyEnv, {'size': 16}),
     'MultiGrid-LockedHallway-4Rooms-v0': (LockedHallwayEnv, {'num_rooms': 4}),
     'MultiGrid-LockedHallway-6Rooms-v0': (LockedHallwayEnv, {'num_rooms': 6}),
-    'MultiGrid-RedBlueDoors-6x6-v0': (RedBlueDoorEnv, {'size': 6}),
-    'MultiGrid-RedBlueDoors-8x8-v0': (RedBlueDoorEnv, {'size': 8}),
+    'MultiGrid-RedBlueDoors-6x6-v0': (RedBlueDoorsEnv, {'size': 6}),
+    'MultiGrid-RedBlueDoors-8x8-v0': (RedBlueDoorsEnv, {'size': 8}),
 }
 
 # Register environments with gymnasium
