@@ -22,7 +22,7 @@ from ..utils.rendering import (
 
 class Grid:
     """
-    Representation of an environment grid.
+    Class representing a grid of :class:`.WorldObj` objects.
 
     Attributes
     ----------
@@ -33,7 +33,7 @@ class Grid:
     world_objects : dict[tuple[int, int], WorldObj]
         Dictionary of world objects in the grid, indexed by (x, y) location
     state : ndarray[int] of shape (width, height, WorldObj.dim)
-        Grid state, where each (x, y) entry is a WorldObj encoding
+        Grid state, where each (x, y) entry is a world object encoding
     """
 
     # Static cache of pre-renderer tiles
@@ -69,7 +69,7 @@ class Grid:
         return self.state.shape[1]
 
     @property
-    def grid(self) -> list[WorldObj]:
+    def grid(self) -> list[WorldObj | None]:
         """
         Return a list of all world objects in the grid.
         """
