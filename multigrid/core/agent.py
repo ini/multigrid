@@ -242,9 +242,8 @@ class AgentState(np.ndarray):
         # Set default values
         obj[..., AgentState.TYPE] = Type.agent
         obj[..., AgentState.COLOR].flat = Color.cycle(np.prod(dims))
-        obj.dir = -1
-        obj.pos = (-1, -1)
-        obj.terminated = False
+        obj[..., AgentState.DIR] = -1
+        obj[..., AgentState.POS] = (-1, -1)
 
         # Other attributes
         obj._carried_obj = np.empty(dims, dtype=object) # object references
