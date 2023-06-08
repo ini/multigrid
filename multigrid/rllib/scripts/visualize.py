@@ -31,6 +31,7 @@ def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]
             for agent_id in reward:
                 episode_reward[agent_id] += reward[agent_id]
 
+        frames.append(env.get_frame())
         print('Rewards:', episode_reward)
 
     env.close()
