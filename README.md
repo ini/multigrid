@@ -44,7 +44,7 @@ env.close()
 
 ## Training Agents
 
-See the [scripts folder](./) for an example training with RLlib. 
+See the [scripts folder](./scripts) for an example training with RLlib. 
 
 ## Documentation
 
