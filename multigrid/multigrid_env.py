@@ -503,6 +503,13 @@ class MultiGridEnv(gym.Env, ABC):
             agent.state.terminated = True # terminate this agent only
             terminated[agent.index] = True
 
+    def is_done(self) -> bool:
+        """
+        Return whether the current episode is finished (for all agents).
+        """
+        truncated = self.step_count >= self.max_steps
+        return all(self.agent_state.terminated | truncated)
+
     @property
     def steps_remaining(self):
         """

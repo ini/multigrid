@@ -34,14 +34,15 @@ import multigrid.envs
 env = gym.make('MultiGrid-Empty-8x8-v0', agents=2, render_mode='human')
 
 obs, info = env.reset()
-for _ in range(1000):
-   actions = {i: policies[i](obs[i]) for i in len(env.agents)}  # user-defined policy functions
-   obs, rewards, terminateds, truncateds, infos = env.step(actions) # dicts indexed by agent ID
-   if all(terminated.values()) or all(truncated.values()):
-      obs, info = env.reset()
+while not env.is_done():
+   # get random actions for each agent
+   actions = {agent.index: agent.action_space.sample() for agent in env.agents}
+
+   # step() returns dictionaries mapping from agent index to values
+   obs, rewards, terminateds, truncateds, infos = env.step(actions)
 
 env.close()
- ```
+```
 
 ## Documentation
 
