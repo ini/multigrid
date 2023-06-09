@@ -33,13 +33,11 @@ import multigrid.envs
 
 env = gym.make('MultiGrid-Empty-8x8-v0', agents=2, render_mode='human')
 
-obs, info = env.reset()
+observations, infos = env.reset()
 while not env.is_done():
-   # get random actions for each agent
+   # this is where you would insert your policy
    actions = {agent.index: agent.action_space.sample() for agent in env.agents}
-
-   # step() returns dictionaries mapping from agent index to values
-   obs, rewards, terminateds, truncateds, infos = env.step(actions)
+   observations, rewards, terminations, truncations, infos = env.step(actions)
 
 env.close()
 ```
