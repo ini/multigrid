@@ -28,10 +28,10 @@ To use a specific MultiGrid environment configuration by name:
 
     >>> import multigrid.rllib
     >>> from ray.rllib.algorithms.ppo import PPOConfig
-    >>> algorithim_config = PPOConfig().environment(env='MultiGrid-Empty-8x8-v0')
+    >>> algorithm_config = PPOConfig().environment(env='MultiGrid-Empty-8x8-v0')
 
 To convert a custom `MultiGridEnv` to an RLlib `MultiAgentEnv`:
 
     >>> from multigrid.rllib import to_rllib_env
     >>> MyRLLibEnvClass = to_rllib_env(MyEnvClass)
-    >>> algorithim_config = PPOConfig().environment(env=MyRLLibEnvClass)
+    >>> algorithm_config = PPOConfig().environment(env=MyRLLibEnvClass)
