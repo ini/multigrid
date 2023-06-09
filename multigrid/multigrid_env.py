@@ -237,9 +237,9 @@ class MultiGridEnv(gym.Env, ABC):
 
         Returns
         -------
-        obs : dict[AgentID, ObsType]
+        observations : dict[AgentID, ObsType]
             Observation for each agent
-        info : dict[AgentID, dict[str, Any]]
+        infos : dict[AgentID, dict[str, Any]]
             Additional information for each agent
         """
         super().reset(seed=seed, **kwargs)
@@ -266,13 +266,13 @@ class MultiGridEnv(gym.Env, ABC):
         self.step_count = 0
 
         # Return first observation
-        obs = self.gen_obs()
+        observations = self.gen_obs()
 
         # Render environment
         if self.render_mode == 'human':
             self.render()
 
-        return obs, defaultdict(dict)
+        return observations, defaultdict(dict)
 
     def step(
         self,
@@ -293,30 +293,30 @@ class MultiGridEnv(gym.Env, ABC):
 
         Returns
         -------
-        obs : dict[AgentID, ObsType]
+        observations : dict[AgentID, ObsType]
             Observation for each agent
-        reward : dict[AgentID, SupportsFloat]
+        rewards : dict[AgentID, SupportsFloat]
             Reward for each agent
-        terminated : dict[AgentID, bool]
+        terminations : dict[AgentID, bool]
             Whether the episode has been terminated for each agent (success or failure)
-        truncated : dict[AgentID, bool]
+        truncations : dict[AgentID, bool]
             Whether the episode has been truncated for each agent (max steps reached)
-        info : dict[AgentID, dict[str, Any]]
+        infos : dict[AgentID, dict[str, Any]]
             Additional information for each agent
         """
         self.step_count += 1
-        reward, terminated = self.handle_actions(actions)
+        rewards, terminations = self.handle_actions(actions)
 
         # Generate observations
-        obs = self.gen_obs()
+        observations = self.gen_obs()
         truncated = self.step_count >= self.max_steps
-        truncated = dict(enumerate([truncated] * self.num_agents))
+        truncations = {agent_id: truncated for agent_id in observations}
 
         # Rendering
         if self.render_mode == 'human':
             self.render()
 
-        return obs, reward, terminated, truncated, defaultdict(dict)
+        return observations, rewards, terminations, truncations, defaultdict(dict)
 
     def gen_obs(self) -> dict[AgentID, ObsType]:
         """
@@ -324,7 +324,7 @@ class MultiGridEnv(gym.Env, ABC):
 
         Returns
         -------
-        obs : dict[AgentID, ObsType]
+        observations : dict[AgentID, ObsType]
             Mapping from agent ID to observation dict, containing:
                 * 'image': partially observable view of the environment
                 * 'direction': agent's direction / orientation (acting as a compass)
@@ -338,15 +338,15 @@ class MultiGridEnv(gym.Env, ABC):
             self.agents[0].see_through_walls,
         )
 
-        obs = {}
+        observations = {}
         for i in range(self.num_agents):
-            obs[i] = {
+            observations[i] = {
                 'image': image[i],
                 'direction': direction[i],
                 'mission': self.agents[i].mission,
             }
 
-        return obs
+        return observations
 
     def handle_actions(
         self, actions: dict[AgentID, Action]) -> tuple[
