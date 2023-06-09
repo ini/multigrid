@@ -285,15 +285,15 @@ class Goal(WorldObj):
     Goal object an agent may be searching for.
     """
 
-    @functools.cache # reuse instances, since object is immutable
+    @functools.cache # reuse instances, since object is effectively immutable
     def __new__(cls):
         """
         """
-        return super().__new__(cls, type='goal', color='green')
+        return super().__new__(cls, type=Type.goal, color=Color.green)
 
     def can_overlap(self) -> bool:
         """
-        Can an agent overlap with this?
+        :meta private:
         """
         return True
 
@@ -309,19 +309,19 @@ class Floor(WorldObj):
     Colored floor tile an agent can walk over.
     """
 
-    @functools.cache # reuse instances, since object is immutable
-    def __new__(cls, color: str = 'blue'):
+    @functools.cache # reuse instances, since object is effectively immutable
+    def __new__(cls, color: str = Color.blue):
         """
         Parameters
         ----------
         color : str
             Object color
         """
-        return super().__new__(cls, type='floor', color=color)
+        return super().__new__(cls, type=Type.floor, color=color)
 
     def can_overlap(self) -> bool:
         """
-        Can an agent overlap with this?
+        :meta private:
         """
         return True
 
@@ -339,15 +339,15 @@ class Lava(WorldObj):
     Lava object an agent can fall onto.
     """
 
-    @functools.cache # reuse instances, since object is immutable
+    @functools.cache # reuse instances, since object is effectively immutable
     def __new__(cls):
         """
         """
-        return super().__new__(cls, type='lava', color='red')
+        return super().__new__(cls, type=Type.lava, color=Color.red)
 
     def can_overlap(self) -> bool:
         """
-        Can an agent overlap with this?
+        :meta private:
         """
         return True
 
@@ -375,15 +375,15 @@ class Wall(WorldObj):
     Wall object that agents cannot move through.
     """
 
-    @functools.cache # reuse instances, since object is immutable
-    def __new__(cls, color: str = 'grey'):
+    @functools.cache # reuse instances, since object is effectively immutable
+    def __new__(cls, color: str = Color.grey):
         """
         Parameters
         ----------
         color : str
             Object color
         """
-        return super().__new__(cls, type='wall', color=color)
+        return super().__new__(cls, type=Type.wall, color=color)
 
     def render(self, img):
         """
@@ -405,7 +405,7 @@ class Door(WorldObj):
     """
 
     def __new__(
-        cls, color: str = 'blue', is_open: bool = False, is_locked: bool = False):
+        cls, color: str = Color.blue, is_open: bool = False, is_locked: bool = False):
         """
         Parameters
         ----------
@@ -416,7 +416,7 @@ class Door(WorldObj):
         is_locked : bool
             Whether the door is locked
         """
-        door = super().__new__(cls, type='door', color=color)
+        door = super().__new__(cls, type=Type.door, color=color)
         door.is_open = is_open
         door.is_locked = is_locked
         return door
@@ -460,7 +460,7 @@ class Door(WorldObj):
 
     def can_overlap(self) -> bool:
         """
-        Can an agent overlap with this?
+        :meta private:
         """
         return self.is_open
 
@@ -516,14 +516,14 @@ class Key(WorldObj):
     Key object that can be picked up and used to unlock doors.
     """
 
-    def __new__(cls, color: str = 'blue'):
+    def __new__(cls, color: str = Color.blue):
         """
         Parameters
         ----------
         color : str
             Object color
         """
-        return super().__new__(cls, type='key', color=color)
+        return super().__new__(cls, type=Type.key, color=color)
 
     def can_pickup(self) -> bool:
         """
@@ -554,14 +554,14 @@ class Ball(WorldObj):
     Ball object that can be picked up by agents.
     """
 
-    def __new__(cls, color: str = 'blue'):
+    def __new__(cls, color: str = Color.blue):
         """
         Parameters
         ----------
         color : str
             Object color
         """
-        return super().__new__(cls, type='ball', color=color)
+        return super().__new__(cls, type=Type.ball, color=color)
 
     def can_pickup(self) -> bool:
         """
@@ -581,7 +581,7 @@ class Box(WorldObj):
     Box object that may contain other objects.
     """
 
-    def __new__(cls, color: str = 'yellow', contains: WorldObj | None = None):
+    def __new__(cls, color: str = Color.yellow, contains: WorldObj | None = None):
         """
         Parameters
         ----------
@@ -590,7 +590,7 @@ class Box(WorldObj):
         contains : WorldObj or None
             Object contents
         """
-        box = super().__new__(cls, type='box', color=color)
+        box = super().__new__(cls, type=Type.box, color=color)
         box.contains = contains
         return box
 

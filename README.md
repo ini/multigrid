@@ -1,5 +1,9 @@
 # MultiGrid
 
+<p align="center">
+  <img src="https://i.imgur.com/uSFi059.gif" width=275 alt="Blocked Unlock Pickup: 2 Agents">
+</p>
+
 The **MultiGrid** library provides contains a collection of fast multi-agent discrete gridworld environments for reinforcement learning. This is a multi-agent extension of the [minigrid](https://github.com/Farama-Foundation/Minigrid) library, and the interface is designed to be as similar as possible.
 
 
