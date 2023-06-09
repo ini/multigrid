@@ -21,7 +21,7 @@ This package requires Python 3.9 or later.
 
 ## API
 
-The MultiGrid API is compatible with RLLib's [MultiAgentEnv API](https://docs.ray.io/en/latest/rllib/rllib-env.html#multi-agent-and-hierarchical) environment specification (and similar to PettingZoo's [ParallelEnv API](https://pettingzoo.farama.org/api/parallel/)).
+The MultiGrid API is compatible with RLLib's [MultiAgentEnv API](https://docs.ray.io/en/latest/rllib/rllib-env.html#multi-agent-and-hierarchical) (and similar to PettingZoo's [ParallelEnv API](https://pettingzoo.farama.org/api/parallel/)).
 
 ```python
 import gymnasium as gym
