@@ -19,6 +19,26 @@ The environments are designed to be fast and easily customizable. Compared to mi
 
 This package requires Python 3.9 or later.
 
+## API
+
+The MultiGrid API is essentially the same as RLLib's [`MultiAgentEnv`](https://docs.ray.io/en/latest/rllib/rllib-env.html#multi-agent-and-hierarchical) environment specification (as well as PettingZoo's [ParallelEnv API](https://pettingzoo.farama.org/api/parallel/)).
+
+```python
+import gymnasium as gym
+import multigrid.envs
+
+env = gym.make('MultiGrid-Empty-8x8-v0', agents=2, render_mode='human')
+obs, info = env.reset()
+
+for _ in range(1000):
+   actions = {i: policies[i](obs[i]) for i in len(env.agents)}  # user-defined policy functions
+   obs, rewards, terminateds, truncateds, infos = env.step(actions) # dicts indexed by agent ID
+   if all(terminated.values()) or all(truncated.values()):
+      obs, info = env.reset()
+
+env.close()
+ ```
+
 ## Environments
 
 The `multigrid.envs` package provides implementations of several multi-agent environments. [You can find the full list here](https://ini.io/docs/multigrid/multigrid.envs).
