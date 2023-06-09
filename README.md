@@ -25,7 +25,7 @@ The `multigrid.envs` package provides implementations of several multi-agent env
 
 ## API
 
-MultiGrid is compatible with RLlib's [MultiAgentEnv API](https://docs.ray.io/en/latest/rllib/rllib-env.html#multi-agent-and-hierarchical) (and similar to PettingZoo's [ParallelEnv API](https://pettingzoo.farama.org/api/parallel/)).
+MultiGrid follows the same pattern as RLlib's [MultiAgentEnv API](https://docs.ray.io/en/latest/rllib/rllib-env.html#multi-agent-and-hierarchical) and PettingZoo's [ParallelEnv API](https://pettingzoo.farama.org/api/parallel/).
 
 ```python
 import gymnasium as gym
@@ -41,6 +41,10 @@ while not env.is_done():
 
 env.close()
 ```
+
+## Training Agents
+
+See 
 
 ## Documentation
 

@@ -1,8 +1,8 @@
-# MultiGrid with RLlib
+# Training MultiGrid agents with RLlib
 
 MultiGrid is compatible with RLlib's multi-agent API.
 
-This module provides scripts and tools to train agents across all MultiGrid environments.
+This folder provides scripts to train and visualize agents over MultiGrid environments.
 
 ## Requirements
 
@@ -12,11 +12,11 @@ Using MultiGrid environments with RLlib requires installation of [rllib](https:/
 
 Train 2 agents on the `MultiGrid-Empty-8x8-v0` environment using the PPO algorithm:
 
-    python scripts/train.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --save-dir ~/saved/empty8x8/
+    python train.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --save-dir ~/saved/empty8x8/
 
 Visualize behavior from trained agents policies:
 
-    python scripts/visualize.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --load-dir ~/saved/empty8x8/
+    python visualize.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --load-dir ~/saved/empty8x8/
 
 For more options, run ``python scripts/train.py --help`` and ``python scripts/visualize.py --help``.
 
