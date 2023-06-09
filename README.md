@@ -1,6 +1,6 @@
 # MultiGrid
 
-<p align="center">
+<p align="left">
   <img src="https://i.imgur.com/uSFi059.gif" width=275 alt="Blocked Unlock Pickup: 2 Agents">
 </p>
 
