@@ -9,7 +9,7 @@ from multigrid.core.world_object import Ball
 
 class BlockedUnlockPickupEnv(RoomGrid):
     """
-    .. image:: https://i.imgur.com/q6yFUA6.gif
+    .. image:: https://i.imgur.com/uSFi059.gif
         :width: 275
 
     ***********
