@@ -1,7 +1,9 @@
 import numba as nb
 import numpy as np
 
-from ..core.world_object import Wall
+from ..core.agent import AgentState
+from ..core.constants import Color, Direction, Type
+from ..core.world_object import Wall, WorldObj
 from ..core.world_object import see_behind
 
 from numpy.typing import NDArray as ndarray
@@ -11,7 +13,21 @@ from numpy.typing import NDArray as ndarray
 ### Constants
 
 WALL_ENCODING = Wall().encode()
-ENCODE_DIM = len(WALL_ENCODING)
+UNSEEN_ENCODING = WorldObj(Type.unseen, Color.from_index(0)).encode()
+ENCODE_DIM = WorldObj.dim
+
+GRID_ENCODING_IDX = slice(None)
+
+AGENT_DIR_IDX = AgentState.DIR
+AGENT_POS_IDX = AgentState.POS
+AGENT_TERMINATED_IDX = AgentState.TERMINATED
+AGENT_CARRYING_IDX = AgentState.CARRYING
+AGENT_ENCODING_IDX = AgentState.ENCODING
+
+RIGHT = int(Direction.right)
+LEFT = int(Direction.left)
+UP = int(Direction.up)
+DOWN = int(Direction.down)
 
 
 
@@ -52,7 +68,7 @@ def gen_obs_grid_encoding(
             for i in range(agent_view_size):
                 for j in range(agent_view_size):
                     if not vis_mask[agent, i, j]:
-                        obs_grid[agent, i, j] = 0
+                        obs_grid[agent, i, j] = UNSEEN_ENCODING
 
     return obs_grid
 
@@ -108,24 +124,24 @@ def gen_obs_grid(
     obs_width, obs_height = agent_view_size, agent_view_size
 
     # Process agent states
-    agent_grid_encoding = agent_state[..., :3]
-    agent_dir = agent_state[..., 2]
-    agent_pos = agent_state[..., 3:5]
-    agent_terminated = agent_state[..., 5]
-    agent_carrying_encoding = agent_state[..., 6:6+ENCODE_DIM]
+    agent_grid_encoding = agent_state[..., AGENT_ENCODING_IDX]
+    agent_dir = agent_state[..., AGENT_DIR_IDX]
+    agent_pos = agent_state[..., AGENT_POS_IDX]
+    agent_terminated = agent_state[..., AGENT_TERMINATED_IDX]
+    agent_carrying_encoding = agent_state[..., AGENT_CARRYING_IDX]
 
     # Get grid encoding
     if num_agents > 1:
         grid_encoding = np.empty((*grid_state.shape[:-1], ENCODE_DIM), dtype=np.int_)
-        grid_encoding[...] = grid_state[..., :ENCODE_DIM]
+        grid_encoding[...] = grid_state[..., GRID_ENCODING_IDX]
 
         # Insert agent grid encodings
         for agent in range(num_agents):
             if not agent_terminated[agent]:
                 i, j = agent_pos[agent]
-                grid_encoding[i, j, :ENCODE_DIM] = agent_grid_encoding[agent]
+                grid_encoding[i, j, GRID_ENCODING_IDX] = agent_grid_encoding[agent]
     else:
-        grid_encoding = grid_state[..., :ENCODE_DIM]
+        grid_encoding = grid_state[..., GRID_ENCODING_IDX]
 
     # Get top left corner of observation grids
     top_left = get_view_exts(agent_dir, agent_pos, agent_view_size)
@@ -176,7 +192,7 @@ def get_see_behind_mask(grid_array: ndarray[np.int_]) -> ndarray[np.int_]:
     Returns
     -------
     see_behind_mask : ndarray[bool] of shape (width, height)
-        Boolean transparency mask
+        Boolean visibility mask
     """
     num_agents, width, height = grid_array.shape[:3]
     see_behind_mask = np.zeros((num_agents, width, height), dtype=np.bool_)
@@ -253,19 +269,19 @@ def get_view_exts(
     top_left = np.zeros((agent_dir.shape[0], 2), dtype=np.int_)
 
     # Facing right
-    top_left[agent_dir == 0, 0] = agent_x[agent_dir == 0]
-    top_left[agent_dir == 0, 1] = agent_y[agent_dir == 0] - agent_view_size // 2
+    top_left[agent_dir == RIGHT, 0] = agent_x[agent_dir == RIGHT]
+    top_left[agent_dir == RIGHT, 1] = agent_y[agent_dir == RIGHT] - agent_view_size // 2
 
     # Facing down
-    top_left[agent_dir == 1, 0] = agent_x[agent_dir == 1] - agent_view_size // 2
-    top_left[agent_dir == 1, 1] = agent_y[agent_dir == 1]
+    top_left[agent_dir == DOWN, 0] = agent_x[agent_dir == DOWN] - agent_view_size // 2
+    top_left[agent_dir == DOWN, 1] = agent_y[agent_dir == DOWN]
 
     # Facing left
-    top_left[agent_dir == 2, 0] = agent_x[agent_dir == 2] - agent_view_size + 1
-    top_left[agent_dir == 2, 1] = agent_y[agent_dir == 2] - agent_view_size // 2
+    top_left[agent_dir == LEFT, 0] = agent_x[agent_dir == LEFT] - agent_view_size + 1
+    top_left[agent_dir == LEFT, 1] = agent_y[agent_dir == LEFT] - agent_view_size // 2
 
     # Facing up
-    top_left[agent_dir == 3, 0] = agent_x[agent_dir == 3] - agent_view_size // 2
-    top_left[agent_dir == 3, 1] = agent_y[agent_dir == 3] - agent_view_size + 1
+    top_left[agent_dir == UP, 0] = agent_x[agent_dir == UP] - agent_view_size // 2
+    top_left[agent_dir == UP, 1] = agent_y[agent_dir == UP] - agent_view_size + 1
 
     return top_left
