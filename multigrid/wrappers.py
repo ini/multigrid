@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gymnasium as gym
 import numba as nb
 import numpy as np
 
@@ -102,6 +103,31 @@ class OneHotObsWrapper(ObservationWrapper):
 
         return out
 
+
+class SingleAgentWrapper(gym.Wrapper):
+    """
+    Wrapper to convert a multi-agent environment into a
+    single-agent environment.
+    """
+
+    def __init__(self, env: MultiGridEnv):
+        super().__init__(env)
+        self.observation_space = env.agents[0].observation_space
+        self.action_space = env.agents[0].action_space
+
+    def reset(self, *args, **kwargs):
+        """
+        :meta private:
+        """
+        result = super().reset(*args, **kwargs)
+        return tuple(item[0] for item in result)
+
+    def step(self, action):
+        """
+        :meta private:
+        """
+        result = super().step({0: action})
+        return tuple(item[0] for item in result)
 
 
 # class Wrapper(gym.Wrapper):
