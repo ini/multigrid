@@ -53,7 +53,7 @@ class MissionSpace(spaces.MultiDiscrete):
     ...     ordered_placeholders=[["green", "blue"]])
     >>> observation_space.seed(123)
     >>> observation_space.sample()
-    MissionSpace.sample("Get the blue ball.")
+    Mission("Get the blue ball.")
 
     >>> observation_space = MissionSpace.from_string("Get the ball.")
     >>> observation_space.sample()
