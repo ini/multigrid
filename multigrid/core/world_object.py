@@ -65,7 +65,7 @@ class WorldObj(np.ndarray):
         return obj
 
     def __bool__(self) -> bool:
-        return self.type != 'empty'
+        return self.type != Type.empty
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(color={self.color})"
@@ -242,7 +242,6 @@ class Goal(WorldObj):
     Goal object an agent may be searching for.
     """
 
-    @functools.cache # reuse instances, since object is effectively immutable
     def __new__(cls):
         """
         """
@@ -266,7 +265,6 @@ class Floor(WorldObj):
     Colored floor tile an agent can walk over.
     """
 
-    @functools.cache # reuse instances, since object is effectively immutable
     def __new__(cls, color: str = Color.blue):
         """
         Parameters
@@ -296,7 +294,6 @@ class Lava(WorldObj):
     Lava object an agent can fall onto.
     """
 
-    @functools.cache # reuse instances, since object is effectively immutable
     def __new__(cls):
         """
         """
