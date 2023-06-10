@@ -35,7 +35,7 @@ ObsType = dict[str, Any]
 
 class MultiGridEnv(gym.Env, ABC):
     """
-    Base for multi-agent 2D gridworld environments.
+    Base class for multi-agent 2D gridworld environments.
 
     :Agents:
 
@@ -154,7 +154,7 @@ class MultiGridEnv(gym.Env, ABC):
         # Initialize agents
         if isinstance(agents, int):
             self.num_agents = agents
-            self.agent_state = AgentState(agents)
+            self.agent_states = AgentState(agents) # joint agent state (vectorized)
             self.agents: list[Agent] = []
             for i in range(agents):
                 agent = Agent(
@@ -163,16 +163,16 @@ class MultiGridEnv(gym.Env, ABC):
                     view_size=agent_view_size,
                     see_through_walls=see_through_walls,
                 )
-                agent.state = self.agent_state[i]
+                agent.state = self.agent_states[i]
                 self.agents.append(agent)
         elif isinstance(agents, Iterable):
             assert {agent.index for agent in agents} == set(range(len(agents)))
             self.num_agents = len(agents)
-            self.agent_state = AgentState(self.num_agents)
+            self.agent_states = AgentState(self.num_agents)
             self.agents: list[Agent] = sorted(agents, key=lambda agent: agent.index)
             for agent in self.agents:
-                self.agent_state[agent.index] = agent.state # copy to joint agent state
-                agent.state = self.agent_state[agent.index] # reference joint agent state
+                self.agent_states[agent.index] = agent.state # copy to joint agent state
+                agent.state = self.agent_states[agent.index] # reference joint agent state
         else:
             raise ValueError(f"Invalid argument for agents: {agents}")
 
@@ -223,6 +223,27 @@ class MultiGridEnv(gym.Env, ABC):
             for agent in self.agents
         })
 
+    @abstractmethod
+    def _gen_grid(self, width: int, height: int):
+        """
+        :meta public:
+
+        Generate the grid for a new episode.
+
+        This method should:
+
+        * Set ``self.grid`` and populate it with :class:`.WorldObj` instances
+        * Set the positions and directions of each agent
+
+        Parameters
+        ----------
+        width : int
+            Width of the grid
+        height : int
+            Height of the grid
+        """
+        pass
+
     def reset(
         self, seed: int | None = None, **kwargs) -> tuple[
             dict[AgentID, ObsType]:
@@ -254,8 +275,8 @@ class MultiGridEnv(gym.Env, ABC):
         self._gen_grid(self.width, self.height)
 
         # These fields should be defined by _gen_grid
-        assert np.all(self.agent_state.pos >= 0)
-        assert np.all(self.agent_state.dir >= 0)
+        assert np.all(self.agent_states.pos >= 0)
+        assert np.all(self.agent_states.dir >= 0)
 
         # Check that agents don't overlap with other objects
         for agent in self.agents:
@@ -330,10 +351,10 @@ class MultiGridEnv(gym.Env, ABC):
                 * 'direction': agent's direction / orientation (acting as a compass)
                 * 'mission': textual mission string (instructions for the agent)
         """
-        direction = self.agent_state.dir
+        direction = self.agent_states.dir
         image = gen_obs_grid_encoding(
             self.grid.state,
-            self.agent_state,
+            self.agent_states,
             self.agents[0].view_size,
             self.agents[0].see_through_walls,
         )
@@ -368,7 +389,7 @@ class MultiGridEnv(gym.Env, ABC):
             Whether the episode has been terminated for each agent (success or failure)
         """
         reward = {agent_index: 0 for agent_index in range(self.num_agents)}
-        terminated = dict(enumerate(self.agent_state.terminated))
+        terminated = dict(enumerate(self.agent_states.terminated))
 
         # Randomize agent action order
         if self.num_agents == 1:
@@ -399,7 +420,7 @@ class MultiGridEnv(gym.Env, ABC):
                 if fwd_obj is None or fwd_obj.can_overlap():
                     if not self.allow_agent_overlap:
                         agent_present = np.bitwise_and.reduce(
-                            self.agent_state.pos == fwd_pos, axis=1).any()
+                            self.agent_states.pos == fwd_pos, axis=1).any()
                         if agent_present:
                             continue
 
@@ -427,7 +448,7 @@ class MultiGridEnv(gym.Env, ABC):
 
                 if agent.state.carrying and fwd_obj is None:
                     agent_present = np.bitwise_and.reduce(
-                        self.agent_state.pos == fwd_pos, axis=1).any()
+                        self.agent_states.pos == fwd_pos, axis=1).any()
                     if not agent_present:
                         self.grid.set(*fwd_pos, agent.state.carrying)
                         agent.state.carrying.cur_pos = fwd_pos
@@ -468,7 +489,7 @@ class MultiGridEnv(gym.Env, ABC):
             Termination dictionary to be updated
         """
         if self.success_termination_mode == 'any':
-            self.agent_state.terminated = True # terminate all agents
+            self.agent_states.terminated = True # terminate all agents
             dict_update_all(terminated, True)
         else:
             agent.state.terminated = True # terminate this agent only
@@ -497,7 +518,7 @@ class MultiGridEnv(gym.Env, ABC):
             Termination dictionary to be updated
         """
         if self.failure_termination_mode == 'any':
-            self.agent_state.terminated = True # terminate all agents
+            self.agent_states.terminated = True # terminate all agents
             dict_update_all(terminated, True)
         else:
             agent.state.terminated = True # terminate this agent only
@@ -508,14 +529,7 @@ class MultiGridEnv(gym.Env, ABC):
         Return whether the current episode is finished (for all agents).
         """
         truncated = self.step_count >= self.max_steps
-        return all(self.agent_state.terminated | truncated)
-
-    @property
-    def steps_remaining(self):
-        """
-        Number of steps remaining in the episode (until truncation).
-        """
-        return self.max_steps - self.step_count
+        return all(self.agent_states.terminated | truncated)
 
     def __str__(self):
         """
@@ -573,27 +587,6 @@ class MultiGridEnv(gym.Env, ABC):
                 output += '\n'
 
         return output
-
-    @abstractmethod
-    def _gen_grid(self, width: int, height: int):
-        """
-        :meta public:
-
-        Generate the grid for a new episode.
-
-        This method should:
-
-        * Set ``self.grid`` and populate it with :class:`.WorldObj` instances
-        * Set the positions and directions of each agent
-
-        Parameters
-        ----------
-        width : int
-            Width of the grid
-        height : int
-            Height of the grid
-        """
-        pass
 
     def _reward(self) -> float:
         """
@@ -710,7 +703,7 @@ class MultiGridEnv(gym.Env, ABC):
                 continue
 
             # Don't place the object where agents are
-            if np.bitwise_and.reduce(self.agent_state.pos == pos, axis=1).any():
+            if np.bitwise_and.reduce(self.agent_states.pos == pos, axis=1).any():
                 continue
 
             # Check if there is a filtering criterion

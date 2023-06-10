@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import functools
-import numpy as np
 import numba as nb
+import numpy as np
 
 from numpy.typing import ArrayLike, NDArray as ndarray
 from typing import Any, TYPE_CHECKING
@@ -168,7 +168,7 @@ class WorldObj(np.ndarray):
         """
         Set the object type.
         """
-        self[TYPE] = Type(value)
+        self[TYPE] = Type(value).to_index()
 
     @property
     def color(self) -> Color:
@@ -182,7 +182,7 @@ class WorldObj(np.ndarray):
         """
         Set the object color.
         """
-        self[COLOR] = Color(value)
+        self[COLOR] = Color(value).to_index()
 
     @property
     def state(self) -> str:
@@ -196,13 +196,13 @@ class WorldObj(np.ndarray):
         """
         Set the name of the object state.
         """
-        self[STATE] = State(value)
+        self[STATE] = State(value).to_index()
 
     def can_overlap(self) -> bool:
         """
         Can an agent overlap with this?
         """
-        return self is None or self.type == Type.empty
+        return self.type == Type.empty
 
     def can_pickup(self) -> bool:
         """
