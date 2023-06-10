@@ -2,9 +2,8 @@ import numba as nb
 import numpy as np
 
 from ..core.agent import AgentState
-from ..core.constants import Color, Direction, Type
+from ..core.constants import Color, Direction, State, Type
 from ..core.world_object import Wall, WorldObj
-from ..core.world_object import see_behind
 
 from numpy.typing import NDArray as ndarray
 
@@ -24,6 +23,16 @@ AGENT_TERMINATED_IDX = AgentState.TERMINATED
 AGENT_CARRYING_IDX = AgentState.CARRYING
 AGENT_ENCODING_IDX = AgentState.ENCODING
 
+TYPE = WorldObj.TYPE
+STATE = WorldObj.STATE
+
+WALL = int(Type.wall)
+DOOR = int(Type.door)
+
+OPEN = int(State.open)
+CLOSED = int(State.closed)
+LOCKED = int(State.locked)
+
 RIGHT = int(Direction.right)
 LEFT = int(Direction.left)
 UP = int(Direction.up)
@@ -31,7 +40,27 @@ DOWN = int(Direction.down)
 
 
 
+
 ### Observation Functions
+
+@nb.njit(cache=True)
+def see_behind(world_obj: ndarray[np.int_]) -> bool:
+    """
+    Can an agent see behind this object?
+
+    Parameters
+    ----------
+    world_obj : ndarray[int] of shape (encode_dim,)
+        World object encoding
+    """
+    if world_obj is None:
+        return True
+    if world_obj[TYPE] == WALL:
+        return False
+    elif world_obj[TYPE] == DOOR and world_obj[STATE] != OPEN:
+        return False
+
+    return True
 
 @nb.njit(cache=True)
 def gen_obs_grid_encoding(

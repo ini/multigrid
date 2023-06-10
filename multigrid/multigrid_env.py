@@ -8,6 +8,7 @@ import pygame.freetype
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import cached_property
 from gymnasium import spaces
 from numpy.typing import NDArray as ndarray
 from typing import Any, Iterable, Literal, SupportsFloat, TypeVar
@@ -207,7 +208,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         self.success_termination_mode = success_termination_mode
         self.failure_termination_mode = failure_termination_mode
 
-    @property
+    @cached_property
     def observation_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint observation space of all agents.
@@ -217,7 +218,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
             for agent in self.agents
         })
 
-    @property
+    @cached_property
     def action_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint action space of all agents.

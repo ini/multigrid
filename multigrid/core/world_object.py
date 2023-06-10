@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import numba as nb
 import numpy as np
 
 from numpy.typing import ArrayLike, NDArray as ndarray
@@ -20,54 +19,6 @@ if TYPE_CHECKING:
     from ..multigrid_env import MultiGridEnv
 
 
-
-# WorldObj indices
-TYPE = 0
-COLOR = 1
-STATE = 2
-
-# Object type indices
-EMPTY = Type.empty.to_index()
-WALL = Type.wall.to_index()
-FLOOR = Type.floor.to_index()
-DOOR = Type.door.to_index()
-KEY = Type.key.to_index()
-BALL = Type.ball.to_index()
-BOX = Type.box.to_index()
-GOAL = Type.goal.to_index()
-LAVA = Type.lava.to_index()
-
-# Object state indices
-OPEN = State.open.to_index()
-CLOSED = State.closed.to_index()
-LOCKED = State.locked.to_index()
-
-
-
-### World Object Qualities
-
-@nb.njit(cache=True)
-def see_behind(obj: WorldObj | None) -> bool:
-    """
-    Can an agent see behind this object?
-
-    Parameters
-    ----------
-    obj : WorldObj or None
-        Object to check
-    """
-    if obj is None:
-        return True
-    if obj[TYPE] == WALL:
-        return False
-    elif obj[TYPE] == DOOR and obj[STATE] != OPEN:
-        return False
-
-    return True
-
-
-
-### World Object Classes
 
 class WorldObj(np.ndarray):
     """
@@ -88,6 +39,12 @@ class WorldObj(np.ndarray):
     cur_pos : tuple[int, int] or None
         The current position of the object
     """
+    # WorldObj vector indices
+    TYPE = 0
+    COLOR = 1
+    STATE = 2
+
+    # WorldObj vector dimension
     dim = len([TYPE, COLOR, STATE])
 
     def __new__(cls, type: str, color: str):
@@ -100,8 +57,8 @@ class WorldObj(np.ndarray):
             Object color
         """
         obj = np.zeros(cls.dim, dtype=int).view(cls)
-        obj[TYPE] = Type(type).to_index()
-        obj[COLOR] = Color(color).to_index()
+        obj[WorldObj.TYPE] = Type(type).to_index()
+        obj[WorldObj.COLOR] = Color(color).to_index()
         obj.contains: WorldObj | None = None # object contained by this object
         obj.init_pos: tuple[int, int] | None = None # initial position of the object
         obj.cur_pos: tuple[int, int] | None = None # current position of the object
@@ -122,7 +79,7 @@ class WorldObj(np.ndarray):
         """
         Return an empty WorldObj instance.
         """
-        return WorldObj(type='empty', color=Color.from_index(0))
+        return WorldObj(type=Type.empty, color=Color.from_index(0))
 
     @staticmethod
     def from_array(arr: ArrayLike[int]) -> 'WorldObj' | None:
@@ -134,69 +91,69 @@ class WorldObj(np.ndarray):
         arr : ArrayLike[int]
             Array encoding the object type, color, and state
         """
-        if arr[TYPE] == EMPTY:
+        if arr[WorldObj.TYPE] == Type.empty.to_index():
             return None
 
         object_idx_to_class = {
-            WALL: Wall,
-            FLOOR: Floor,
-            DOOR: Door,
-            KEY: Key,
-            BALL: Ball,
-            BOX: Box,
-            GOAL: Goal,
-            LAVA: Lava,
+            Type.wall.to_index(): Wall,
+            Type.floor.to_index(): Floor,
+            Type.door.to_index(): Door,
+            Type.key.to_index(): Key,
+            Type.ball.to_index(): Ball,
+            Type.box.to_index(): Box,
+            Type.goal.to_index(): Goal,
+            Type.lava.to_index(): Lava,
         }
 
-        if arr[TYPE] in object_idx_to_class:
-            cls = object_idx_to_class[arr[TYPE]]
+        if arr[WorldObj.TYPE] in object_idx_to_class:
+            cls = object_idx_to_class[arr[WorldObj.TYPE]]
             obj = cls.__new__(cls)
             obj[...] = arr
             return obj
 
-        raise ValueError(f'Unknown object type: {arr[TYPE]}')
+        raise ValueError(f'Unknown object type: {arr[WorldObj.TYPE]}')
 
     @property
     def type(self) -> Type:
         """
         Return the object type.
         """
-        return Type.from_index(self[TYPE])
+        return Type.from_index(self[WorldObj.TYPE])
 
     @type.setter
     def type(self, value: str):
         """
         Set the object type.
         """
-        self[TYPE] = Type(value).to_index()
+        self[WorldObj.TYPE] = Type(value).to_index()
 
     @property
     def color(self) -> Color:
         """
         Return the object color.
         """
-        return Color.from_index(self[COLOR])
+        return Color.from_index(self[WorldObj.COLOR])
 
     @color.setter
     def color(self, value: str):
         """
         Set the object color.
         """
-        self[COLOR] = Color(value).to_index()
+        self[WorldObj.OLOR] = Color(value).to_index()
 
     @property
     def state(self) -> str:
         """
         Return the name of the object state.
         """
-        return State.from_index(self[STATE])
+        return State.from_index(self[WorldObj.STATE])
 
     @state.setter
     def state(self, value: str):
         """
         Set the name of the object state.
         """
-        self[STATE] = State(value).to_index()
+        self[WorldObj.STATE] = State(value).to_index()
 
     def can_overlap(self) -> bool:
         """

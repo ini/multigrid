@@ -9,7 +9,7 @@ from typing import Any, Callable, Iterable
 
 from .agent import Agent
 from .constants import Type, TILE_PIXELS
-from .world_object import Wall, WorldObj, TYPE
+from .world_object import Wall, WorldObj
 
 from ..utils.rendering import (
     downsample,
@@ -343,7 +343,7 @@ class Grid:
         width, height, dim = array.shape
         assert dim == WorldObj.dim
 
-        vis_mask = (array[..., TYPE] != Type.unseen.to_index())
+        vis_mask = (array[..., WorldObj.TYPE] != Type.unseen.to_index())
         grid = Grid(width, height)
         grid.state[vis_mask] = array[vis_mask]
         return grid, vis_mask
