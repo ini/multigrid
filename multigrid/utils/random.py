@@ -23,24 +23,32 @@ class RandomMixin:
     def _rand_int(self, low: int, high: int) -> int:
         """
         Generate random integer in range [low, high].
+
+        :meta public:
         """
         return self.__np_random.integers(low, high)
 
     def _rand_float(self, low: float, high: float) -> float:
         """
         Generate random float in range [low, high].
+
+        :meta public:
         """
         return self.__np_random.uniform(low, high)
 
     def _rand_bool(self) -> bool:
         """
         Generate random boolean value.
+
+        :meta public:
         """
         return self.__np_random.integers(0, 2) == 0
 
     def _rand_elem(self, iterable: Iterable[T]) -> T:
         """
         Pick a random element in a list.
+
+        :meta public:
         """
         lst = list(iterable)
         idx = self._rand_int(0, len(lst))
@@ -49,6 +57,8 @@ class RandomMixin:
     def _rand_subset(self, iterable: Iterable[T], num_elems: int) -> list[T]:
         """
         Sample a random subset of distinct elements of a list.
+
+        :meta public:
         """
         lst = list(iterable)
         assert num_elems <= len(lst)
@@ -65,6 +75,8 @@ class RandomMixin:
     def _rand_color(self) -> Color:
         """
         Generate a random color.
+
+        :meta public:
         """
         return self._rand_elem(Color)
 
@@ -72,6 +84,8 @@ class RandomMixin:
         self, x_low: int, x_high: int, y_low: int, y_high: int) -> tuple[int, int]:
         """
         Generate a random (x, y) position tuple.
+
+        :meta public:
         """
         return (
             self.__np_random.integers(x_low, x_high),
