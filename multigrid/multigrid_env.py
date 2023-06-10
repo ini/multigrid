@@ -14,12 +14,13 @@ from typing import Any, Iterable, Literal, SupportsFloat, TypeVar
 
 from .core.actions import Action
 from .core.agent import Agent, AgentState
-from .core.constants import Color, Type, TILE_PIXELS
+from .core.constants import Type, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
-from .utils.obs import gen_obs_grid_encoding
 from .utils.misc import dict_update_all
+from .utils.obs import gen_obs_grid_encoding
+from .utils.random import RandomMixin
 
 
 
@@ -33,7 +34,7 @@ ObsType = dict[str, Any]
 
 ### Environment
 
-class MultiGridEnv(gym.Env, ABC):
+class MultiGridEnv(gym.Env, RandomMixin, ABC):
     """
     Base class for multi-agent 2D gridworld environments.
 
@@ -111,9 +112,9 @@ class MultiGridEnv(gym.Env, ABC):
         grid_size : int
             Size of the environment grid (width and height)
         width : int
-            Width of the environment grid (overrides grid_size)
+            Width of the environment grid (if `grid_size` is not provided)
         height : int
-            Height of the environment grid (overrides grid_size)
+            Height of the environment grid (if `grid_size` is not provided)
         max_steps : int
             Maximum number of steps per episode
         see_through_walls : bool
@@ -133,12 +134,15 @@ class MultiGridEnv(gym.Env, ABC):
         render_mode : str
             Rendering mode (human or rgb_array)
         screen_size : int
-            Size of the screen (in tiles)
+            Width and height of the rendering window (in pixels)
         highlight : bool
             Whether to highlight the view of each agent when rendering
         tile_size : int
             Width and height of each grid tiles (in pixels)
         """
+        gym.Env.__init__(self)
+        RandomMixin.__init__(self, self.np_random)
+
         # Initialize mission space
         if isinstance(mission_space, str):
             self.mission_space = MissionSpace.from_string(mission_space)
@@ -593,64 +597,6 @@ class MultiGridEnv(gym.Env, ABC):
         Compute the reward to be given upon success.
         """
         return 1 - 0.9 * (self.step_count / self.max_steps)
-
-    def _rand_int(self, low: int, high: int) -> int:
-        """
-        Generate random integer in range [low, high].
-        """
-        return self.np_random.integers(low, high)
-
-    def _rand_float(self, low: float, high: float) -> float:
-        """
-        Generate random float in range [low, high].
-        """
-        return self.np_random.uniform(low, high)
-
-    def _rand_bool(self) -> bool:
-        """
-        Generate random boolean value.
-        """
-        return self.np_random.integers(0, 2) == 0
-
-    def _rand_elem(self, iterable: Iterable[T]) -> T:
-        """
-        Pick a random element in a list.
-        """
-        lst = list(iterable)
-        idx = self._rand_int(0, len(lst))
-        return lst[idx]
-
-    def _rand_subset(self, iterable: Iterable[T], num_elems: int) -> list[T]:
-        """
-        Sample a random subset of distinct elements of a list.
-        """
-        lst = list(iterable)
-        assert num_elems <= len(lst)
-
-        out: list[T] = []
-
-        while len(out) < num_elems:
-            elem = self._rand_elem(lst)
-            lst.remove(elem)
-            out.append(elem)
-
-        return out
-
-    def _rand_color(self) -> str:
-        """
-        Generate a random color name (string).
-        """
-        return self._rand_elem(Color)
-
-    def _rand_pos(
-        self, x_low: int, x_high: int, y_low: int, y_high: int) -> tuple[int, int]:
-        """
-        Generate a random (x, y) position tuple.
-        """
-        return (
-            self.np_random.integers(x_low, x_high),
-            self.np_random.integers(y_low, y_high),
-        )
 
     def place_obj(
         self,
