@@ -18,7 +18,7 @@ Visualize behavior from trained agents policies:
 
     python visualize.py --algo PPO --env MultiGrid-Empty-8x8-v0 --num-agents 2 --load-dir ~/saved/empty8x8/
 
-For more options, run ``python scripts/train.py --help`` and ``python scripts/visualize.py --help``.
+For more options, run ``python train.py --help`` and ``python visualize.py --help``.
 
 ## Environments
 

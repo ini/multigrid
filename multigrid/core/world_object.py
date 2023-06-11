@@ -383,7 +383,7 @@ class Door(WorldObj):
         """
         Whether the door is open.
         """
-        return self.state == 'open'
+        return self.state == State.open
 
     @is_open.setter
     def is_open(self, value: bool):
@@ -391,16 +391,16 @@ class Door(WorldObj):
         Set the door to be open or closed.
         """
         if value:
-            self.state = 'open' # set state to open
+            self.state = State.open # set state to open
         elif not self.is_locked:
-            self.state = 'closed' # set state to closed (unless already locked)
+            self.state = State.closed # set state to closed (unless already locked)
 
     @property
     def is_locked(self) -> bool:
         """
         Whether the door is locked.
         """
-        return self.state == 'locked'
+        return self.state == State.locked
 
     @is_locked.setter
     def is_locked(self, value: bool):
@@ -408,9 +408,9 @@ class Door(WorldObj):
         Set the door to be locked or unlocked.
         """
         if value:
-            self.state = 'locked' # set state to locked
+            self.state = State.locked # set state to locked
         elif not self.is_open:
-            self.state = 'closed' # set state to closed (unless already open)
+            self.state = State.closed # set state to closed (unless already open)
 
     def can_overlap(self) -> bool:
         """
@@ -450,8 +450,7 @@ class Door(WorldObj):
         # Door frame and door
         if self.is_locked:
             fill_coords(img, point_in_rect(0.00, 1.00, 0.00, 1.00), c)
-            fill_coords(
-                img, point_in_rect(0.06, 0.94, 0.06, 0.94), 0.45 * np.array(c))
+            fill_coords(img, point_in_rect(0.06, 0.94, 0.06, 0.94), 0.45 * c)
 
             # Draw key slot
             fill_coords(img, point_in_rect(0.52, 0.75, 0.50, 0.56), c)

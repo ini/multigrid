@@ -319,8 +319,8 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        encoding = self.state[..., :WorldObj.encode_dim].copy()
-        encoding[~vis_mask] = 0
+        encoding = self.state.copy()
+        encoding[~vis_mask][WorldObj.TYPE] = Type.unseen.to_index()
         return encoding
 
     @staticmethod
