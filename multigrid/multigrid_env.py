@@ -19,7 +19,6 @@ from .core.constants import Type, TILE_PIXELS
 from .core.grid import Grid
 from .core.mission import MissionSpace
 from .core.world_object import WorldObj
-from .utils.misc import dict_update_all
 from .utils.obs import gen_obs_grid_encoding
 from .utils.random import RandomMixin
 
@@ -331,10 +330,14 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
             Additional information for each agent
         """
         self.step_count += 1
-        rewards, terminations = self.handle_actions(actions)
+        rewards = self.handle_actions(actions)
 
-        # Generate observations
+        # Generate outputs
         observations = self.gen_obs()
+        terminations = {
+            agent_id: self.agents[agent_id].state.terminated
+            for agent_id in observations
+        }
         truncated = self.step_count >= self.max_steps
         truncations = {agent_id: truncated for agent_id in observations}
 
@@ -375,9 +378,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         return observations
 
     def handle_actions(
-        self, actions: dict[AgentID, Action]) -> tuple[
-            dict[AgentID, SupportsFloat],
-            dict[AgentID, bool]]:
+        self, actions: dict[AgentID, Action]) -> dict[AgentID, SupportsFloat]:
         """
         Handle actions taken by agents.
 
@@ -388,13 +389,10 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
 
         Returns
         -------
-        reward : dict[AgentID, SupportsFloat]
+        rewards : dict[AgentID, SupportsFloat]
             Reward for each agent
-        terminated : dict[AgentID, bool]
-            Whether the episode has been terminated for each agent (success or failure)
         """
-        reward = {agent_index: 0 for agent_index in range(self.num_agents)}
-        terminated = dict(enumerate(self.agent_states.terminated))
+        rewards = {agent_index: 0 for agent_index in range(self.num_agents)}
 
         # Randomize agent action order
         if self.num_agents == 1:
@@ -432,9 +430,9 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
                     agent.state.pos = fwd_pos
                     if fwd_obj is not None:
                         if fwd_obj.type == Type.goal:
-                            self.on_success(agent, reward, terminated)
+                            self.on_success(agent, rewards, {})
                         if fwd_obj.type == Type.lava:
-                            self.on_failure(agent, reward, terminated)
+                            self.on_failure(agent, rewards, {})
 
             # Pick up an object
             elif action == Action.pickup:
@@ -474,13 +472,13 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
             else:
                 raise ValueError(f"Unknown action: {action}")
 
-        return reward, terminated
+        return rewards
 
     def on_success(
         self,
         agent: Agent,
-        reward: dict[AgentID, SupportsFloat],
-        terminated: dict[AgentID, bool]):
+        rewards: dict[AgentID, SupportsFloat],
+        terminations: dict[AgentID, bool]):
         """
         Callback for when an agent completes its mission.
 
@@ -488,28 +486,30 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         ----------
         agent : Agent
             Agent that completed its mission
-        reward : dict[AgentID, SupportsFloat]
+        rewards : dict[AgentID, SupportsFloat]
             Reward dictionary to be updated
-        terminated : dict[AgentID, bool]
+        terminations : dict[AgentID, bool]
             Termination dictionary to be updated
         """
         if self.success_termination_mode == 'any':
             self.agent_states.terminated = True # terminate all agents
-            dict_update_all(terminated, True)
+            for i in range(self.num_agents):
+                terminations[i] = True
         else:
             agent.state.terminated = True # terminate this agent only
-            terminated[agent.index] = True
+            terminations[agent.index] = True
 
         if self.joint_reward:
-            dict_update_all(reward, self._reward()) # reward all agents
+            for i in range(self.num_agents):
+                rewards[i] = self._reward() # reward all agents
         else:
-            reward[agent.index] = self._reward() # reward this agent only
+            rewards[agent.index] = self._reward() # reward this agent only
 
     def on_failure(
         self,
         agent: Agent,
-        reward: dict[AgentID, SupportsFloat],
-        terminated: dict[AgentID, bool]):
+        rewards: dict[AgentID, SupportsFloat],
+        terminations: dict[AgentID, bool]):
         """
         Callback for when an agent fails its mission prematurely.
 
@@ -517,17 +517,18 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         ----------
         agent : Agent
             Agent that failed its mission
-        reward : dict[AgentID, SupportsFloat]
+        rewards : dict[AgentID, SupportsFloat]
             Reward dictionary to be updated
-        terminated : dict[AgentID, bool]
+        terminations : dict[AgentID, bool]
             Termination dictionary to be updated
         """
         if self.failure_termination_mode == 'any':
             self.agent_states.terminated = True # terminate all agents
-            dict_update_all(terminated, True)
+            for i in range(self.num_agents):
+                terminations[i] = True
         else:
             agent.state.terminated = True # terminate this agent only
-            terminated[agent.index] = True
+            terminations[agent.index] = True
 
     def is_done(self) -> bool:
         """

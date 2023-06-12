@@ -248,6 +248,7 @@ class AgentState(np.ndarray):
 
         # Other attributes
         obj._carried_obj = np.empty(dims, dtype=object) # object references
+        obj._terminated = np.zeros(dims, dtype=bool) # cache for faster access
         obj._view = obj.view(np.ndarray) # view of the underlying array (faster indexing)
 
         return obj
@@ -261,6 +262,7 @@ class AgentState(np.ndarray):
         if out.shape and out.shape[-1] == self.dim:
             out._view = self._view[idx, ...]
             out._carried_obj = self._carried_obj[idx, ...] # set carried object reference
+            out._terminated = self._terminated[idx, ...] # set terminated cache
 
         return out
 
@@ -313,7 +315,7 @@ class AgentState(np.ndarray):
         """
         Return whether the agent has terminated.
         """
-        out = self._view[..., AgentState.TERMINATED].astype(bool)
+        out = self._terminated
         return out.item() if out.ndim == 0 else out
 
     @terminated.setter
@@ -322,14 +324,14 @@ class AgentState(np.ndarray):
         Set whether the agent has terminated.
         """
         self[..., AgentState.TERMINATED] = value
+        self._terminated[...] = value
 
     @property
     def carrying(self) -> WorldObj | None | ndarray[np.object]:
         """
         Return the object the agent is carrying.
         """
-        out = self._carried_obj
-        return out.item() if out.ndim == 0 else out
+        return self._carried_obj
 
     @carrying.setter
     def carrying(self, obj: WorldObj | None | ArrayLike[object]):
