@@ -10,7 +10,7 @@ The **MultiGrid** library provides contains a collection of fast multi-agent dis
 
 The environments are designed to be fast and easily customizable. Compared to minigrid, the underlying gridworld logic is **significantly optimized**, with environment simulation 10x to 20x faster by our benchmarks.
 
-Documentation for this library can be found at ini.io/docs/multigrid.
+Documentation for this library can be found at [ini.io/docs/multigrid](https://ini.io/docs/multigrid).
 
 ## Installation
 
