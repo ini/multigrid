@@ -24,27 +24,41 @@ class WorldObjMeta(type):
     """
     Metaclass for world objects.
 
-    Any subclasses of :class:`WorldObj` will automatically be registered with
-    this metaclass, and added to the :class:`Type` enumeration.
+    Each subclass is associated with a unique :class:`Type` enumeration value.
+
+    By default, the type name is the class name (in lowercase), but this can be
+    overridden by setting the `type_name` attribute in the class definition.
+    Type names are dynamically added to the :class:`Type` enumeration
+    if not already present.
+
+    Examples
+    --------
+    >>> class A(WorldObj): pass
+    >>> A().type
+    <Type.a: 'a'>
+
+    >>> class B(WorldObj): type_name = 'goal'
+    >>> B().type
+    <Type.goal: 'goal'>
 
     :meta private:
     """
 
     # Registry of object classes
-    _TYPE_TO_CLASS = {}
     _TYPE_IDX_TO_CLASS = {}
 
     def __new__(meta, name, bases, class_dict):
         cls = super().__new__(meta, name, bases, class_dict)
 
         if name != 'WorldObj':
+            type_name = class_dict.get('type_name', name.lower())
+
             # Add the object class name to the `Type` enumeration if not already present
-            if name.lower() not in set(Type):
-                Type.add_item(name.lower(), name.lower())
+            if type_name not in set(Type):
+                Type.add_item(type_name, type_name)
 
             # Store the object class with its corresponding type index
-            meta._TYPE_TO_CLASS[Type(name.lower())] = cls
-            meta._TYPE_IDX_TO_CLASS[Type(name.lower()).to_index()] = cls
+            meta._TYPE_IDX_TO_CLASS[Type(type_name).to_index()] = cls
 
         return cls
 
@@ -87,13 +101,21 @@ class WorldObj(np.ndarray, metaclass=WorldObjMeta):
         color : str
             Object color
         """
-        type = type if type else cls.__name__.lower() # infer type from class name
+        # If not provided, infer the object type from the class
+        type_name = type or getattr(cls, 'type_name', cls.__name__.lower())
+        type_idx = Type(type_name).to_index()
+
+        # Use the WorldObj subclass corresponding to the object type
+        cls = WorldObjMeta._TYPE_IDX_TO_CLASS.get(type_idx, cls)
+
+        # Create the object
         obj = np.zeros(cls.dim, dtype=int).view(cls)
-        obj[WorldObj.TYPE] = Type(type).to_index()
+        obj[WorldObj.TYPE] = type_idx
         obj[WorldObj.COLOR] = Color(color).to_index()
         obj.contains: WorldObj | None = None # object contained by this object
         obj.init_pos: tuple[int, int] | None = None # initial position of the object
         obj.cur_pos: tuple[int, int] | None = None # current position of the object
+
         return obj
 
     def __bool__(self) -> bool:
@@ -139,7 +161,7 @@ class WorldObj(np.ndarray, metaclass=WorldObjMeta):
 
         raise ValueError(f'Unknown object type: {arr[WorldObj.TYPE]}')
 
-    @property
+    @functools.cached_property
     def type(self) -> Type:
         """
         Return the object type.

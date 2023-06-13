@@ -286,7 +286,7 @@ class AgentState(np.ndarray):
         Return the agent direction.
         """
         out = self._view[..., AgentState.DIR]
-        return Direction(out) if out.ndim == 0 else out
+        return Direction(out.item()) if out.ndim == 0 else out
 
     @dir.setter
     def dir(self, value: int | ArrayLike[int]):

@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import cached_property
 from gymnasium import spaces
+from itertools import repeat
 from numpy.typing import NDArray as ndarray
 from typing import Any, Iterable, Literal, SupportsFloat, TypeVar
 
@@ -334,12 +335,9 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
 
         # Generate outputs
         observations = self.gen_obs()
-        terminations = {
-            agent_id: self.agents[agent_id].state.terminated
-            for agent_id in observations
-        }
+        terminations = dict(enumerate(self.agent_states.terminated))
         truncated = self.step_count >= self.max_steps
-        truncations = {agent_id: truncated for agent_id in observations}
+        truncations = dict(enumerate(repeat(truncated, self.num_agents)))
 
         # Rendering
         if self.render_mode == 'human':
@@ -396,7 +394,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
 
         # Randomize agent action order
         if self.num_agents == 1:
-            order = np.zeros(1, dtype=int)
+            order = (0,)
         else:
             order = self.np_random.random(size=self.num_agents).argsort()
 
@@ -535,7 +533,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         Return whether the current episode is finished (for all agents).
         """
         truncated = self.step_count >= self.max_steps
-        return all(self.agent_states.terminated | truncated)
+        return truncated or all(self.agent_states.terminated)
 
     def __str__(self):
         """
