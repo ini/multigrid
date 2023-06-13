@@ -20,9 +20,40 @@ if TYPE_CHECKING:
 
 
 
-class WorldObj(np.ndarray):
+class WorldObjMeta(type):
+    """
+    Metaclass for world objects.
+
+    Any subclasses of :class:`WorldObj` will automatically be registered with
+    this metaclass, and added to the :class:`Type` enumeration.
+
+    :meta private:
+    """
+
+    # Registry of object classes
+    _TYPE_TO_CLASS = {}
+    _TYPE_IDX_TO_CLASS = {}
+
+    def __new__(meta, name, bases, class_dict):
+        cls = super().__new__(meta, name, bases, class_dict)
+
+        if name != 'WorldObj':
+            # Add the object class name to the `Type` enumeration if not already present
+            if name.lower() not in set(Type):
+                Type.add_item(name.lower(), name.lower())
+
+            # Store the object class with its corresponding type index
+            meta._TYPE_TO_CLASS[Type(name.lower())] = cls
+            meta._TYPE_IDX_TO_CLASS[Type(name.lower()).to_index()] = cls
+
+        return cls
+
+
+class WorldObj(np.ndarray, metaclass=WorldObjMeta):
     """
     Base class for grid world objects.
+
+    Subclasses are automatically added to the :class:`.Type` enumeration.
 
     Attributes
     ----------
@@ -47,15 +78,16 @@ class WorldObj(np.ndarray):
     # WorldObj vector dimension
     dim = len([TYPE, COLOR, STATE])
 
-    def __new__(cls, type: str, color: str):
+    def __new__(cls, type: str | None = None, color: str = Color.from_index(0)):
         """
         Parameters
         ----------
-        type : str
+        type : str or None
             Object type
         color : str
             Object color
         """
+        type = type if type else cls.__name__.lower() # infer type from class name
         obj = np.zeros(cls.dim, dtype=int).view(cls)
         obj[WorldObj.TYPE] = Type(type).to_index()
         obj[WorldObj.COLOR] = Color(color).to_index()
@@ -70,6 +102,9 @@ class WorldObj(np.ndarray):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(color={self.color})"
 
+    def __str__(self) -> str:
+        return self.__repr__()
+
     def __eq__(self, other: Any):
         return self is other
 
@@ -79,7 +114,7 @@ class WorldObj(np.ndarray):
         """
         Return an empty WorldObj instance.
         """
-        return WorldObj(type=Type.empty, color=Color.from_index(0))
+        return WorldObj(type=Type.empty)
 
     @staticmethod
     def from_array(arr: ArrayLike[int]) -> 'WorldObj' | None:
@@ -91,22 +126,13 @@ class WorldObj(np.ndarray):
         arr : ArrayLike[int]
             Array encoding the object type, color, and state
         """
-        if arr[WorldObj.TYPE] == Type.empty.to_index():
+        type_idx = arr[WorldObj.TYPE]
+
+        if type_idx == Type.empty.to_index():
             return None
 
-        object_idx_to_class = {
-            Type.wall.to_index(): Wall,
-            Type.floor.to_index(): Floor,
-            Type.door.to_index(): Door,
-            Type.key.to_index(): Key,
-            Type.ball.to_index(): Ball,
-            Type.box.to_index(): Box,
-            Type.goal.to_index(): Goal,
-            Type.lava.to_index(): Lava,
-        }
-
-        if arr[WorldObj.TYPE] in object_idx_to_class:
-            cls = object_idx_to_class[arr[WorldObj.TYPE]]
+        if type_idx in WorldObj._TYPE_IDX_TO_CLASS:
+            cls = WorldObj._TYPE_IDX_TO_CLASS[type_idx]
             obj = cls.__new__(cls)
             obj[...] = arr
             return obj
@@ -120,13 +146,6 @@ class WorldObj(np.ndarray):
         """
         return Type.from_index(self[WorldObj.TYPE])
 
-    @type.setter
-    def type(self, value: str):
-        """
-        Set the object type.
-        """
-        self[WorldObj.TYPE] = Type(value).to_index()
-
     @property
     def color(self) -> Color:
         """
@@ -139,7 +158,7 @@ class WorldObj(np.ndarray):
         """
         Set the object color.
         """
-        self[WorldObj.OLOR] = Color(value).to_index()
+        self[WorldObj.COLOR] = Color(value).to_index()
 
     @property
     def state(self) -> str:
@@ -242,10 +261,8 @@ class Goal(WorldObj):
     Goal object an agent may be searching for.
     """
 
-    def __new__(cls):
-        """
-        """
-        return super().__new__(cls, type=Type.goal, color=Color.green)
+    def __new__(cls, color: str = Color.green):
+        return super().__new__(cls, color=color)
 
     def can_overlap(self) -> bool:
         """
@@ -272,7 +289,7 @@ class Floor(WorldObj):
         color : str
             Object color
         """
-        return super().__new__(cls, type=Type.floor, color=color)
+        return super().__new__(cls, color=color)
 
     def can_overlap(self) -> bool:
         """
@@ -297,7 +314,7 @@ class Lava(WorldObj):
     def __new__(cls):
         """
         """
-        return super().__new__(cls, type=Type.lava, color=Color.red)
+        return super().__new__(cls, color=Color.red)
 
     def can_overlap(self) -> bool:
         """
@@ -337,7 +354,7 @@ class Wall(WorldObj):
         color : str
             Object color
         """
-        return super().__new__(cls, type=Type.wall, color=color)
+        return super().__new__(cls, color=color)
 
     def render(self, img):
         """
@@ -370,7 +387,7 @@ class Door(WorldObj):
         is_locked : bool
             Whether the door is locked
         """
-        door = super().__new__(cls, type=Type.door, color=color)
+        door = super().__new__(cls, color=color)
         door.is_open = is_open
         door.is_locked = is_locked
         return door
@@ -476,7 +493,7 @@ class Key(WorldObj):
         color : str
             Object color
         """
-        return super().__new__(cls, type=Type.key, color=color)
+        return super().__new__(cls, color=color)
 
     def can_pickup(self) -> bool:
         """
@@ -514,7 +531,7 @@ class Ball(WorldObj):
         color : str
             Object color
         """
-        return super().__new__(cls, type=Type.ball, color=color)
+        return super().__new__(cls, color=color)
 
     def can_pickup(self) -> bool:
         """
@@ -543,7 +560,7 @@ class Box(WorldObj):
         contains : WorldObj or None
             Object contents
         """
-        box = super().__new__(cls, type=Type.box, color=color)
+        box = super().__new__(cls, color=color)
         box.contains = contains
         return box
 

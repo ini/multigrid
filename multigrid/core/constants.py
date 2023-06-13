@@ -59,6 +59,21 @@ class Color(str, IndexedEnum):
     yellow = 'yellow'
     grey = 'grey'
 
+    @classmethod
+    def add_color(cls, name: str, rgb: ndarray[np.uint8]):
+        """
+        Add a new color to the ``Color`` enumeration.
+
+        Parameters
+        ----------
+        name : str
+            Name of the new color
+        rgb : ndarray[np.uint8] of shape (3,)
+            RGB value of the new color
+        """
+        cls.add_item(name, name)
+        COLORS[name] = np.asarray(rgb, dtype=np.uint8)
+
     @staticmethod
     def cycle(n: int) -> tuple['Color', ...]:
         """
