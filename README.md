@@ -22,7 +22,7 @@ This package requires Python 3.9 or later.
 
 ## Environments
 
-The `multigrid.envs` package provides implementations of several multi-agent environments. [You can find the full list here](https://ini.io/docs/multigrid/multigrid.envs).
+The `multigrid.envs` package provides implementations of several multi-agent environments. [You can find the full list here](https://ini.io/docs/multigrid/multigrid/multigrid.envs).
 
 ## API
 
