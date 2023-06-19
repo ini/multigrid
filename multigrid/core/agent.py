@@ -331,7 +331,8 @@ class AgentState(np.ndarray):
         """
         Return the object the agent is carrying.
         """
-        return self._carried_obj.item() if self.ndim == 1 else self._carried_obj
+        out = self._carried_obj
+        return out.item() if out.ndim == 0 else out
 
     @carrying.setter
     def carrying(self, obj: WorldObj | None | ArrayLike[object]):

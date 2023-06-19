@@ -460,7 +460,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if fwd_obj:
+                if fwd_obj is not None:
                     fwd_obj.toggle(self, agent, fwd_pos)
 
             # Done action (not used by default)
