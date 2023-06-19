@@ -437,7 +437,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
                 fwd_pos = agent.front_pos
                 fwd_obj = self.grid.get(*fwd_pos)
 
-                if fwd_obj and fwd_obj.can_pickup():
+                if fwd_obj is not None and fwd_obj.can_pickup():
                     if agent.state.carrying is None:
                         agent.state.carrying = fwd_obj
                         self.grid.set(*fwd_pos, None)
