@@ -101,7 +101,7 @@ class RedBlueDoorsEnv(MultiGridEnv):
 
     def __init__(
         self,
-        size: int = 8,
+        size: int = 16,
         max_steps: int | None = None,
         joint_reward: bool = True,
         success_termination_mode: str = 'any',
@@ -126,10 +126,11 @@ class RedBlueDoorsEnv(MultiGridEnv):
             See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
         """
         self.size = size
-        mission_space = MissionSpace.from_string("open the red door then the blue door")
+        mission_space = MissionSpace.from_string(
+            "open the doors in the following order: red, yellow, green, blue")
         super().__init__(
             mission_space=mission_space,
-            width=(2 * size),
+            width=size,
             height=size,
             max_steps=max_steps or (20 * size**2),
             joint_reward=joint_reward,
@@ -146,26 +147,45 @@ class RedBlueDoorsEnv(MultiGridEnv):
         self.grid = Grid(width, height)
 
         # Generate the grid walls
-        room_top = (width // 4, 0)
-        room_size = (width // 2, height)
-        self.grid.wall_rect(0, 0, width, height)
+        room_top = (0, 0)
+        room_size = (width, height)
+        #self.grid.wall_rect(0, 0, width, height)
         self.grid.wall_rect(*room_top, *room_size)
 
         # Place agents in the top-left corner
         for agent in self.agents:
             self.place_agent(agent, top=room_top, size=room_size)
 
-        # Add a red door at a random position in the left wall
+        self.doors = {}
+
+        # Add red door at random position in the left wall
         x = room_top[0]
         y = self._rand_int(1, height - 1)
-        self.red_door = Door(Color.red)
-        self.grid.set(x, y, self.red_door)
+        self.doors[Color.red] = Door(Color.red)
+        self.grid.set(x, y, self.doors[Color.red])
 
-        # Add a blue door at a random position in the right wall
+        # Add yellow door at random position in the top wall
+        x = self._rand_int(room_top[0] + 1, room_top[0] + room_size[0] - 1)
+        y = room_top[1]
+        self.doors[Color.yellow] = Door(Color.yellow)
+        self.grid.set(x, y, self.doors[Color.yellow])
+
+        # Add green door at random position in the bottom wall
+        x = self._rand_int(room_top[0] + 1, room_top[0] + room_size[0] - 1)
+        y = room_top[1] + room_size[1] - 1
+        self.doors[Color.green] = Door(Color.green)
+        self.grid.set(x, y, self.doors[Color.green])
+
+        # Add blue door at random position in the right wall
         x = room_top[0] + room_size[0] - 1
         y = self._rand_int(1, height - 1)
-        self.blue_door = Door(Color.blue)
-        self.grid.set(x, y, self.blue_door)
+        self.doors[Color.blue] = Door(Color.blue)
+        self.grid.set(x, y, self.doors[Color.blue])
+
+        # Set color sequence
+        self.color_sequence = [
+            Color.red, Color.yellow, Color.green, Color.blue,
+        ]
 
     def step(self, actions):
         """
@@ -177,11 +197,18 @@ class RedBlueDoorsEnv(MultiGridEnv):
             if action == Action.toggle:
                 agent = self.agents[agent_id]
                 fwd_obj = self.grid.get(*agent.front_pos)
-                if fwd_obj == self.blue_door and self.blue_door.is_open:
-                    if self.red_door.is_open:
-                        self.on_success(agent, reward, terminated)
-                    else:
-                        self.on_failure(agent, reward, terminated)
-                        self.blue_door.is_open = False # close the door again
+
+                for i in range(len(self.color_sequence)):
+                    color = self.color_sequence[i]
+                    prev_colors = self.color_sequence[:i]
+                    next_colors = self.color_sequence[i + 1:]
+
+                    if fwd_obj == self.doors[color] and self.doors[color].is_open:
+                        if not all(self.doors[c].is_open for c in prev_colors):
+                            self.on_failure(agent, reward, terminated)
+                        elif any(self.doors[c].is_open for c in next_colors):
+                            self.on_failure(agent, reward, terminated)
+                        elif i == len(self.color_sequence) - 1:
+                            self.on_success(agent, reward, terminated)
 
         return obs, reward, terminated, truncated, info
