@@ -30,7 +30,7 @@ class PropertyAlias(property):
 
     we can simply just declare::
 
-        x = PropertyAlias('attr', AttributeClass.x)
+        x = PropertyAlias('attr', 'x')
     """
 
     def __init__(self, attr_name: str, attr_property_name: str, doc: str = None) -> None:
