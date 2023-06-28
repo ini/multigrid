@@ -47,7 +47,6 @@ class OneHotObsWrapper(ObservationWrapper):
 
     def __init__(self, env: MultiGridEnv):
         """
-        :meta private:
         """
         super().__init__(env)
         self.dim_sizes = np.array([
@@ -111,6 +110,8 @@ class SingleAgentWrapper(gym.Wrapper):
     """
 
     def __init__(self, env: MultiGridEnv):
+        """
+        """
         super().__init__(env)
         self.observation_space = env.agents[0].observation_space
         self.action_space = env.agents[0].action_space
