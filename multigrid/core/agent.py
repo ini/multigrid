@@ -87,7 +87,7 @@ class Agent:
                 low=0,
                 high=255,
                 shape=(view_size, view_size, WorldObj.dim),
-                dtype='uint8',
+                dtype=int,
             ),
             'direction': spaces.Discrete(len(Direction)),
             'mission': mission_space,

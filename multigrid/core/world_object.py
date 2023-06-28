@@ -67,8 +67,6 @@ class WorldObj(np.ndarray, metaclass=WorldObjMeta):
     """
     Base class for grid world objects.
 
-    Subclasses are automatically added to the :class:`.Type` enumeration.
-
     Attributes
     ----------
     type : Type

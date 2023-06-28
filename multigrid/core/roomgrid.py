@@ -2,24 +2,51 @@ from __future__ import annotations
 
 import numpy as np
 
-from .agent import Agent
-from .constants import Color, Direction
-from .grid import Grid
-from .world_object import Ball, Box, Door, Key, WorldObj
+from collections import deque
+from typing import Callable, Iterable, TypeVar
 
+from .agent import Agent
+from .constants import Color, Direction, Type
+from .grid import Grid
+from .world_object import Door, WorldObj
 from ..multigrid_env import MultiGridEnv
 
 
+T = TypeVar('T')
+
+
+
+def bfs(self, start_node: T, neighbor_fn: Callable[[T], Iterable[T]]) -> set[T]:
+    """
+    Run a breadth-first search from a starting node.
+
+    Parameters
+    ----------
+    start_node : T
+        Start node
+    neighbor_fn : Callable(T) -> Iterable[T]
+        Function that returns the neighbors of a node
+
+    Returns
+    -------
+    visited : set[T]
+        Set of nodes reachable from the start node
+    """
+    visited, queue = set(), deque([start_node])
+    while queue:
+        node = queue.popleft()
+        if node not in visited:
+            visited.add(node)
+            queue.extend(neighbor_fn(node))
+
+    return visited
 
 def reject_next_to(env: MultiGridEnv, pos: tuple[int, int]):
     """
     Function to filter out object positions that are right next to
     the agent's starting point
     """
-    sx, sy = env.agent_pos
-    x, y = pos
-    d = abs(sx - x) + abs(sy - y)
-    return d < 2
+    return any(np.linalg.norm(pos - env.agent_states.pos, axis=-1) <= 1)
 
 
 class Room:
@@ -36,10 +63,8 @@ class Room:
         size : tuple[int, int]
             Room size as (width, height)
         """
-        self.top = top
-        self.size = size
-
-        Point = tuple[int, int]
+        self.top, self.size = top, size
+        Point = tuple[int, int] # typing alias
 
         # Mapping of door objects and door positions
         self.doors: dict[Direction, Door | None] = {d: None for d in Direction}
@@ -78,366 +103,356 @@ class RoomGrid(MultiGridEnv):
         room_size: int = 7,
         num_rows: int = 3,
         num_cols: int = 3,
-        max_steps: int = 100,
-        agent_view_size: int = 7,
-        **kwargs,
-    ):
-        assert room_size > 0
+        **kwargs):
+        """
+        Parameters
+        ----------
+        room_size : int, default=7
+            Width and height for each of the rooms
+        num_rows : int, default=3
+            Number of rows of rooms
+        num_cols : int, default=3
+            Number of columns of rooms
+        **kwargs
+            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+        """
         assert room_size >= 3
         assert num_rows > 0
         assert num_cols > 0
         self.room_size = room_size
         self.num_rows = num_rows
         self.num_cols = num_cols
-
         height = (room_size - 1) * num_rows + 1
         width = (room_size - 1) * num_cols + 1
+        super().__init__(width=width, height=height, **kwargs)
 
-        # By default, this environment has no mission
-        self.mission = ""
+    def get_room(self, col: int, row: int) -> Room:
+        """
+        Get the room at the given column and row.
 
-        super().__init__(
-            width=width,
-            height=height,
-            max_steps=max_steps,
-            see_through_walls=False,
-            agent_view_size=agent_view_size,
-            **kwargs,
-        )
+        Parameters
+        ----------
+        col : int
+            Column of the room
+        row : int
+            Row of the room
+        """
+        assert 0 <= col < self.num_cols
+        assert 0 <= row < self.num_rows
+        return self.room_grid[row][col]
 
     def room_from_pos(self, x: int, y: int) -> Room:
-        """Get the room a given position maps to"""
+        """
+        Get the room a given position maps to.
 
-        assert x >= 0
-        assert y >= 0
-
-        i = x // (self.room_size - 1)
-        j = y // (self.room_size - 1)
-
-        assert i < self.num_cols
-        assert j < self.num_rows
-
-        return self.room_grid[j][i]
-
-    def get_room(self, i: int, j: int) -> Room:
-        assert i < self.num_cols
-        assert j < self.num_rows
-        return self.room_grid[j][i]
+        Parameters
+        ----------
+        x : int
+            Grid x-coordinate
+        y : int
+            Grid y-coordinate
+        """
+        col = x // (self.room_size - 1)
+        row = y // (self.room_size - 1)
+        return self.get_room(col, row)
 
     def _gen_grid(self, width, height):
         # Create the grid
         self.grid = Grid(width, height)
+        self.room_grid = [[None] * self.num_cols for _ in range(self.num_rows)]
 
-        self.room_grid = []
-
-        # For each row of rooms
-        for j in range(0, self.num_rows):
-            row = []
-
-            # For each column of rooms
-            for i in range(0, self.num_cols):
+        # Create rooms
+        for row in range(self.num_rows):
+            for col in range(self.num_cols):
                 room = Room(
-                    (i * (self.room_size - 1), j * (self.room_size - 1)),
+                    (col * (self.room_size - 1), row * (self.room_size - 1)),
                     (self.room_size, self.room_size),
                 )
-                row.append(room)
+                self.room_grid[row][col] = room
+                self.grid.wall_rect(*room.top, *room.size) # generate walls
 
-                # Generate the walls for this room
-                self.grid.wall_rect(*room.top, *room.size)
-
-            self.room_grid.append(row)
-
-        # For each row of rooms
-        for j in range(0, self.num_rows):
-            # For each column of rooms
-            for i in range(0, self.num_cols):
-                room = self.room_grid[j][i]
-
+        # Create doors between rooms
+        for row in range(self.num_rows):
+            for col in range(self.num_cols):
+                room = self.room_grid[row][col]
                 x_l, y_l = (room.top[0] + 1, room.top[1] + 1)
                 x_m, y_m = (
                     room.top[0] + room.size[0] - 1,
                     room.top[1] + room.size[1] - 1,
                 )
 
-                # Door positions, order is right, down, left, up
-                if i < self.num_cols - 1:
-                    room.neighbors[0] = self.room_grid[j][i + 1]
-                    room.door_pos[0] = (x_m, self._rand_int(y_l, y_m))
-                if j < self.num_rows - 1:
-                    room.neighbors[1] = self.room_grid[j + 1][i]
-                    room.door_pos[1] = (self._rand_int(x_l, x_m), y_m)
-                if i > 0:
-                    room.neighbors[2] = self.room_grid[j][i - 1]
-                    room.door_pos[2] = room.neighbors[2].door_pos[0]
-                if j > 0:
-                    room.neighbors[3] = self.room_grid[j - 1][i]
-                    room.door_pos[3] = room.neighbors[3].door_pos[1]
+                # Set door positions
+                if col < self.num_cols - 1:
+                    room.neighbors[Direction.right] = self.room_grid[row][col + 1]
+                    room.door_pos[Direction.right] = (x_m, self._rand_int(y_l, y_m))
+                if row < self.num_rows - 1:
+                    room.neighbors[Direction.down] = self.room_grid[row + 1][col]
+                    room.door_pos[Direction.down] = (self._rand_int(x_l, x_m), y_m)
+                if col > 0:
+                    room.neighbors[Direction.left] = self.room_grid[row][col - 1]
+                    room.door_pos[Direction.left] = (x_l, self._rand_int(y_l, y_m))
+                if row > 0:
+                    room.neighbors[Direction.up] = self.room_grid[row - 1][col]
+                    room.door_pos[Direction.up] = (self._rand_int(x_l, x_m), y_l)
 
-        # The agent starts in the middle, facing right
-        self.agent_pos = np.array(
-            (
-                (self.num_cols // 2) * (self.room_size - 1) + (self.room_size // 2),
-                (self.num_rows // 2) * (self.room_size - 1) + (self.room_size // 2),
-            )
+        # Agents start in the middle, facing right
+        self.agent_states.dir = Direction.right
+        self.agent_states.pos = (
+            (self.num_cols // 2) * (self.room_size - 1) + (self.room_size // 2),
+            (self.num_rows // 2) * (self.room_size - 1) + (self.room_size // 2),
         )
-        self.agent_dir = 0
 
     def place_in_room(
-        self, i: int, j: int, obj: WorldObj
-    ) -> tuple[WorldObj, tuple[int, int]]:
+        self, col: int, row: int, obj: WorldObj) -> tuple[WorldObj, tuple[int, int]]:
         """
-        Add an existing object to room (i, j)
+        Add an existing object to the given room.
+
+        Parameters
+        ----------
+        col : int
+            Room column
+        row : int
+            Room row
+        obj : WorldObj
+            Object to add
         """
-
-        room = self.get_room(i, j)
-
+        room = self.get_room(col, row)
         pos = self.place_obj(
-            obj, room.top, room.size, reject_fn=reject_next_to, max_tries=1000
-        )
-
+            obj, room.top, room.size, reject_fn=reject_next_to, max_tries=1000)
         room.objs.append(obj)
-
         return obj, pos
 
     def add_object(
         self,
-        i: int,
-        j: int,
-        kind: str | None = None,
-        color: str | None = None,
-    ) -> tuple[WorldObj, tuple[int, int]]:
+        col: int,
+        row: int,
+        kind: Type | None = None,
+        color: Color | None = None) -> tuple[WorldObj, tuple[int, int]]:
         """
-        Add a new object to room (i, j)
+        Create a new object in the given room.
+
+        Parameters
+        ----------
+        col : int
+            Room column
+        row : int
+            Room row
+        kind : str, optional
+            Type of object to add (random if not specified)
+        color : str, optional
+            Color of the object to add (random if not specified)
         """
-
-        if kind is None:
-            kind = self._rand_elem(["key", "ball", "box"])
-
-        if color is None:
-            color = self._rand_color()
-
-        # TODO: we probably want to add an Object.make helper function
-        assert kind in ["key", "ball", "box"]
-        if kind == "key":
-            obj = Key(color)
-        elif kind == "ball":
-            obj = Ball(color)
-        elif kind == "box":
-            obj = Box(color)
-        else:
-            raise ValueError(
-                f"{kind} object kind is not available in this environment."
-            )
-
-        return self.place_in_room(i, j, obj)
+        kind = kind or self._rand_elem([Type.key, Type.ball, Type.box])
+        color = color or self._rand_color()
+        obj = WorldObj(type=kind, color=color)
+        return self.place_in_room(col, row, obj)
 
     def add_door(
         self,
-        i: int,
-        j: int,
-        door_idx: int | None = None,
-        color: str | None = None,
-        locked: bool | None = None,
-    ) -> tuple[Door, tuple[int, int]]:
+        col: int,
+        row: int,
+        dir: Direction | None = None,
+        color: Color | None = None,
+        locked: bool | None = None) -> tuple[Door, tuple[int, int]]:
         """
-        Add a door to a room, connecting it to a neighbor
+        Add a door to a room, connecting it to a neighbor.
+
+        Parameters
+        ----------
+        col : int
+            Room column
+        row : int
+            Room row
+        dir : Direction, optional
+            Which wall to put the door on (random if not specified)
+        color : Color, optional
+            Color of the door (random if not specified)
+        locked : bool, optional
+            Whether the door is locked (random if not specified)
         """
+        room = self.get_room(col, row)
 
-        room = self.get_room(i, j)
+        # Need to make sure that there is a neighbor along this wall
+        # and that there is not already a door
+        if dir is None:
+            while room.neighbors[dir] is None or room.doors[dir] is not None:
+                dir = self._rand_elem(Direction)
+        else:
+            assert room.neighbors[dir] is not None, "no neighbor in this direction"
+            assert room.doors[dir] is None, "door already exists"
 
-        if door_idx is None:
-            # Need to make sure that there is a neighbor along this wall
-            # and that there is not already a door
-            while True:
-                door_idx = self._rand_int(0, 4)
-                if room.neighbors[door_idx] and room.doors[door_idx] is None:
-                    break
-
-        if color is None:
-            color = self._rand_color()
-
-        if locked is None:
-            locked = self._rand_bool()
-
-        assert room.doors[door_idx] is None, "door already exists"
-
+        # Create the door
+        color = color or self._rand_color()
+        locked = locked or self._rand_bool()
         door = Door(color, is_locked=locked)
+        pos = room.door_pos[dir]
+        self.put_obj(door, *pos)
 
-        pos = room.door_pos[door_idx]
-        assert pos is not None
-        self.grid.set(pos[0], pos[1], door)
-        door.cur_pos = pos
-
-        assert door_idx is not None
-        neighbor = room.neighbors[door_idx]
-        assert neighbor is not None
-        room.doors[door_idx] = door
-        neighbor.doors[(door_idx + 2) % 4] = door
+        # Connect the door to the neighboring room
+        room.doors[dir] = door
+        room.neighbors[dir].doors[(dir + 2) % 4] = door
 
         return door, pos
 
-    def remove_wall(self, i: int, j: int, wall_idx: Direction):
+    def remove_wall(self, col: int, row: int, dir: Direction):
         """
-        Remove a wall between two rooms
+        Remove a wall between two rooms.
+
+        Parameters
+        ----------
+        col : int
+            Room column
+        row : int
+            Room row
+        dir : Direction
+            Direction of the wall to remove
         """
-
-        room = self.get_room(i, j)
-
-        assert 0 <= wall_idx < 4
-        assert room.doors[wall_idx] is None, "door exists on this wall"
-        assert room.neighbors[wall_idx], "invalid wall"
-
-        neighbor = room.neighbors[wall_idx]
+        room = self.get_room(col, row)
+        assert room.doors[dir] is None, "door exists on this wall"
+        assert room.neighbors[dir], "invalid wall"
 
         tx, ty = room.top
         w, h = room.size
 
-        # Ordering of walls is right, down, left, up
-        if wall_idx == Direction.right:
+        # Remove the wall
+        if dir == Direction.right:
             for i in range(1, h - 1):
                 self.grid.set(tx + w - 1, ty + i, None)
-        elif wall_idx == Direction.down:
+        elif dir == Direction.down:
             for i in range(1, w - 1):
                 self.grid.set(tx + i, ty + h - 1, None)
-        elif wall_idx == Direction.left:
+        elif dir == Direction.left:
             for i in range(1, h - 1):
                 self.grid.set(tx, ty + i, None)
-        elif wall_idx == Direction.up:
+        elif dir == Direction.up:
             for i in range(1, w - 1):
                 self.grid.set(tx + i, ty, None)
         else:
             assert False, "invalid wall index"
 
         # Mark the rooms as connected
-        room.doors[wall_idx] = True
-        assert neighbor is not None
-        neighbor.doors[(wall_idx + 2) % 4] = True
+        room.doors[dir] = True
+        room.neighbors[dir].doors[(dir + 2) % 4] = True
 
     def place_agent(
         self,
         agent: Agent,
-        i: int | None = None,
-        j: int | None = None,
-        rand_dir: bool = True) -> np.ndarray:
+        col: int | None = None,
+        row: int | None = None,
+        rand_dir: bool = True) -> tuple[int, int]:
         """
-        Place agent in a room.
-        """
-        if i is None:
-            i = self._rand_int(0, self.num_cols)
-        if j is None:
-            j = self._rand_int(0, self.num_rows)
+        Place an agent in a room.
 
-        room = self.room_grid[j][i]
+        Parameters
+        ----------
+        agent : Agent
+            Agent to place
+        col : int, optional
+            Room column to place the agent in (random if not specified)
+        row : int, optional
+            Room row to place the agent in (random if not specified)
+        rand_dir : bool, default=True
+            Whether to select a random agent direction
+        """
+        col = col or self._rand_int(0, self.num_cols)
+        row = row or self._rand_int(0, self.num_rows)
+        room = self.get_room(col, row)
 
         # Find a position that is not right in front of an object
         while True:
             super().place_agent(agent, room.top, room.size, rand_dir, max_tries=1000)
             front_cell = self.grid.get(*agent.front_pos)
-            if front_cell is None or front_cell.type == "wall":
+            if front_cell is None or front_cell.type == Type.wall:
                 break
 
         return agent.state.pos
 
     def connect_all(
-        self, door_colors: list[Color] = list(Color), max_itrs: int = 5000
-    ) -> list[Door]:
+        self,
+        door_colors: list[Color] = list(Color),
+        max_itrs: int = 5000) -> list[Door]:
         """
         Make sure that all rooms are reachable by the agent from its
-        starting position
+        starting position.
+
+        Parameters
+        ----------
+        door_colors : list[Color], default=list(Color)
+            Color options for creating doors
+        max_itrs : int, default=5000
+            Maximum number of iterations to try to connect all rooms
         """
-
-        start_room = self.room_from_pos(*self.agent_pos)
-
         added_doors = []
+        neighbor_fn = lambda room: [r for r in room.neighbors.values() if r is not None]
+        start_room = self.get_room(0, 0)
 
-        def find_reach():
-            reach = set()
-            stack = [start_room]
-            while len(stack) > 0:
-                room = stack.pop()
-                if room in reach:
-                    continue
-                reach.add(room)
-                for i in range(0, 4):
-                    if room.doors[i]:
-                        stack.append(room.neighbors[i])
-            return reach
-
-        num_itrs = 0
-
-        while True:
-            # This is to handle rare situations where random sampling produces
-            # a level that cannot be connected, producing in an infinite loop
-            if num_itrs > max_itrs:
-                raise RecursionError("connect_all failed")
-            num_itrs += 1
-
+        for i in range(max_itrs):
             # If all rooms are reachable, stop
-            reach = find_reach()
-            if len(reach) == self.num_rows * self.num_cols:
-                break
+            reachable_rooms = bfs(start_room, neighbor_fn)
+            if len(reachable_rooms) == self.num_rows * self.num_cols:
+                return added_doors
 
             # Pick a random room and door position
-            i = self._rand_int(0, self.num_cols)
-            j = self._rand_int(0, self.num_rows)
-            k = self._rand_int(0, 4)
-            room = self.get_room(i, j)
+            col = self._rand_int(0, self.num_cols)
+            row = self._rand_int(0, self.num_rows)
+            dir = self._rand_elem(Direction)
+            room = self.get_room(col, row)
 
             # If there is already a door there, skip
-            if not room.door_pos[k] or room.doors[k]:
+            if not room.door_pos[dir] or room.doors[dir]:
                 continue
 
-            neighbor_room = room.neighbors[k]
+            neighbor_room = room.neighbors[dir]
             assert neighbor_room is not None
             if room.locked or neighbor_room.locked:
                 continue
 
+            # Add a new door
             color = self._rand_elem(door_colors)
-            door, _ = self.add_door(i, j, k, color, False)
+            door, _ = self.add_door(col, row, dir=dir, color=color, locked=False)
             added_doors.append(door)
 
-        return added_doors
+        raise RecursionError("connect_all failed")
 
     def add_distractors(
         self,
-        i: int | None = None,
-        j: int | None = None,
+        col: int | None = None,
+        row: int | None = None,
         num_distractors: int = 10,
-        all_unique: bool = True,
-    ) -> list[WorldObj]:
+        all_unique: bool = True) -> list[WorldObj]:
         """
-        Add random objects that can potentially distract/confuse the agent.
+        Add random objects that can potentially distract / confuse the agent.
+
+        Parameters
+        ----------
+        col : int, optional
+            Room column to place the objects in (random if not specified)
+        row : int, optional
+            Room row to place the objects in (random if not specified)
+        num_distractors : int, default=10
+            Number of distractor objects to add
+        all_unique : bool, default=True
+            Whether all distractor objects should be unique with respect to (type, color)
         """
+        # Collect keys for existing room objects
+        room_objs = (obj for row in self.room_grid for room in row for obj in room.objs)
+        room_obj_keys = {(obj.type, obj.color) for obj in room_objs}  
 
-        # Collect a list of existing objects
-        objs = []
-        for row in self.room_grid:
-            for room in row:
-                for obj in room.objs:
-                    objs.append((obj.type, obj.color))
-
-        # List of distractors added
-        dists = []
-
-        while len(dists) < num_distractors:
+        # Add distractors
+        distractors = []
+        while len(distractors) < num_distractors:
             color = self._rand_color()
-            type = self._rand_elem(["key", "ball", "box"])
-            obj = (type, color)
+            type = self._rand_elem([Type.key, Type.ball, Type.box])
 
-            if all_unique and obj in objs:
+            if all_unique and (type, color) in room_obj_keys:
                 continue
 
             # Add the object to a random room if no room specified
-            room_i = i
-            room_j = j
-            if room_i is None:
-                room_i = self._rand_int(0, self.num_cols)
-            if room_j is None:
-                room_j = self._rand_int(0, self.num_rows)
+            col = col or self._rand_int(0, self.num_cols)
+            row = row or self._rand_int(0, self.num_rows)
+            distractor, _ = self.add_object(col, row, kind=type, color=color)
 
-            dist, pos = self.add_object(room_i, room_j, *obj)
+            room_obj_keys.append((type, color))
+            distractors.append(distractor)
 
-            objs.append(obj)
-            dists.append(dist)
-
-        return dists
+        return distractors

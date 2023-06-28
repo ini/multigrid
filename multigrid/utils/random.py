@@ -22,7 +22,7 @@ class RandomMixin:
 
     def _rand_int(self, low: int, high: int) -> int:
         """
-        Generate random integer in range [low, high].
+        Generate random integer in range [low, high).
 
         :meta public:
         """
@@ -30,7 +30,7 @@ class RandomMixin:
 
     def _rand_float(self, low: float, high: float) -> float:
         """
-        Generate random float in range [low, high].
+        Generate random float in range [low, high).
 
         :meta public:
         """
@@ -71,6 +71,16 @@ class RandomMixin:
             out.append(elem)
 
         return out
+
+    def _rand_perm(self, iterable: Iterable[T]) -> list[T]:
+        """
+        Randomly permute a list.
+
+        :meta public:
+        """
+        lst = list(iterable)
+        self.__np_random.shuffle(lst)
+        return lst
 
     def _rand_color(self) -> Color:
         """

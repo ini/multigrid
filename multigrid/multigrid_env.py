@@ -12,7 +12,7 @@ from functools import cached_property
 from gymnasium import spaces
 from itertools import repeat
 from numpy.typing import NDArray as ndarray
-from typing import Any, Iterable, Literal, SupportsFloat, TypeVar
+from typing import Any, Callable, Iterable, Literal, SupportsFloat
 
 from .core.actions import Action
 from .core.agent import Agent, AgentState
@@ -27,7 +27,6 @@ from .utils.random import RandomMixin
 
 ### Typing
 
-T = TypeVar('T')
 AgentID = int
 ObsType = dict[str, Any]
 
@@ -603,7 +602,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         obj: WorldObj | None,
         top: tuple[int, int] = None,
         size: tuple[int, int] = None,
-        reject_fn=None,
+        reject_fn: Callable[[MultiGridEnv, tuple[int, int]], bool] | None = None,
         max_tries=math.inf) -> tuple[int, int]:
         """
         Place an object at an empty position in the grid.
