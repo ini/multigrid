@@ -11,7 +11,7 @@ readme = "README.md"
 requires-python = ">= 3.9"
 authors = [{ name = "Ini Oguntola", email = "ini@ini.io" }]
 license = { text = "Apache License" }
-keywords = ["Memory, Environment, Agent, Multi-Agent, RL, Gymnasium"]
+keywords = ["Memory, Environment, Agent, Multi-Agent, RL, Gymnasium, Cooperative, Competitive"]
 classifiers = [
     "Development Status :: 4 - Beta",  # change to `5 - Production/Stable` when ready
     "License :: OSI Approved :: MIT License",
