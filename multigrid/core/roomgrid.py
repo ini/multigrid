@@ -283,8 +283,8 @@ class RoomGrid(MultiGridEnv):
             assert room.doors[dir] is None, "door already exists"
 
         # Create the door
-        color = color or self._rand_color()
-        locked = locked or self._rand_bool()
+        color = color if color is not None else self._rand_color()
+        locked = locked if locked is not None else self._rand_bool()
         door = Door(color, is_locked=locked)
         pos = room.door_pos[dir]
         self.put_obj(door, *pos)
@@ -355,8 +355,8 @@ class RoomGrid(MultiGridEnv):
         rand_dir : bool, default=True
             Whether to select a random agent direction
         """
-        col = col or self._rand_int(0, self.num_cols)
-        row = row or self._rand_int(0, self.num_rows)
+        col = col if col is not None else self._rand_int(0, self.num_cols)
+        row = row if row is not None else self._rand_int(0, self.num_rows)
         room = self.get_room(col, row)
 
         # Find a position that is not right in front of an object
@@ -449,8 +449,8 @@ class RoomGrid(MultiGridEnv):
                 continue
 
             # Add the object to a random room if no room specified
-            col = col or self._rand_int(0, self.num_cols)
-            row = row or self._rand_int(0, self.num_rows)
+            col = col if col is not None else self._rand_int(0, self.num_cols)
+            row = row if row is not None else self._rand_int(0, self.num_rows)
             distractor, _ = self.add_object(col, row, kind=type, color=color)
 
             room_obj_keys.append((type, color))

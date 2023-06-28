@@ -146,20 +146,22 @@ class BlockedUnlockPickupEnv(RoomGrid):
         super()._gen_grid(width, height)
 
         # Add a box to the room on the right
-        obj, _ = self.add_object(1, 0, kind='box')
+        self.obj, _ = self.add_object(1, 0, kind=Type.box)
+
         # Make sure the two rooms are directly connected by a locked door
         door, pos = self.add_door(0, 0, 0, locked=True)
-        # Block the door with a ball
-        color = self._rand_color()
-        self.grid.set(pos[0] - 1, pos[1], Ball(color))
-        # Add a key to unlock the door
-        self.add_object(0, 0, "key", door.color)
 
+        # Block the door with a ball
+        self.grid.set(pos[0] - 1, pos[1], Ball(color=self._rand_color()))
+
+        # Add a key to unlock the door
+        self.add_object(0, 0, Type.key, door.color)
+
+        # Place agents in the left room
         for agent in self.agents:
             self.place_agent(agent, 0, 0)
 
-        self.obj = obj
-        self.mission = f"pick up the {obj.color} {obj.type}"
+        self.mission = f"pick up the {self.obj.color} {self.obj.type}"
 
     def step(self, actions):
         """
