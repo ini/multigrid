@@ -3,13 +3,12 @@ from typing import Any
 
 import numpy as np
 
-from ..multigrid_env import AgentID, ObsType
+from multigrid import MultiGridEnv
 
 from ..core import Agent, Door, Grid, Key, Wall, WorldObj
 from ..core.actions import Action
 from ..core.constants import Color, Type
 
-from ..multigrid_env import MultiGridEnv
 
 
 

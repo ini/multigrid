@@ -16,7 +16,7 @@ from ..utils.rendering import (
 
 if TYPE_CHECKING:
     from .agent import Agent
-    from ..multigrid_env import MultiGridEnv
+    from ..base import MultiGridEnv
 
 
 

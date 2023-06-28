@@ -9,7 +9,7 @@ from .agent import Agent
 from .constants import Color, Direction, Type
 from .grid import Grid
 from .world_object import Door, WorldObj
-from ..multigrid_env import MultiGridEnv
+from ..base import MultiGridEnv
 
 
 T = TypeVar('T')
@@ -114,7 +114,7 @@ class RoomGrid(MultiGridEnv):
         num_cols : int, default=3
             Number of columns of rooms
         **kwargs
-            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+            See :attr:`multigrid.base.MultiGridEnv.__init__`
         """
         assert room_size >= 3
         assert num_rows > 0

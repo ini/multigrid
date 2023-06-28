@@ -123,7 +123,7 @@ class RedBlueDoorsEnv(MultiGridEnv):
             Whether to terminate the environment when any agent fails the task
             or after all agents fail the task
         **kwargs
-            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+            See :attr:`multigrid.base.MultiGridEnv.__init__`
         """
         self.size = size
         mission_space = MissionSpace.from_string("open the red door then the blue door")

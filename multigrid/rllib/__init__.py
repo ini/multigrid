@@ -35,8 +35,8 @@ import gymnasium as gym
 from ray.rllib.env import MultiAgentEnv
 from ray.tune.registry import register_env
 
+from ..base import MultiGridEnv
 from ..envs import CONFIGURATIONS
-from ..multigrid_env import MultiGridEnv
 from ..wrappers import OneHotObsWrapper
 
 

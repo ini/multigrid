@@ -29,7 +29,7 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from typing import Any
 
-from ..multigrid_env import AgentID, MultiGridEnv
+from ..base import AgentID, MultiGridEnv
 
 
 

@@ -8,7 +8,7 @@ from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
 from numpy.typing import NDArray as ndarray
 
-from .multigrid_env import MultiGridEnv, AgentID, ObsType
+from .base import MultiGridEnv, AgentID, ObsType
 from .core.constants import Color, Direction, State, Type
 
 

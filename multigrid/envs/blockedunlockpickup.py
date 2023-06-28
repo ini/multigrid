@@ -117,7 +117,7 @@ class BlockedUnlockPickupEnv(RoomGrid):
         joint_reward : bool, default=True
             Whether all agents receive the reward when the task is completed
         **kwargs
-            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+            See :attr:`multigrid.base.MultiGridEnv.__init__`
         """
         assert room_size >= 4
         mission_space = MissionSpace(

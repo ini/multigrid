@@ -134,7 +134,7 @@ class EmptyEnv(MultiGridEnv):
             Whether to terminate the environment when any agent reaches the goal
             or after all agents reach the goal
         **kwargs
-            See :attr:`multigrid.multigrid_env.MultiGridEnv.__init__`
+            See :attr:`multigrid.base.MultiGridEnv.__init__`
         """
         self.agent_start_pos = agent_start_pos
         self.agent_start_dir = agent_start_dir

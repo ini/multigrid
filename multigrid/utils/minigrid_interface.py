@@ -5,7 +5,7 @@ from gymnasium.core import ActType, ObsType
 from typing import Any, Sequence, SupportsFloat
 
 from ..core.world_object import WorldObj
-from ..multigrid_env import MultiGridEnv
+from ..base import MultiGridEnv
 
 
 
