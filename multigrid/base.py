@@ -795,7 +795,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
                 self.window = pygame.display.set_mode(
                     (aspect_ratio * self.screen_size, self.screen_size)
                 )
-                pygame.display.set_caption('multigrid')
+                pygame.display.set_caption(f'multigrid - {self.__class__.__name__}')
             if self.clock is None:
                 self.clock = pygame.time.Clock()
             surf = pygame.surfarray.make_surface(img)

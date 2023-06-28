@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from multigrid.core.constants import Color, Type
+from multigrid.core.constants import Color, Direction, Type
 from multigrid.core.mission import MissionSpace
 from multigrid.core.roomgrid import RoomGrid
 from multigrid.core.world_object import Ball
@@ -149,7 +149,7 @@ class BlockedUnlockPickupEnv(RoomGrid):
         self.obj, _ = self.add_object(1, 0, kind=Type.box)
 
         # Make sure the two rooms are directly connected by a locked door
-        door, pos = self.add_door(0, 0, 0, locked=True)
+        door, pos = self.add_door(0, 0, Direction.right, locked=True)
 
         # Block the door with a ball
         self.grid.set(pos[0] - 1, pos[1], Ball(color=self._rand_color()))

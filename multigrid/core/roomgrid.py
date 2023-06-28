@@ -17,7 +17,7 @@ T = TypeVar('T')
 
 
 
-def bfs(self, start_node: T, neighbor_fn: Callable[[T], Iterable[T]]) -> set[T]:
+def bfs(start_node: T, neighbor_fn: Callable[[T], Iterable[T]]) -> set[T]:
     """
     Run a breadth-first search from a starting node.
 
@@ -172,7 +172,7 @@ class RoomGrid(MultiGridEnv):
                 self.room_grid[row][col] = room
                 self.grid.wall_rect(*room.top, *room.size) # generate walls
 
-        # Create doors between rooms
+        # Create connections between rooms
         for row in range(self.num_rows):
             for col in range(self.num_cols):
                 room = self.room_grid[row][col]
@@ -190,11 +190,13 @@ class RoomGrid(MultiGridEnv):
                     room.neighbors[Direction.down] = self.room_grid[row + 1][col]
                     room.door_pos[Direction.down] = (self._rand_int(x_l, x_m), y_m)
                 if col > 0:
-                    room.neighbors[Direction.left] = self.room_grid[row][col - 1]
-                    room.door_pos[Direction.left] = (x_l, self._rand_int(y_l, y_m))
+                    neighbor = self.room_grid[row][col - 1]
+                    room.neighbors[Direction.left] = neighbor
+                    room.door_pos[Direction.left] = neighbor.door_pos[Direction.right]
                 if row > 0:
-                    room.neighbors[Direction.up] = self.room_grid[row - 1][col]
-                    room.door_pos[Direction.up] = (self._rand_int(x_l, x_m), y_l)
+                    neighbor = self.room_grid[row - 1][col]
+                    room.neighbors[Direction.up] = neighbor
+                    room.door_pos[Direction.up] = neighbor.door_pos[Direction.up]
 
         # Agents start in the middle, facing right
         self.agent_states.dir = Direction.right
@@ -384,7 +386,8 @@ class RoomGrid(MultiGridEnv):
             Maximum number of iterations to try to connect all rooms
         """
         added_doors = []
-        neighbor_fn = lambda room: [r for r in room.neighbors.values() if r is not None]
+        neighbor_fn = lambda room: [
+            room.neighbors[dir] for dir in Direction if room.doors[dir] is not None]
         start_room = self.get_room(0, 0)
 
         for i in range(max_itrs):
@@ -413,7 +416,7 @@ class RoomGrid(MultiGridEnv):
             door, _ = self.add_door(col, row, dir=dir, color=color, locked=False)
             added_doors.append(door)
 
-        raise RecursionError("connect_all failed")
+        raise RecursionError('connect_all() failed')
 
     def add_distractors(
         self,
