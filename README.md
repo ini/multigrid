@@ -43,6 +43,10 @@ while not env.is_done():
 env.close()
 ```
 
+More information about using MultiGrid directly with other APIs:
+* [PettingZoo](https://ini.io/docs/multigrid/multigrid/multigrid.pettingzoo)
+* [RLlib](https://ini.io/docs/multigrid/multigrid/multigrid.rllib)
+
 ## Training Agents
 
 See the [scripts folder](./scripts) for an example training with RLlib. 
