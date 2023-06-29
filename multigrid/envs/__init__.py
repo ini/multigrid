@@ -19,6 +19,7 @@ Configurations
     * ``MultiGrid-Empty-8x8-v0``
     * ``MultiGrid-Empty-16x16-v0``
 * `Locked Hallway <./multigrid.envs.locked_hallway>`_
+    * ``MultiGrid-LockedHallway-2Rooms-v0``
     * ``MultiGrid-LockedHallway-4Rooms-v0``
     * ``MultiGrid-LockedHallway-6Rooms-v0``
 * `Playground <./multigrid.envs.playground>`_
@@ -42,6 +43,7 @@ CONFIGURATIONS = {
     'MultiGrid-Empty-Random-6x6-v0': (EmptyEnv, {'size': 6, 'agent_start_pos': None}),
     'MultiGrid-Empty-8x8-v0': (EmptyEnv, {}),
     'MultiGrid-Empty-16x16-v0': (EmptyEnv, {'size': 16}),
+    'MultiGrid-LockedHallway-2Rooms-v0': (LockedHallwayEnv, {'num_rooms': 2}),
     'MultiGrid-LockedHallway-4Rooms-v0': (LockedHallwayEnv, {'num_rooms': 4}),
     'MultiGrid-LockedHallway-6Rooms-v0': (LockedHallwayEnv, {'num_rooms': 6}),
     'MultiGrid-Playground-v0': (PlaygroundEnv, {}),

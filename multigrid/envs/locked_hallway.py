@@ -1,19 +1,15 @@
 from __future__ import annotations
-from typing import Any
-
-import numpy as np
 
 from multigrid import MultiGridEnv
-
-from ..core import Agent, Door, Grid, Key, Wall, WorldObj
-from ..core.actions import Action
-from ..core.constants import Color, Type
-
-
-
+from multigrid.core.actions import Action
+from multigrid.core.constants import Color, Direction
+from multigrid.core.mission import MissionSpace
+from multigrid.core.roomgrid import Room, RoomGrid
+from multigrid.core.world_object import Door, Key
 
 
-class LockedHallwayEnv(MultiGridEnv):
+
+class LockedHallwayEnv(RoomGrid):
     """
     ***********
     Description
@@ -21,13 +17,13 @@ class LockedHallwayEnv(MultiGridEnv):
 
     This environment consists of a hallway with multiple locked rooms on either side.
     To unlock each door, agents must first find the corresponding key,
-    which may be in a different room. Agents are rewarded for each door they open.
+    which may be in another locked room. Agents are rewarded for each door they unlock.
 
     *************
     Mission Space
     *************
 
-    "open all the doors"
+    "unlock all the doors"
 
     *****************
     Observation Space
@@ -79,7 +75,7 @@ class LockedHallwayEnv(MultiGridEnv):
     *******
 
     A reward of ``1 - 0.9 * (step_count / max_steps)`` is given
-    when each door is opened.
+    when a door is unlocked.
 
     ***********
     Termination
@@ -87,202 +83,135 @@ class LockedHallwayEnv(MultiGridEnv):
 
     The episode ends if any one of the following conditions is met:
 
-    * All doors are opened
+    * All doors are unlocked
     * Timeout (see ``max_steps``)
 
     *************************
     Registered Configurations
     *************************
 
+    * ``MultiGrid-LockedHallway-2Rooms-v0``
     * ``MultiGrid-LockedHallway-4Rooms-v0``
     * ``MultiGrid-LockedHallway-6Rooms-v0``
     """
 
     def __init__(
         self,
-        num_rooms=4,
-        max_hallway_keys=1,
-        max_keys_per_room=2,
-        grid_size=13,
-        max_steps=None,
-        joint_reward=True,
+        num_rooms: int = 6,
+        room_size: int = 5,
+        max_hallway_keys: int = 1,
+        max_keys_per_room: int = 2,
+        max_steps: int | None = None,
+        joint_reward: bool = True,
         **kwargs):
+        """
+        Parameters
+        ----------
+        num_rooms : int, default=6
+            Number of rooms in the environment
+        room_size : int, default=5
+            Width and height for each of the rooms
+        max_hallway_keys : int, default=1
+            Maximum number of keys in the hallway
+        max_keys_per_room : int, default=2
+            Maximum number of keys in each room
+        max_steps : int, optional
+            Maximum number of steps per episode
+        joint_reward : bool, default=True
+            Whether all agents receive the same reward
+        **kwargs
+            See :attr:`multigrid.base.MultiGridEnv.__init__`
+        """
+        assert room_size >= 4
+        assert num_rooms % 2 == 0
 
         self.num_rooms = num_rooms
         self.max_hallway_keys = max_hallway_keys
         self.max_keys_per_room = max_keys_per_room
 
         if max_steps is None:
-            max_steps = 16 * grid_size**2
+            max_steps = 8 * (room_size * num_rooms)**2
 
         super().__init__(
-            grid_size=grid_size,
+            mission_space=MissionSpace.from_string("open all the doors"),
+            room_size=room_size,
+            num_rows=(num_rooms // 2),
+            num_cols=3,
             max_steps=max_steps,
             joint_reward=joint_reward,
             **kwargs,
         )
 
     def _gen_grid(self, width, height):
-        # Create the grid
-        self.grid = Grid(width, height)
+        super()._gen_grid(width, height)
 
-        # Generate the surrounding walls
-        self.grid.wall_rect(0, 0, width, height)
+        LEFT, HALLWAY, RIGHT = range(3) # columns
+        color_sequence = list(Color) * (self.num_rooms // len(Color) + 1)
+        color_sequence = self._rand_perm(color_sequence[:self.num_rooms])
 
-        # Hallway walls
-        hallway_left = width // 2 - 2
-        hallway_right = width // 2 + 2
+        # Create hallway
+        for row in range(self.num_rows - 1):
+            self.remove_wall(HALLWAY, row, Direction.down)
 
-        # Create rooms
-        num_rooms_per_side = self.num_rooms // 2
-        room_size = (hallway_left + 1, height // num_rooms_per_side + 1)
-        colors = [Color.red, Color.green, Color.blue, Color.yellow]
-        colors = list(self.np_random.permutation([c.value for c in colors]))
+        # Add doors
+        self.rooms: dict[Color, Room] = {}
+        door_colors = self._rand_perm(color_sequence)
+        for row in range(self.num_rows):
+            for col, dir in ((LEFT, Direction.right), (RIGHT, Direction.left)):
+                color = door_colors.pop()
+                self.rooms[color] = self.get_room(col, row)
+                self.add_door(
+                    col, row, dir=dir, color=color, locked=True, rand_pos=False)
 
-        self.rooms = {}
-        for n in range(num_rooms_per_side):
-            
-            j = n * (height // num_rooms_per_side)
-            k = height // num_rooms_per_side // 2
+        # Place keys in hallway
+        num_hallway_keys = self._rand_int(1, self.max_hallway_keys + 1)
+        hallway_top = self.get_room(HALLWAY, 0).top
+        hallway_size = (self.get_room(HALLWAY, 0).size[0], self.height)
+        for key_color in color_sequence[:num_hallway_keys]:
+            self.place_obj(Key(color=key_color), top=hallway_top, size=hallway_size)
 
-            # Left side
-            color = colors.pop()
-            self.rooms[color] = Room(
-                self, (0, j), room_size, (hallway_left, j + k), color)
+        # Place keys in rooms
+        key_index = num_hallway_keys
+        while key_index < len(color_sequence):
+            room = self.rooms[color_sequence[key_index - 1]]
+            num_room_keys = self._rand_int(1, self.max_keys_per_room + 1)
+            for key_color in color_sequence[key_index : key_index + num_room_keys]:
+                self.place_obj(Key(color=key_color), top=room.top, size=room.size)
+                key_index += 1
 
-            # Right side
-            color = colors.pop()
-            self.rooms[color] = Room(
-                self, (hallway_right, j), room_size, (hallway_right, j + k), color)
-
-        # Get doors
-        self.doors = {color: self.rooms[color].door for color in self.rooms}
-
-        # color_to_room = {room.color: room for room in self.rooms}
-        color_sequence = self.np_random.permutation([c for c in self.rooms])
-
-        # Randomly place keys in hallway
-        index = self.np_random.integers(self.max_hallway_keys) + 1
-        top, size = (hallway_left, 0), (hallway_right - hallway_left, height)
-        for key_color in color_sequence[:index]:
-            self.place_obj(Key(color=key_color), top=top, size=size)
-
-        # Randomly place keys in rooms
-        while index < len(color_sequence):
-            k = self.np_random.integers(self.max_keys_per_room) + 1
-            room_color = color_sequence[index - 1]
-            key_colors = color_sequence[index : index + k]
-            for key_color in key_colors:
-                self.rooms[room_color].place_obj(Key(color=key_color))
-                index += 1
-
-        # Randomize the player start position and orientation
+        # Place agents in hallway
         for agent in self.agents:
-            self.place_agent(
-                agent,
-                top=(hallway_left, 0),
-                size=(hallway_right - hallway_left, height)
-            )
+            MultiGridEnv.place_agent(self, agent, top=hallway_top, size=hallway_size)
 
     def reset(self, **kwargs):
-        self.opened_doors = []
+        """
+        :meta private:
+        """
+        self.unlocked_doors = []
         return super().reset(**kwargs)
     
     def step(self, actions):
-        obs, reward, terminated, truncated, info = super().step(actions)
+        """
+        :meta private:
+        """
+        observations, rewards, terminations, truncations, infos = super().step(actions)
 
-        # Reward for opening new doors
+        # Reward for unlocking doors
         for agent_id, action in actions.items():
             if action == Action.toggle:
                 fwd_obj = self.grid.get(*self.agents[agent_id].front_pos)
-                if isinstance(fwd_obj, Door) and fwd_obj.is_open:
-                    if fwd_obj not in self.opened_doors:
-                        self.opened_doors.append(fwd_obj)
-                        reward[agent_id] += self._reward()
+                if isinstance(fwd_obj, Door) and not fwd_obj.is_locked:
+                    if fwd_obj not in self.unlocked_doors:
+                        self.unlocked_doors.append(fwd_obj)
+                        if self.joint_reward:
+                            for k in rewards:
+                                rewards[k] += self._reward()
+                        else:
+                            rewards[agent_id] += self._reward()
 
         # Check if all doors are opened
-        if len(self.opened_doors) == len(self.doors):
+        if len(self.unlocked_doors) == len(self.rooms):
             for agent in self.agents:
-                terminated[agent.index] = True
+                terminations[agent.index] = True
 
-        return obs, reward, terminated, truncated, info
-
-
-class Room:
-
-    def __init__(
-        self,
-        env: MultiGridEnv,
-        top: tuple[int, int],
-        size: tuple[int, int],
-        door_pos: tuple[int, int],
-        color: str,
-        open: bool = False,
-        locked: bool = True,
-    ):
-        """
-        Parameters
-        ----------
-        env : MultiGridEnv
-            Environment
-        top : tuple[int, int]
-            Top-left position of the room
-        size : tuple[int, int]
-            Tuple of room size as (width, height)
-        door_pos : tuple[int, int]
-            Position of room door
-        color : str
-            Color of room door
-        open : bool, default=False
-            Whether room door is open
-        locked : bool, default=True
-            Whether room door is locked
-        """
-        self.env = env
-        self.top = top
-        self.size = size
-
-        # Get bounds
-        left, top = top
-        width = min(size[0], env.grid.width - left)
-        height = min(size[1], env.grid.height - top)
-
-        # Create walls
-        env.grid.wall_rect(left, top, width, height)
-
-        # Create door
-        self.door_pos = door_pos
-        self.door = Door(color=color, is_open=open, is_locked=locked)
-        env.put_obj(self.door, *door_pos)
-
-    @property
-    def color(self) -> str:
-        """
-        Color of room door.
-        """
-        return self.door.color
-
-    @property
-    def is_open(self) -> bool:
-        """
-        Whether the room door is open.
-        """
-        return self.door.is_open
-
-    @property
-    def is_locked(self) -> bool:
-        """
-        Whether the room door is locked.
-        """
-        return self.door.is_locked
-
-    def place_obj(self, obj: WorldObj):
-        """
-        Place object at random position within room.
-
-        Parameters
-        ----------
-        obj : WorldObj
-            Object to place
-        """
-        self.env.place_obj(obj, top=self.top, size=self.size)
+        return observations, rewards, terminations, truncations, infos

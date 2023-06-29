@@ -786,16 +786,17 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
 
         if self.render_mode == 'human':
             img = np.transpose(img, axes=(1, 0, 2))
-            aspect_ratio = img.shape[0] / img.shape[1]
+            screen_size = (
+                self.screen_size * min(img.shape[0] / img.shape[1], 1.0),
+                self.screen_size * min(img.shape[1] / img.shape[0], 1.0),
+            )
             if self.render_size is None:
                 self.render_size = img.shape[:2]
             if self.window is None:
                 pygame.init()
                 pygame.display.init()
-                self.window = pygame.display.set_mode(
-                    (aspect_ratio * self.screen_size, self.screen_size)
-                )
                 pygame.display.set_caption(f'multigrid - {self.__class__.__name__}')
+                self.window = pygame.display.set_mode(screen_size)
             if self.clock is None:
                 self.clock = pygame.time.Clock()
             surf = pygame.surfarray.make_surface(img)
@@ -810,8 +811,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
             bg.fill((255, 255, 255))
             bg.blit(surf, (offset / 2, 0))
 
-            bg = pygame.transform.smoothscale(
-                bg, (aspect_ratio * self.screen_size, self.screen_size))
+            bg = pygame.transform.smoothscale(bg, screen_size)
 
             font_size = 22
             text = str(self.mission)

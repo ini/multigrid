@@ -84,6 +84,49 @@ class Room:
         """
         return any(door and door.is_locked for door in self.doors.values())
 
+    def set_door_pos(
+        self,
+        dir: Direction,
+        random: np.random.Generator | None = None) -> tuple[int, int]:
+        """
+        Set door position in the given direction.
+
+        Parameters
+        ----------
+        dir : Direction
+            Direction of wall to place door
+        random : np.random.Generator, optional
+            Random number generator (if provided, door position will be random)
+        """
+        left, top = self.top
+        right, bottom = self.top[0] + self.size[0] - 1, self.top[1] + self.size[1] - 1,
+
+        if dir == Direction.right:
+            if random:
+                self.door_pos[dir] = (right, random.integers(top + 1, bottom))
+            else:
+                self.door_pos[dir] = (right, (top + bottom) // 2)
+
+        elif dir == Direction.down:
+            if random:
+                self.door_pos[dir] = (random.integers(left + 1, right), bottom)
+            else:
+                self.door_pos[dir] = ((left + right) // 2, bottom)
+
+        elif dir == Direction.left:
+            if random:
+                self.door_pos[dir] = (left, random.integers(top + 1, bottom))
+            else:
+                self.door_pos[dir] = (left, (top + bottom) // 2)
+
+        elif dir == Direction.up:
+            if random:
+                self.door_pos[dir] = (random.integers(left + 1, right), top)
+            else:
+                self.door_pos[dir] = ((left + right) // 2, top)
+
+        return self.door_pos[dir]
+
     def pos_inside(self, x: int, y: int) -> bool:
         """
         Check if a position is within the bounds of this room.
@@ -176,27 +219,14 @@ class RoomGrid(MultiGridEnv):
         for row in range(self.num_rows):
             for col in range(self.num_cols):
                 room = self.room_grid[row][col]
-                x_l, y_l = (room.top[0] + 1, room.top[1] + 1)
-                x_m, y_m = (
-                    room.top[0] + room.size[0] - 1,
-                    room.top[1] + room.size[1] - 1,
-                )
-
-                # Set door positions
                 if col < self.num_cols - 1:
                     room.neighbors[Direction.right] = self.room_grid[row][col + 1]
-                    room.door_pos[Direction.right] = (x_m, self._rand_int(y_l, y_m))
                 if row < self.num_rows - 1:
                     room.neighbors[Direction.down] = self.room_grid[row + 1][col]
-                    room.door_pos[Direction.down] = (self._rand_int(x_l, x_m), y_m)
                 if col > 0:
-                    neighbor = self.room_grid[row][col - 1]
-                    room.neighbors[Direction.left] = neighbor
-                    room.door_pos[Direction.left] = neighbor.door_pos[Direction.right]
+                    room.neighbors[Direction.left] = self.room_grid[row][col - 1]
                 if row > 0:
-                    neighbor = self.room_grid[row - 1][col]
-                    room.neighbors[Direction.up] = neighbor
-                    room.door_pos[Direction.up] = neighbor.door_pos[Direction.up]
+                    room.neighbors[Direction.up] = self.room_grid[row - 1][col]
 
         # Agents start in the middle, facing right
         self.agent_states.dir = Direction.right
@@ -256,7 +286,8 @@ class RoomGrid(MultiGridEnv):
         row: int,
         dir: Direction | None = None,
         color: Color | None = None,
-        locked: bool | None = None) -> tuple[Door, tuple[int, int]]:
+        locked: bool | None = None,
+        rand_pos: bool = True) -> tuple[Door, tuple[int, int]]:
         """
         Add a door to a room, connecting it to a neighbor.
 
@@ -272,6 +303,8 @@ class RoomGrid(MultiGridEnv):
             Color of the door (random if not specified)
         locked : bool, optional
             Whether the door is locked (random if not specified)
+        rand_pos : bool, default=True
+            Whether to place the door at a random position on the room wall
         """
         room = self.get_room(col, row)
 
@@ -288,7 +321,7 @@ class RoomGrid(MultiGridEnv):
         color = color if color is not None else self._rand_color()
         locked = locked if locked is not None else self._rand_bool()
         door = Door(color, is_locked=locked)
-        pos = room.door_pos[dir]
+        pos = room.set_door_pos(dir, random=self.np_random if rand_pos else None)
         self.put_obj(door, *pos)
 
         # Connect the door to the neighboring room
@@ -403,7 +436,7 @@ class RoomGrid(MultiGridEnv):
             room = self.get_room(col, row)
 
             # If there is already a door there, skip
-            if not room.door_pos[dir] or room.doors[dir]:
+            if not room.neighbors[dir] or room.doors[dir]:
                 continue
 
             neighbor_room = room.neighbors[dir]
