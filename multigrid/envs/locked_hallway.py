@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import ceil
 from multigrid import MultiGridEnv
 from multigrid.core.actions import Action
 from multigrid.core.constants import Color, Direction
@@ -146,8 +147,8 @@ class LockedHallwayEnv(RoomGrid):
         super()._gen_grid(width, height)
 
         LEFT, HALLWAY, RIGHT = range(3) # columns
-        color_sequence = list(Color) * (self.num_rooms // len(Color) + 1)
-        color_sequence = self._rand_perm(color_sequence[:self.num_rooms])
+        color_sequence = list(Color) * ceil(self.num_rooms / len(Color))
+        color_sequence = self._rand_perm(color_sequence)[:self.num_rooms]
 
         # Create hallway
         for row in range(self.num_rows - 1):
