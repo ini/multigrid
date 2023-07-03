@@ -17,22 +17,30 @@ def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]
     for episode in range(num_episodes):
         print('\n', '-' * 32, '\n', 'Episode', episode, '\n', '-' * 32)
 
-        episode_reward = {agent_id: 0.0 for agent_id in env.get_agent_ids()}
-        terminated, truncated = {'__all__': False}, {'__all__': False}
-        obs, info = env.reset()
-        while not terminated['__all__'] and not truncated['__all__']:
+        episode_rewards = {agent_id: 0.0 for agent_id in env.get_agent_ids()}
+        terminations, truncations = {'__all__': False}, {'__all__': False}
+        observations, infos = env.reset()
+        states = {
+            agent_id: algorithm.get_policy(policy_mapping_fn(agent_id)).get_initial_state()
+            for agent_id in env.get_agent_ids()
+        }
+        while not terminations['__all__'] and not truncations['__all__']:
             frames.append(env.get_frame())
-            action = {
-                agent_id: algorithm.compute_single_action(
-                    obs[agent_id], policy_id=policy_mapping_fn(agent_id))
-                for agent_id in env.get_agent_ids()
-            }
-            obs, reward, terminated, truncated, info = env.step(action)
-            for agent_id in reward:
-                episode_reward[agent_id] += reward[agent_id]
+
+            actions = {}
+            for agent_id in env.get_agent_ids():
+                actions[agent_id], states[agent_id], _ = algorithm.compute_single_action(
+                    observations[agent_id],
+                    states[agent_id],
+                    policy_id=policy_mapping_fn(agent_id)
+                )
+
+            observations, rewards, terminations, truncations, infos = env.step(actions)
+            for agent_id in rewards:
+                episode_rewards[agent_id] += rewards[agent_id]
 
         frames.append(env.get_frame())
-        print('Rewards:', episode_reward)
+        print('Rewards:', episode_rewards)
 
     env.close()
     return frames
@@ -47,6 +55,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--framework', type=str, choices=['torch', 'tf', 'tf2'], default='torch',
         help="Deep learning framework to use.")
+    parser.add_argument(
+        '--lstm', action='store_true', help="Use LSTM model.")
     parser.add_argument(
         '--env', type=str, default='MultiGrid-Empty-8x8-v0',
         help="MultiGrid environment to use.")

@@ -7,6 +7,7 @@ from ray.rllib.models.torch.complex_input_net import (
     ComplexInputNetwork as TorchComplexInputNetwork
 )
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+from ray.rllib.policy.rnn_sequencing import add_time_dimension
 from ray.rllib.utils.framework import try_import_torch
 
 torch, nn = try_import_torch()
@@ -60,7 +61,6 @@ class TorchModel(TorchModelV2, nn.Module):
         num_outputs: int,
         model_config: dict,
         name: str,
-        joint_obs_space: spaces.Space = None,
         **kwargs):
         """
         See ``TorchModelV2.__init__()``.
@@ -72,3 +72,84 @@ class TorchModel(TorchModelV2, nn.Module):
             obs_space, action_space, num_outputs, model_config, name)
         self.forward = self.model.forward
         self.value_function = self.model.value_function
+
+
+class TorchLSTMModel(TorchModelV2, nn.Module):
+    """
+    Torch LSTM model to use with RLlib.
+
+    Processes observations with a ``ComplexInputNetwork`` and then passes
+    the output through an LSTM layer.
+
+    For configuration options (i.e. ``model_config``),
+    see https://docs.ray.io/en/latest/rllib/rllib-models.html.
+    """
+
+    def __init__(
+        self,
+        obs_space: spaces.Space,
+        action_space: spaces.Space,
+        num_outputs: int,
+        model_config: dict,
+        name: str,
+        **kwargs):
+        """
+        See ``TorchModelV2.__init__()``.
+        """
+        nn.Module.__init__(self)
+        super().__init__(
+            obs_space,
+            action_space,
+            num_outputs,
+            model_config,
+            name,
+        )
+
+        # Base
+        self.base_model = TorchComplexInputNetwork(
+            obs_space,
+            action_space,
+            None,
+            model_config,
+            f'{name}_base',
+        )
+
+        # LSTM
+        self.lstm = nn.LSTM(
+            self.base_model.post_fc_stack.num_outputs,
+            model_config.get('lstm_cell_size', 256),
+            batch_first=True,
+        )
+
+        # Action & Value
+        self.action_model = nn.Linear(self.lstm.hidden_size, num_outputs)
+        self.value_model = nn.Linear(self.lstm.hidden_size, 1)
+
+        # Current LSTM output
+        self._features = None
+
+    def forward(self, input_dict, state, seq_lens):
+        # Base
+        x, _ = self.base_model(input_dict, state, seq_lens)
+
+        # LSTM
+        x = add_time_dimension(
+            x,
+            seq_lens=seq_lens,
+            framework='torch',
+            time_major=False,
+        )
+        h, c = state[0].unsqueeze(0), state[1].unsqueeze(0)
+        x, [h, c] = self.lstm(x, [h, c])
+
+        # Out
+        self._features = x.reshape(-1, self.lstm.hidden_size)
+        logits = self.action_model(self._features)
+        return logits, [h.squeeze(0), c.squeeze(0)]
+
+    def value_function(self):
+        assert self._features is not None, "must call forward() first"
+        return self.value_model(self._features).flatten()
+
+    def get_initial_state(self):
+        return [torch.zeros(self.lstm.hidden_size), torch.zeros(self.lstm.hidden_size)]

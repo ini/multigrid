@@ -5,7 +5,7 @@ import json
 import os
 import ray
 
-from multigrid.rllib.models import TFModel, TorchModel
+from multigrid.rllib.models import TFModel, TorchModel, TorchLSTMModel
 from pathlib import Path
 from pprint import pprint
 from ray import tune
@@ -58,12 +58,26 @@ def policy_mapping_fn(agent_id: int, *args, **kwargs) -> str:
     """
     return f'policy_{agent_id}'
 
-def model_config(framework: str = 'torch', custom_model_config: dict = {}):
+def model_config(
+    framework: str = 'torch',
+    lstm: bool = False,
+    custom_model_config: dict = {}):
     """
     Return a model configuration dictionary for RLlib.
     """
+    if framework == 'torch':
+        if lstm:
+            model = TorchLSTMModel
+        else:
+            model = TorchModel
+    else:
+        if lstm:
+            raise NotImplementedError
+        else:
+            model = TFModel
+
     return {
-        'custom_model': TorchModel if framework == 'torch' else TFModel,
+        'custom_model': model,
         'custom_model_config': custom_model_config,
         'conv_filters': [
             [16, [3, 3], 1],
@@ -71,7 +85,9 @@ def model_config(framework: str = 'torch', custom_model_config: dict = {}):
             [64, [3, 3], 1],
         ],
         'fcnet_hiddens': [64, 64],
-        'post_fcnet_hiddens': [64],
+        'post_fcnet_hiddens': [],
+        'lstm_cell_size': 256,
+        'max_seq_len': 20,
     }
 
 def algorithm_config(
@@ -80,6 +96,7 @@ def algorithm_config(
     env_config: dict = {},
     num_agents: int = 2,
     framework: str = 'torch',
+    lstm: bool = False,
     num_workers: int = 0,
     num_gpus: int = 0,
     lr: float | None = None,
@@ -100,7 +117,7 @@ def algorithm_config(
             policy_mapping_fn=policy_mapping_fn,
         )
         .training(
-            model=model_config(framework),
+            model=model_config(framework=framework, lstm=lstm),
             lr=(lr or NotProvided),
         )
     )
@@ -137,6 +154,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--framework', type=str, choices=['torch', 'tf', 'tf2'], default='torch',
         help="Deep learning framework to use.")
+    parser.add_argument(
+        '--lstm', action='store_true', help="Use LSTM model.")
     parser.add_argument(
         '--env', type=str, default='MultiGrid-Empty-8x8-v0',
         help="MultiGrid environment to use.")
