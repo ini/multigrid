@@ -320,7 +320,7 @@ class Grid:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
         encoding = self.state.copy()
-        encoding[~vis_mask][WorldObj.TYPE] = Type.unseen.to_index()
+        encoding[~vis_mask][..., WorldObj.TYPE] = Type.unseen.to_index()
         return encoding
 
     @staticmethod

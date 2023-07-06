@@ -10,7 +10,52 @@ from numpy.typing import NDArray as ndarray
 
 from .base import MultiGridEnv, AgentID, ObsType
 from .core.constants import Color, Direction, State, Type
+from .core.world_object import WorldObj
 
+
+
+class FullyObsWrapper(ObservationWrapper):
+    """
+    Fully observable gridworld using a compact grid encoding instead of agent view.
+
+    Examples
+    --------
+    >>> import gymnasium as gym
+    >>> import multigrid.envs
+    >>> env = gym.make('MultiGrid-Empty-16x16-v0')
+    >>> obs, _ = env.reset()
+    >>> obs[0]['image'].shape
+    (7, 7, 3)
+
+    >>> from multigrid.wrappers import FullyObsWrapper
+    >>> env = FullyObsWrapper(env)
+    >>> obs, _ = env.reset()
+    >>> obs[0]['image'].shape
+    (16, 16, 3)
+    """
+
+    def __init__(self, env: MultiGridEnv):
+        """
+        """
+        super().__init__(env)
+
+        # Update agent observation spaces
+        for agent in self.env.agents:
+            agent.observation_space['image'] = spaces.Box(
+                low=0, high=255, shape=(env.height, env.width, WorldObj.dim), dtype=int)
+
+    def observation(self, obs: dict[AgentID, ObsType]) -> dict[AgentID, ObsType]:
+        """
+        :meta private:
+        """
+        img = self.env.grid.encode()
+        for agent in self.env.agents:
+            img[agent.state.pos] = agent.encode()
+
+        for agent_id in obs:
+            obs[agent_id]['image'] = img
+
+        return obs
 
 
 class OneHotObsWrapper(ObservationWrapper):
@@ -20,9 +65,9 @@ class OneHotObsWrapper(ObservationWrapper):
 
     Examples
     --------
-    >>> from multigrid.envs import EmptyEnv
-    >>> from multigrid.wrappers import OneHotObsWrapper
-    >>> env = EmptyEnv()
+    >>> import gymnasium as gym
+    >>> import multigrid.envs
+    >>> env = gym.make('MultiGrid-Empty-5x5-v0')
     >>> obs, _ = env.reset()
     >>> obs[0]['image'][0, :, :]
     array([[2, 5, 0],
@@ -32,6 +77,8 @@ class OneHotObsWrapper(ObservationWrapper):
             [2, 5, 0],
             [2, 5, 0],
             [2, 5, 0]])
+
+    >>> from multigrid.wrappers import OneHotObsWrapper
     >>> env = OneHotObsWrapper(env)
     >>> obs, _ = env.reset()
     >>> obs[0]['image'][0, :, :]
@@ -107,6 +154,21 @@ class SingleAgentWrapper(gym.Wrapper):
     """
     Wrapper to convert a multi-agent environment into a
     single-agent environment.
+
+    Examples
+    --------
+    >>> import gymnasium as gym
+    >>> import multigrid.envs
+    >>> env = gym.make('MultiGrid-Empty-5x5-v0')
+    >>> obs, _ = env.reset()
+    >>> obs[0].keys()
+    dict_keys(['image', 'direction', 'mission'])
+
+    >>> from multigrid.wrappers import SingleAgentWrapper
+    >>> env = SingleAgentWrapper(env)
+    >>> obs, _ = env.reset()
+    >>> obs.keys()
+    dict_keys(['image', 'direction', 'mission'])
     """
 
     def __init__(self, env: MultiGridEnv):
