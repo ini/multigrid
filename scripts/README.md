@@ -22,7 +22,7 @@ For more options, run ``python train.py --help`` and ``python visualize.py --hel
 
 ## Environments
 
-All of the environment configurations registered in [`multigrid.envs`](../envs/__init__.py) can also be used with RLlib, and are registered via `import multigrid.rllib`.
+All of the environment configurations registered in [`multigrid.envs`](../multigrid/envs/__init__.py) can also be used with RLlib, and are registered via `import multigrid.rllib`.
 
 To use a specific MultiGrid environment configuration by name:
 
