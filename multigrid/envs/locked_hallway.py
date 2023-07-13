@@ -23,6 +23,9 @@ class LockedHallwayEnv(RoomGrid):
     To unlock each door, agents must first find the corresponding key,
     which may be in another locked room. Agents are rewarded for each door they unlock.
 
+    The standard setting is cooperative, where all agents receive a reward
+    for each door that is opened.
+
     *************
     Mission Space
     *************
