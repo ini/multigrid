@@ -14,6 +14,10 @@ Documentation for this library can be found at [ini.io/docs/multigrid](https://i
 
 ## Installation
 
+    pip install multigrid
+
+Or alternatively, for an editable install:
+
     git clone https://github.com/ini/multigrid
     cd multigrid
     pip install -e .
