@@ -3,17 +3,72 @@ import json
 import numpy as np
 
 from ray.rllib.algorithms import Algorithm
+from ray.rllib.utils.typing import AgentID
 from train import algorithm_config, get_checkpoint_dir, get_policy_mapping_fn
-from typing import Callable
+from typing import Any, Callable, Iterable
 
 
+
+def get_actions(
+    agent_ids: Iterable[AgentID],
+    algorithm: Algorithm,
+    policy_mapping_fn: Callable[[AgentID], str],
+    observations: dict[AgentID, Any],
+    states: dict[AgentID, Any]) -> tuple[dict[AgentID, Any], dict[AgentID, Any]]:
+    """
+    Get actions for the given agents.
+
+    Parameters
+    ----------
+    agent_ids : Iterable[AgentID]
+        Agent IDs for which to get actions
+    algorithm : Algorithm
+        RLlib algorithm instance with trained policies
+    policy_mapping_fn : Callable(AgentID) -> str
+        Function mapping agent IDs to policy IDs
+    observations : dict[AgentID, Any]
+        Observations for each agent
+    states : dict[AgentID, Any]
+        States for each agent
+
+    Returns
+    -------
+    actions : dict[AgentID, Any]
+        Actions for each agent
+    states : dict[AgentID, Any]
+        Updated states for each agent
+    """
+    actions = {}
+    for agent_id in agent_ids:
+        if states[agent_id]:
+            actions[agent_id], states[agent_id], _ = algorithm.compute_single_action(
+                observations[agent_id],
+                states[agent_id],
+                policy_id=policy_mapping_fn(agent_id)
+            )
+        else:
+            actions[agent_id] = algorithm.compute_single_action(
+                observations[agent_id],
+                policy_id=policy_mapping_fn(agent_id)
+            )
+
+    return actions, states
 
 def visualize(
     algorithm: Algorithm,
-    policy_mapping_fn: Callable,
-    num_episodes: int = 100) -> list[np.ndarray]:
+    policy_mapping_fn: Callable[[AgentID], str],
+    num_episodes: int = 10) -> list[np.ndarray]:
     """
     Visualize trajectories from trained agents.
+
+    Parameters
+    ----------
+    algorithm : Algorithm
+        RLlib algorithm instance with trained policies
+    policy_mapping_fn : Callable(AgentID) -> str
+        Function mapping agent IDs to policy IDs
+    num_episodes : int, default=10
+        Number of episodes to visualize
     """
     frames = []
     env = algorithm.env_creator(algorithm.config.env_config)
@@ -30,15 +85,8 @@ def visualize(
         }
         while not terminations['__all__'] and not truncations['__all__']:
             frames.append(env.get_frame())
-
-            actions = {}
-            for agent_id in env.get_agent_ids():
-                actions[agent_id], states[agent_id], _ = algorithm.compute_single_action(
-                    observations[agent_id],
-                    states[agent_id],
-                    policy_id=policy_mapping_fn(agent_id)
-                )
-
+            actions, states = get_actions(
+                env.get_agent_ids(), algorithm, policy_mapping_fn, observations, states)
             observations, rewards, terminations, truncations, infos = env.step(actions)
             for agent_id in rewards:
                 episode_rewards[agent_id] += rewards[agent_id]

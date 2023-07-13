@@ -29,12 +29,12 @@ def get_checkpoint_dir(search_dir: Path | str | None) -> Path | None:
     search_dir : Path or str
         The directory to search for checkpoints within
     """
-    if search_dir:
+    try:
         checkpoints = Path(search_dir).expanduser().glob('**/*.is_checkpoint')
         if checkpoints:
             return sorted(checkpoints, key=os.path.getmtime)[-1].parent
-
-    return None
+    except:
+        pass
 
 def get_policy_mapping_fn(
     checkpoint_dir: Path | str | None, num_agents: int) -> Callable:
