@@ -3,11 +3,15 @@ import json
 import numpy as np
 
 from ray.rllib.algorithms import Algorithm
-from train import algorithm_config, get_checkpoint_dir, policy_mapping_fn
+from train import algorithm_config, get_checkpoint_dir, get_policy_mapping_fn
+from typing import Callable
 
 
 
-def visualize(algorithm: Algorithm, num_episodes: int = 100) -> list[np.ndarray]:
+def visualize(
+    algorithm: Algorithm,
+    policy_mapping_fn: Callable,
+    num_episodes: int = 100) -> list[np.ndarray]:
     """
     Visualize trajectories from trained agents.
     """
@@ -82,11 +86,13 @@ if __name__ == '__main__':
     )
     algorithm = config.build()
     checkpoint = get_checkpoint_dir(args.load_dir)
+    policy_mapping_fn = lambda agent_id, *args, **kwargs: f'policy_{agent_id}'
     if checkpoint:
         print(f"Loading checkpoint from {checkpoint}")
         algorithm.restore(checkpoint)
+        policy_mapping_fn = get_policy_mapping_fn(checkpoint, args.num_agents)
 
-    frames = visualize(algorithm, num_episodes=args.num_episodes)
+    frames = visualize(algorithm, policy_mapping_fn, num_episodes=args.num_episodes)
     if args.gif:
         from array2gif import write_gif
         filename = args.gif if args.gif.endswith('.gif') else f'{args.gif}.gif'

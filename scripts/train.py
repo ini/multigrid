@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import ray
 
 from multigrid.rllib.models import TFModel, TorchModel, TorchLSTMModel
@@ -13,6 +14,7 @@ from ray.rllib.algorithms import AlgorithmConfig
 from ray.rllib.utils.framework import try_import_tf, try_import_torch
 from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
+from typing import Callable
 
 
 
@@ -34,6 +36,35 @@ def get_checkpoint_dir(search_dir: Path | str | None) -> Path | None:
 
     return None
 
+def get_policy_mapping_fn(
+    checkpoint_dir: Path | str | None, num_agents: int) -> Callable:
+    """
+    Create policy mapping function from saved policies in checkpoint directory.
+    Maps agent i to the (i % num_policies)-th policy.
+
+    Parameters
+    ----------
+    checkpoint_dir : Path or str
+        The checkpoint directory to load policies from
+    num_agents : int
+        The number of agents in the environment
+    """
+    try:
+        policies = sorted([
+            path for path in (checkpoint_dir / 'policies').iterdir() if path.is_dir()])
+
+        def policy_mapping_fn(agent_id, *args, **kwargs):
+            return policies[agent_id % len(policies)].name
+
+        print('Loading policies from:', checkpoint_dir)
+        for agent_id in range(num_agents):
+            print('Agent ID:', agent_id, 'Policy ID:', policy_mapping_fn(agent_id))
+
+        return policy_mapping_fn
+
+    except:
+        return lambda agent_id, *args, **kwargs: f'policy_{agent_id}'
+
 def can_use_gpu() -> bool:
     """
     Return whether or not GPU training is available.
@@ -51,12 +82,6 @@ def can_use_gpu() -> bool:
         pass
 
     return False
-
-def policy_mapping_fn(agent_id: int, *args, **kwargs) -> str:
-    """
-    Map an environment agent ID to an RLlib policy ID.
-    """
-    return f'policy_{agent_id}'
 
 def model_config(
     framework: str = 'torch',
@@ -81,13 +106,16 @@ def model_config(
         'custom_model_config': custom_model_config,
         'conv_filters': [
             [16, [3, 3], 1],
+            [16, [1, 1], 1],
             [32, [3, 3], 1],
+            [32, [1, 1], 1],
             [64, [3, 3], 1],
+            [64, [1, 1], 1],
         ],
         'fcnet_hiddens': [64, 64],
         'post_fcnet_hiddens': [],
-        'lstm_cell_size': 256,
-        'max_seq_len': 20,
+        'lstm_cell_size': 64,
+        'max_seq_len': 64,
     }
 
 def algorithm_config(
@@ -114,12 +142,15 @@ def algorithm_config(
         .resources(num_gpus=num_gpus if can_use_gpu() else 0)
         .multi_agent(
             policies={f'policy_{i}' for i in range(num_agents)},
-            policy_mapping_fn=policy_mapping_fn,
+            policy_mapping_fn=get_policy_mapping_fn(None, num_agents),
         )
         .training(
             model=model_config(framework=framework, lstm=lstm),
             lr=(lr or NotProvided),
+            vf_loss_coeff=0.5,
+            entropy_coeff=0.001,
         )
+        .debugging(seed=random.randint(0, int(1e6)))
     )
 
 def train(
