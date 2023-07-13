@@ -12,6 +12,9 @@ from multigrid.core.world_object import Door, Key
 
 class LockedHallwayEnv(RoomGrid):
     """
+    .. image:: https://i.imgur.com/VylPtnn.gif
+        :width: 325
+
     ***********
     Description
     ***********
@@ -131,10 +134,10 @@ class LockedHallwayEnv(RoomGrid):
         self.max_keys_per_room = max_keys_per_room
 
         if max_steps is None:
-            max_steps = 8 * (room_size * num_rooms)**2
+            max_steps = 8 * num_rooms * room_size**2
 
         super().__init__(
-            mission_space=MissionSpace.from_string("open all the doors"),
+            mission_space=MissionSpace.from_string("unlock all the doors"),
             room_size=room_size,
             num_rows=(num_rooms // 2),
             num_cols=3,
@@ -210,7 +213,7 @@ class LockedHallwayEnv(RoomGrid):
                         else:
                             rewards[agent_id] += self._reward()
 
-        # Check if all doors are opened
+        # Check if all doors are unlocked
         if len(self.unlocked_doors) == len(self.rooms):
             for agent in self.agents:
                 terminations[agent.index] = True
