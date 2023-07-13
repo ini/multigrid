@@ -147,6 +147,9 @@ class LockedHallwayEnv(RoomGrid):
         )
 
     def _gen_grid(self, width, height):
+        """
+        :meta private:
+        """
         super()._gen_grid(width, height)
 
         LEFT, HALLWAY, RIGHT = range(3) # columns

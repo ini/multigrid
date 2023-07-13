@@ -142,7 +142,6 @@ class EmptyEnv(MultiGridEnv):
         super().__init__(
             mission_space="get to the green goal square",
             grid_size=size,
-            see_through_walls=True, # set this to True for maximum speed
             max_steps=max_steps or (4 * size**2),
             joint_reward=joint_reward,
             success_termination_mode=success_termination_mode,
