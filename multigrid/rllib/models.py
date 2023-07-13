@@ -119,13 +119,14 @@ class TorchLSTMModel(TorchModelV2, nn.Module):
             self.base_model.post_fc_stack.num_outputs,
             model_config.get('lstm_cell_size', 256),
             batch_first=True,
+            num_layers=1,
         )
 
         # Action & Value
         self.action_model = nn.Linear(self.lstm.hidden_size, num_outputs)
         self.value_model = nn.Linear(self.lstm.hidden_size, 1)
 
-        # Current LSTM output
+        # Current features for value function
         self._features = None
 
     def forward(self, input_dict, state, seq_lens):
@@ -133,23 +134,22 @@ class TorchLSTMModel(TorchModelV2, nn.Module):
         x, _ = self.base_model(input_dict, state, seq_lens)
 
         # LSTM
-        x = add_time_dimension(
-            x,
-            seq_lens=seq_lens,
-            framework='torch',
-            time_major=False,
-        )
-        h, c = state[0].unsqueeze(0), state[1].unsqueeze(0)
+        x = add_time_dimension(x, seq_lens=seq_lens, framework='torch', time_major=False)
+        h = state[0].transpose(0, 1).contiguous()
+        c = state[1].transpose(0, 1).contiguous()
         x, [h, c] = self.lstm(x, [h, c])
 
         # Out
         self._features = x.reshape(-1, self.lstm.hidden_size)
         logits = self.action_model(self._features)
-        return logits, [h.squeeze(0), c.squeeze(0)]
+        return logits, [h.transpose(0, 1), c.transpose(0, 1)]
 
     def value_function(self):
         assert self._features is not None, "must call forward() first"
         return self.value_model(self._features).flatten()
 
     def get_initial_state(self):
-        return [torch.zeros(self.lstm.hidden_size), torch.zeros(self.lstm.hidden_size)]
+        return [
+            torch.zeros(self.lstm.num_layers, self.lstm.hidden_size),
+            torch.zeros(self.lstm.num_layers, self.lstm.hidden_size),
+        ]
