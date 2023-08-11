@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from gymnasium import spaces
 from ray.rllib.models.tf.complex_input_net import (
     ComplexInputNetwork as TFComplexInputNetwork
@@ -8,9 +10,47 @@ from ray.rllib.models.torch.complex_input_net import (
 )
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.policy.rnn_sequencing import add_time_dimension
-from ray.rllib.utils.framework import try_import_torch
+from ray.rllib.policy.sample_batch import SampleBatch
+from ray.rllib.utils.framework import TensorType, try_import_torch
 
 torch, nn = try_import_torch()
+from torch import Tensor
+from typing import Any
+
+
+
+def to_sample_batch(
+    input_dict: SampleBatch | dict[str, TensorType],
+    state: list[TensorType] = [],
+    seq_lens: TensorType | None = None,
+    **kwargs) -> SampleBatch:
+    """
+    Create a ``SampleBatch`` with the given data.
+
+    Parameters
+    ----------
+    input_dict : SampleBatch or dict
+        Batch of data
+    state : list[TensorType]
+        List of state tensors
+    seq_lens : TensorType
+        1-D tensor holding input sequence lengths
+    seq_lens : TensorType or None
+        Sequence lengths
+    """
+    batch = SampleBatch(input_dict)
+    batch.update(input_dict)
+    batch.update(kwargs)
+
+    # Process states
+    for i in range(len(state)):
+        batch[f'state_in_{i}'] = state[i]
+
+    # Process sequence lengths
+    if seq_lens is not None:
+        batch[SampleBatch.SEQ_LENS] = seq_lens
+
+    return batch
 
 
 
@@ -61,20 +101,78 @@ class TorchModel(TorchModelV2, nn.Module):
         num_outputs: int,
         model_config: dict,
         name: str,
+        value_input_space: spaces.Space = None,
         **kwargs):
         """
-        See ``TorchModelV2.__init__()``.
+        Parameters
+        ----------
+        obs_space : spaces.Space
+            Observation space
+        action_space : spaces.Space
+            Action space
+        num_outputs : int
+            Number of outputs
+        model_config : dict
+            Model configuration dictionary
+        name : str
+            Model name
+        value_input_space : spaces.Space, optional
+            Space for value function inputs (if different from `obs_space`)
         """
         TorchModelV2.__init__(
             self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
-        self.model = TorchComplexInputNetwork(
-            obs_space, action_space, num_outputs, model_config, name)
-        self.forward = self.model.forward
-        self.value_function = self.model.value_function
+
+        # Action
+        self.action_model = TorchComplexInputNetwork(
+            obs_space, action_space, num_outputs, model_config, None)
+
+        # Value
+        self.value_model = TorchComplexInputNetwork(
+            value_input_space or obs_space, action_space, 1, model_config, None)
+
+        self._model_input: SampleBatch = None
+
+    def forward(
+        self,
+        input_dict: dict[str, Tensor],
+        state: list[Tensor],
+        seq_lens: Tensor) -> tuple[Tensor, list[Tensor]]:
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        input_dict : dict[str, Tensor]
+            Dictionary of input tensors
+        state : list[Tensor]
+            List of state tensors
+        seq_lens : Tensor
+            1-D tensor holding input sequence lengths
+        """
+        self._model_input = to_sample_batch(input_dict, state, seq_lens)
+        return self.action_model(input_dict, state, seq_lens)
+
+    def value_function(self, value_input: Any = None) -> TensorType:
+        """
+        Returns the value function output for the most recent forward pass.
+
+        Parameters
+        ----------
+        value_input : Any, optional
+            Value function input (if different from obs, e.g. for centralized critic)
+        """
+        if value_input is None:
+            if self.value_model.obs_space is not self.obs_space:
+                return self.action_model.value_function() # dummy output
+
+        value_input = value_input or self._model_input[SampleBatch.OBS]
+        self._model_input[SampleBatch.OBS] = value_input
+        value_out, _ = self.value_model(self._model_input)
+        return value_out.flatten()
 
 
-class TorchLSTMModel(TorchModelV2, nn.Module):
+class TorchLSTMModel(TorchModel):
     """
     Torch LSTM model to use with RLlib.
 
@@ -94,44 +192,49 @@ class TorchLSTMModel(TorchModelV2, nn.Module):
         name: str,
         **kwargs):
         """
-        See ``TorchModelV2.__init__()``.
+        See ``TorchModel.__init__()``.
         """
         nn.Module.__init__(self)
+        lstm_cell_size = model_config.get('lstm_cell_size', 256)
         super().__init__(
             obs_space,
             action_space,
-            num_outputs,
+            lstm_cell_size,
             model_config,
             name,
-        )
-
-        # Base
-        self.base_model = TorchComplexInputNetwork(
-            obs_space,
-            action_space,
-            None,
-            model_config,
-            f'{name}_base',
+            **kwargs
         )
 
         # LSTM
         self.lstm = nn.LSTM(
-            self.base_model.post_fc_stack.num_outputs,
-            model_config.get('lstm_cell_size', 256),
+            lstm_cell_size,
+            lstm_cell_size,
             batch_first=True,
             num_layers=1,
         )
 
-        # Action & Value
-        self.action_model = nn.Linear(self.lstm.hidden_size, num_outputs)
-        self.value_model = nn.Linear(self.lstm.hidden_size, 1)
+        # Head
+        self.head = nn.Linear(self.lstm.hidden_size, num_outputs)
 
-        # Current features for value function
-        self._features = None
+    def forward(
+        self,
+        input_dict: dict[str, Tensor],
+        state: list[Tensor],
+        seq_lens: Tensor) -> tuple[Tensor, list[Tensor]]:
+        """
+        Forward pass of the model.
 
-    def forward(self, input_dict, state, seq_lens):
+        Parameters
+        ----------
+        input_dict : dict[str, Tensor]
+            Dictionary of input tensors
+        state : list[Tensor]
+            List of state tensors
+        seq_lens : Tensor
+            1-D tensor holding input sequence lengths
+        """
         # Base
-        x, _ = self.base_model(input_dict, state, seq_lens)
+        x, _ = super().forward(input_dict, state, seq_lens)
 
         # LSTM
         x = add_time_dimension(x, seq_lens=seq_lens, framework='torch', time_major=False)
@@ -139,16 +242,11 @@ class TorchLSTMModel(TorchModelV2, nn.Module):
         c = state[1].transpose(0, 1).contiguous()
         x, [h, c] = self.lstm(x, [h, c])
 
-        # Out
-        self._features = x.reshape(-1, self.lstm.hidden_size)
-        logits = self.action_model(self._features)
+        # Output
+        logits = self.head(x.reshape(-1, self.lstm.hidden_size))
         return logits, [h.transpose(0, 1), c.transpose(0, 1)]
 
-    def value_function(self):
-        assert self._features is not None, "must call forward() first"
-        return self.value_model(self._features).flatten()
-
-    def get_initial_state(self):
+    def get_initial_state(self) -> list[Tensor]:
         return [
             torch.zeros(self.lstm.num_layers, self.lstm.hidden_size),
             torch.zeros(self.lstm.num_layers, self.lstm.hidden_size),

@@ -5,16 +5,20 @@ import json
 import os
 import random
 import ray
+import torch
 
+from gymnasium import spaces
 from multigrid.rllib.models import TFModel, TorchModel, TorchLSTMModel
 from pathlib import Path
 from pprint import pprint
 from ray import tune
-from ray.rllib.algorithms import AlgorithmConfig
+from ray.rllib.algorithms import Algorithm, AlgorithmConfig
 from ray.rllib.utils.framework import try_import_tf, try_import_torch
 from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
 from typing import Callable
+
+from centralized_critic import CentralizedCriticCallbacks, get_critic_input_space
 
 
 
@@ -86,6 +90,7 @@ def can_use_gpu() -> bool:
 def model_config(
     framework: str = 'torch',
     lstm: bool = False,
+    value_input_space: spaces.Space = None,
     custom_model_config: dict = {}):
     """
     Return a model configuration dictionary for RLlib.
@@ -100,6 +105,11 @@ def model_config(
             raise NotImplementedError
         else:
             model = TFModel
+    
+    if framework != 'torch' and value_input_space is not None:
+        raise NotImplementedError("Centralized critic not implemented for TF models.")
+
+    custom_model_config = {'value_input_space': value_input_space, **custom_model_config}
 
     return {
         'custom_model': model,
@@ -128,30 +138,43 @@ def algorithm_config(
     num_workers: int = 0,
     num_gpus: int = 0,
     lr: float | None = None,
+    centralized_critic: bool = False,
     **kwargs) -> AlgorithmConfig:
     """
     Return the RL algorithm configuration dictionary.
     """
+    _, env_creator = Algorithm._get_env_id_and_creator(env, {})
     env_config = {**env_config, 'agents': num_agents}
-    return (
+    dummy_env = env_creator(env_config)
+    value_input_space = get_critic_input_space(dummy_env) if centralized_critic else None
+
+    config = (
         get_trainable_cls(algo)
         .get_default_config()
+        .debugging(seed=random.randint(0, int(1e6)))
         .environment(env=env, env_config=env_config)
         .framework(framework)
-        .rollouts(num_rollout_workers=num_workers)
         .resources(num_gpus=num_gpus if can_use_gpu() else 0)
+        .rl_module( _enable_rl_module_api=False) # disable RLModule API
+        .rollouts(num_rollout_workers=num_workers)
         .multi_agent(
             policies={f'policy_{i}' for i in range(num_agents)},
             policy_mapping_fn=get_policy_mapping_fn(None, num_agents),
         )
         .training(
-            model=model_config(framework=framework, lstm=lstm),
+            _enable_learner_api=False, # disable RLModule API
+            model=model_config(
+                framework=framework, lstm=lstm, value_input_space=value_input_space),
             lr=(lr or NotProvided),
             vf_loss_coeff=0.5,
             entropy_coeff=0.001,
         )
-        .debugging(seed=random.randint(0, int(1e6)))
     )
+
+    if centralized_critic:
+        config = config.callbacks(CentralizedCriticCallbacks)
+
+    return config
 
 def train(
     algo: str,
@@ -183,13 +206,16 @@ if __name__ == "__main__":
         '--algo', type=str, default='PPO',
         help="The name of the RLlib-registered algorithm to use.")
     parser.add_argument(
+        '--env', type=str, default='MultiGrid-Empty-8x8-v0',
+        help="MultiGrid environment to use.")
+    parser.add_argument(
         '--framework', type=str, choices=['torch', 'tf', 'tf2'], default='torch',
         help="Deep learning framework to use.")
     parser.add_argument(
         '--lstm', action='store_true', help="Use LSTM model.")
     parser.add_argument(
-        '--env', type=str, default='MultiGrid-Empty-8x8-v0',
-        help="MultiGrid environment to use.")
+        '--centralized-critic', action='store_true',
+        help="Use centralized critic for training.")
     parser.add_argument(
         '--env-config', type=json.loads, default={},
         help="Environment config dict, given as a JSON string (e.g. '{\"size\": 8}')")
