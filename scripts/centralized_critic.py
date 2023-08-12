@@ -15,9 +15,15 @@ from ray.rllib.utils.torch_utils import convert_to_torch_tensor
 from ray.rllib.utils.typing import AgentID, PolicyID
 
 
+
 def get_critic_input_space(env: MultiAgentEnv) -> spaces.Dict:
     """
     Get gymnasium space for centralized critic input.
+
+    Parameters
+    ----------
+    env : MultiAgentEnv
+        Instance of multi-agent environment
     """
     return spaces.Dict({
         str(agent_id): spaces.Dict({
@@ -45,8 +51,9 @@ class CentralizedCriticCallbacks(DefaultCallbacks):
         postprocessed_batch: SampleBatch,
         original_batches: dict[AgentID, tuple[Policy, SampleBatch]],
         **kwargs):
-        policy = policies[policy_id]
-
+        """
+        Overwrite value function outputs with centralized critic.
+        """
         # Get observations and actions from all agents as input to critic
         value_input = {}
         for _agent_id, (_policy_id, _policy, _batch) in original_batches.items():
@@ -69,6 +76,7 @@ class CentralizedCriticCallbacks(DefaultCallbacks):
             }
 
         # Overwrite value function outputs
+        policy = policies[policy_id]
         if policy.framework == 'torch':
             value_input = convert_to_torch_tensor(value_input, policy.device)
             vf_preds = policy.model.value_function(value_input=value_input)
