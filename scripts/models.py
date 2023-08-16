@@ -1,23 +1,21 @@
 from __future__ import annotations
 
+import torch
+import torch.nn as nn
+
 from gymnasium import spaces
-from ray.rllib.models.tf.complex_input_net import (
-    ComplexInputNetwork as TFComplexInputNetwork
-)
-from ray.rllib.models.tf.tf_modelv2 import TFModelV2
-from ray.rllib.models.torch.complex_input_net import (
-    ComplexInputNetwork as TorchComplexInputNetwork
-)
+from ray.rllib.models.catalog import MODEL_DEFAULTS
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+from ray.rllib.models.torch.complex_input_net import ComplexInputNetwork
 from ray.rllib.policy.rnn_sequencing import add_time_dimension
 from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.utils.framework import TensorType, try_import_torch
+from ray.rllib.utils.framework import TensorType
+from torch import Tensor
 from typing import Any
 
-torch, nn = try_import_torch()
-from torch import Tensor
 
 
+### Helper Functions
 
 def to_sample_batch(
     input_dict: SampleBatch | dict[str, TensorType],
@@ -42,22 +40,21 @@ def to_sample_batch(
 
     # Process states
     for i in range(len(state)):
-        batch[f'state_in_{i}'] = state[i]
+        input_dict[f'state_in_{i}'] = state[i]
 
     # Process sequence lengths
     if seq_lens is not None:
-        batch[SampleBatch.SEQ_LENS] = seq_lens
+        input_dict[SampleBatch.SEQ_LENS] = seq_lens
 
     return batch
 
 
 
-class TFModel(TFModelV2):
-    """
-    Basic tensorflow model to use with RLlib.
+### Models
 
-    Essentially a wrapper for ``ComplexInputNetwork`` that correctly deals with
-    ``Dict`` observation spaces.
+class CustomModel(TorchModelV2, nn.Module):
+    """
+    Base class for custom models to use with RLlib.
 
     For configuration options (i.e. ``model_config``),
     see https://docs.ray.io/en/latest/rllib/rllib-models.html.
@@ -70,35 +67,7 @@ class TFModel(TFModelV2):
         num_outputs: int,
         model_config: dict,
         name: str,
-        **kwargs):
-        """
-        See ``TFModelV2.__init__()``.
-        """
-        super().__init__(obs_space, action_space, num_outputs, model_config, name)
-        self.model = TFComplexInputNetwork(
-            obs_space, action_space, num_outputs, model_config, name)
-        self.forward = self.model.forward
-        self.value_function = self.model.value_function
-
-
-class TorchModel(TorchModelV2, nn.Module):
-    """
-    Basic torch model to use with RLlib.
-
-    Essentially a wrapper for ``ComplexInputNetwork`` that correctly deals with
-    ``Dict`` observation spaces.
-
-    For configuration options (i.e. ``model_config``),
-    see https://docs.ray.io/en/latest/rllib/rllib-models.html.
-    """
-
-    def __init__(
-        self,
-        obs_space: spaces.Space,
-        action_space: spaces.Space,
-        num_outputs: int,
-        model_config: dict,
-        name: str,
+        base_model_cls: type[TorchModelV2] = ComplexInputNetwork,
         value_input_space: spaces.Space = None,
         **kwargs):
         """
@@ -114,22 +83,24 @@ class TorchModel(TorchModelV2, nn.Module):
             Model configuration dictionary
         name : str
             Model name
+        base_model_cls : type[TorchModelV2], optional
+            Base model class to wrap around (e.g. ComplexInputNetwork)
         value_input_space : spaces.Space, optional
             Space for value function inputs (if different from `obs_space`)
         """
+        nn.Module.__init__(self)
         TorchModelV2.__init__(
             self, obs_space, action_space, num_outputs, model_config, name)
-        nn.Module.__init__(self)
 
         # Action
-        self.action_model = TorchComplexInputNetwork(
+        self.action_model: TorchModelV2 = base_model_cls(
             obs_space, action_space, num_outputs, model_config, None)
 
         # Value
-        self.value_model = TorchComplexInputNetwork(
+        self.value_model: TorchModelV2 = base_model_cls(
             value_input_space or obs_space, action_space, 1, model_config, None)
 
-        self._model_input: SampleBatch = None
+        self._value_input: SampleBatch | None = None
 
     def forward(
         self,
@@ -148,65 +119,72 @@ class TorchModel(TorchModelV2, nn.Module):
         seq_lens : Tensor
             1-D tensor holding input sequence lengths
         """
-        self._model_input = to_sample_batch(input_dict, state, seq_lens)
+        self._value_input = to_sample_batch(input_dict, state, seq_lens)
         return self.action_model(input_dict, state, seq_lens)
 
-    def value_function(self, value_input: Any = None) -> TensorType:
+    def value_function(self, value_input: Any = None) -> Tensor:
         """
-        Returns the value function output for the most recent forward pass.
+        Return the value function output for the most recent forward pass.
 
         Parameters
         ----------
         value_input : Any, optional
             Value function input (if different from obs, e.g. for centralized critic)
         """
-        if value_input is None:
-            if self.value_model.obs_space is not self.obs_space:
-                return self.action_model.value_function() # dummy output
+        assert self._value_input is not None, "must call `forward()` first."
 
-        value_input = value_input or self._model_input[SampleBatch.OBS]
-        self._model_input[SampleBatch.OBS] = value_input
-        value_out, _ = self.value_model(self._model_input)
+        # If using a custom value input space, but no custom value input is provided,
+        # return dummy outputs (to be overwritten in postprocessing)
+        if self.value_model.obs_space is not self.obs_space and value_input is None:
+            batch_size = self._value_input['obs_flat'].shape[0]
+            return torch.zeros(batch_size) # dummy output
+
+        # Use custom value input if provided
+        if value_input is not None:
+            self._value_input[SampleBatch.OBS] = value_input
+
+        value_out, _ = self.value_model(self._value_input)
         return value_out.flatten()
 
+    def custom_loss(
+        self,
+        policy_loss: Tensor,
+        loss_inputs: SampleBatch) -> Tensor | list[Tensor]:
+        """
+        Override to customize the loss function used to optimize this model.
 
-class TorchLSTMModel(TorchModel):
+        Parameters
+        ----------
+        policy_loss : Tensor
+            Policy loss
+        loss_inputs : SampleBatch
+            Batch of data used to compute the loss
+        """
+        return self.action_model.custom_loss(policy_loss, loss_inputs)
+
+
+class CustomLSTMModel(CustomModel):
     """
-    Torch LSTM model to use with RLlib.
+    Custom LSTM model to use with RLlib.
 
-    Processes observations with a ``ComplexInputNetwork`` and then passes
+    Processes observations with a base model and then passes
     the output through an LSTM layer.
 
     For configuration options (i.e. ``model_config``),
     see https://docs.ray.io/en/latest/rllib/rllib-models.html.
     """
 
-    def __init__(
-        self,
-        obs_space: spaces.Space,
-        action_space: spaces.Space,
-        num_outputs: int,
-        model_config: dict,
-        name: str,
-        **kwargs):
+    def __init__(self, *args, **kwargs):
         """
-        See ``TorchModel.__init__()``.
+        See ``CustomModel.__init__()``.
         """
-        nn.Module.__init__(self)
-        lstm_cell_size = self.model_config.get('lstm_cell_size', 256)
-        super().__init__(
-            obs_space,
-            action_space,
-            lstm_cell_size,
-            model_config,
-            name,
-            **kwargs
-        )
+        obs_space, action_space, num_outputs, model_config, name = args
+        super().__init__(obs_space, action_space, None, model_config, name, **kwargs)
 
         # LSTM
         self.lstm = nn.LSTM(
-            lstm_cell_size,
-            lstm_cell_size,
+            self.action_model.num_outputs,
+            model_config.get('lstm_cell_size', MODEL_DEFAULTS['lstm_cell_size']),
             batch_first=True,
             num_layers=1,
         )
@@ -244,7 +222,7 @@ class TorchLSTMModel(TorchModel):
         logits = self.head(x.reshape(-1, self.lstm.hidden_size))
         return logits, [h.transpose(0, 1), c.transpose(0, 1)]
 
-    def get_initial_state(self) -> list[Tensor]:
+    def get_initial_state(self) -> list[torch.Tensor]:
         """
         Get initial state for the LSTM.
         """

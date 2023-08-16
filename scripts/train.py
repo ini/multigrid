@@ -14,35 +14,20 @@ from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
 
 from centralized_critic import CentralizedCriticCallbacks, get_critic_input_space
-from models import TFModel, TorchModel, TorchLSTMModel
+from models import CustomModel, CustomLSTMModel
 from utils import can_use_gpu, find_checkpoint_dir, get_policy_mapping_fn
 
 
 
 def model_config(
-    framework: str = 'torch',
     lstm: bool = False,
     value_input_space: spaces.Space = None,
     custom_model_config: dict = {}):
     """
     Return a model configuration dictionary for RLlib.
     """
-    if framework == 'torch':
-        if lstm:
-            model = TorchLSTMModel
-        else:
-            model = TorchModel
-    else:
-        if lstm:
-            raise NotImplementedError("LSTM not implemented for TF models.")
-        else:
-            model = TFModel
-    
-    if framework != 'torch' and value_input_space is not None:
-        raise NotImplementedError("Centralized critic not implemented for TF models.")
-
     return {
-        'custom_model': model,
+        'custom_model': CustomLSTMModel if lstm else CustomModel,
         'custom_model_config': {
             'value_input_space': value_input_space,
             **custom_model_config,
@@ -66,7 +51,6 @@ def algorithm_config(
     env: str = 'MultiGrid-Empty-8x8-v0',
     env_config: dict = {},
     num_agents: int = 2,
-    framework: str = 'torch',
     lstm: bool = False,
     num_workers: int = 0,
     num_gpus: int = 0,
@@ -86,18 +70,17 @@ def algorithm_config(
         .get_default_config()
         .debugging(seed=random.randint(0, int(1e6)))
         .environment(env=env, env_config=env_config)
-        .framework(framework)
-        .resources(num_gpus=num_gpus if can_use_gpu() else 0)
-        .rl_module( _enable_rl_module_api=False) # disable RLModule API
-        .rollouts(num_rollout_workers=num_workers)
+        .framework('torch')
         .multi_agent(
             policies={f'policy_{i}' for i in range(num_agents)},
             policy_mapping_fn=get_policy_mapping_fn(None, num_agents),
         )
+        .resources(num_gpus=num_gpus if can_use_gpu() else 0)
+        .rl_module(_enable_rl_module_api=False) # disable RLModule API
+        .rollouts(num_rollout_workers=num_workers)
         .training(
             _enable_learner_api=False, # disable RLModule API
-            model=model_config(
-                framework=framework, lstm=lstm, value_input_space=value_input_space),
+            model=model_config(lstm=lstm, value_input_space=value_input_space),
             lr=(lr or NotProvided),
         )
     )
@@ -146,9 +129,6 @@ if __name__ == "__main__":
     parser.add_argument(
         '--num-agents', type=int, default=2,
         help="Number of agents in environment.")
-    parser.add_argument(
-        '--framework', type=str, choices=['torch', 'tf', 'tf2'], default='torch',
-        help="Deep learning framework to use.")
     parser.add_argument(
         '--lstm', action='store_true',
         help="Use LSTM model.")
