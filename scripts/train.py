@@ -2,90 +2,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import random
 import ray
-import torch
+import multigrid.rllib
 
 from gymnasium import spaces
-from multigrid.rllib.models import TFModel, TorchModel, TorchLSTMModel
-from pathlib import Path
 from pprint import pprint
 from ray import tune
 from ray.rllib.algorithms import Algorithm, AlgorithmConfig
-from ray.rllib.utils.framework import try_import_tf, try_import_torch
 from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
-from typing import Callable
 
 from centralized_critic import CentralizedCriticCallbacks, get_critic_input_space
+from models import TFModel, TorchModel, TorchLSTMModel
+from utils import can_use_gpu, find_checkpoint_dir, get_policy_mapping_fn
 
 
-
-def get_checkpoint_dir(search_dir: Path | str | None) -> Path | None:
-    """
-    Recursively search for checkpoints within the given directory.
-
-    If more than one is found, returns the most recently modified checkpoint directory.
-
-    Parameters
-    ----------
-    search_dir : Path or str
-        The directory to search for checkpoints within
-    """
-    try:
-        checkpoints = Path(search_dir).expanduser().glob('**/*.is_checkpoint')
-        if checkpoints:
-            return sorted(checkpoints, key=os.path.getmtime)[-1].parent
-    except:
-        pass
-
-def get_policy_mapping_fn(
-    checkpoint_dir: Path | str | None, num_agents: int) -> Callable:
-    """
-    Create policy mapping function from saved policies in checkpoint directory.
-    Maps agent i to the (i % num_policies)-th policy.
-
-    Parameters
-    ----------
-    checkpoint_dir : Path or str
-        The checkpoint directory to load policies from
-    num_agents : int
-        The number of agents in the environment
-    """
-    try:
-        policies = sorted([
-            path for path in (checkpoint_dir / 'policies').iterdir() if path.is_dir()])
-
-        def policy_mapping_fn(agent_id, *args, **kwargs):
-            return policies[agent_id % len(policies)].name
-
-        print('Loading policies from:', checkpoint_dir)
-        for agent_id in range(num_agents):
-            print('Agent ID:', agent_id, 'Policy ID:', policy_mapping_fn(agent_id))
-
-        return policy_mapping_fn
-
-    except:
-        return lambda agent_id, *args, **kwargs: f'policy_{agent_id}'
-
-def can_use_gpu() -> bool:
-    """
-    Return whether or not GPU training is available.
-    """
-    try:
-        _, tf, _ = try_import_tf()
-        return tf.test.is_gpu_available()
-    except:
-        pass
-
-    try:
-        torch, _ = try_import_torch()
-        return torch.cuda.is_available()
-    except:
-        pass
-
-    return False
 
 def model_config(
     framework: str = 'torch',
@@ -102,18 +34,19 @@ def model_config(
             model = TorchModel
     else:
         if lstm:
-            raise NotImplementedError
+            raise NotImplementedError("LSTM not implemented for TF models.")
         else:
             model = TFModel
     
     if framework != 'torch' and value_input_space is not None:
         raise NotImplementedError("Centralized critic not implemented for TF models.")
 
-    custom_model_config = {'value_input_space': value_input_space, **custom_model_config}
-
     return {
         'custom_model': model,
-        'custom_model_config': custom_model_config,
+        'custom_model_config': {
+            'value_input_space': value_input_space,
+            **custom_model_config,
+        },
         'conv_filters': [
             [16, [3, 3], 1],
             [16, [1, 1], 1],
@@ -166,8 +99,6 @@ def algorithm_config(
             model=model_config(
                 framework=framework, lstm=lstm, value_input_space=value_input_space),
             lr=(lr or NotProvided),
-            vf_loss_coeff=0.5,
-            entropy_coeff=0.001,
         )
     )
 
@@ -192,7 +123,7 @@ def train(
         config=config,
         local_dir=save_dir,
         verbose=1,
-        restore=get_checkpoint_dir(load_dir),
+        restore=find_checkpoint_dir(load_dir),
         checkpoint_freq=20,
         checkpoint_at_end=True,
     )
@@ -202,6 +133,7 @@ def train(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
     parser.add_argument(
         '--algo', type=str, default='PPO',
         help="The name of the RLlib-registered algorithm to use.")
@@ -209,27 +141,32 @@ if __name__ == "__main__":
         '--env', type=str, default='MultiGrid-Empty-8x8-v0',
         help="MultiGrid environment to use.")
     parser.add_argument(
+        '--env-config', type=json.loads, default={},
+        help="Environment config dict, given as a JSON string (e.g. '{\"size\": 8}')")
+    parser.add_argument(
+        '--num-agents', type=int, default=2,
+        help="Number of agents in environment.")
+    parser.add_argument(
         '--framework', type=str, choices=['torch', 'tf', 'tf2'], default='torch',
         help="Deep learning framework to use.")
     parser.add_argument(
-        '--lstm', action='store_true', help="Use LSTM model.")
+        '--lstm', action='store_true',
+        help="Use LSTM model.")
     parser.add_argument(
         '--centralized-critic', action='store_true',
         help="Use centralized critic for training.")
     parser.add_argument(
-        '--env-config', type=json.loads, default={},
-        help="Environment config dict, given as a JSON string (e.g. '{\"size\": 8}')")
+        '--num-workers', type=int, default=8,
+        help="Number of rollout workers.")
     parser.add_argument(
-        '--num-agents', type=int, default=2, help="Number of agents in environment.")
-    parser.add_argument(
-        '--num-workers', type=int, default=8, help="Number of rollout workers.")
-    parser.add_argument(
-        '--num-gpus', type=int, default=1, help="Number of GPUs to train on.")
+        '--num-gpus', type=int, default=1,
+        help="Number of GPUs to train on.")
     parser.add_argument(
         '--num-timesteps', type=int, default=1e7,
         help="Total number of timesteps to train.")
     parser.add_argument(
-        '--lr', type=float, help="Learning rate for training.")
+        '--lr', type=float,
+        help="Learning rate for training.")
     parser.add_argument(
         '--load-dir', type=str,
         help="Checkpoint directory for loading pre-trained policies.")
@@ -239,11 +176,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     config = algorithm_config(**vars(args))
-    stop_conditions = {'timesteps_total': args.num_timesteps}
 
     print()
     print(f"Running with following CLI options: {args}")
     print('\n', '-' * 64, '\n', "Training with following configuration:", '\n', '-' * 64)
     print()
     pprint(config.to_dict())
+
+    stop_conditions = {'timesteps_total': args.num_timesteps}
     train(args.algo, config, stop_conditions, args.save_dir, args.load_dir)

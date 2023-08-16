@@ -12,10 +12,10 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.policy.rnn_sequencing import add_time_dimension
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.framework import TensorType, try_import_torch
+from typing import Any
 
 torch, nn = try_import_torch()
 from torch import Tensor
-from typing import Any
 
 
 
@@ -33,10 +33,8 @@ def to_sample_batch(
         Batch of data
     state : list[TensorType]
         List of state tensors
-    seq_lens : TensorType
-        1-D tensor holding input sequence lengths
     seq_lens : TensorType or None
-        Sequence lengths
+        1-D tensor holding input sequence lengths
     """
     batch = SampleBatch(input_dict)
     batch.update(input_dict)
@@ -195,7 +193,7 @@ class TorchLSTMModel(TorchModel):
         See ``TorchModel.__init__()``.
         """
         nn.Module.__init__(self)
-        lstm_cell_size = model_config.get('lstm_cell_size', 256)
+        lstm_cell_size = self.model_config.get('lstm_cell_size', 256)
         super().__init__(
             obs_space,
             action_space,
@@ -247,6 +245,9 @@ class TorchLSTMModel(TorchModel):
         return logits, [h.transpose(0, 1), c.transpose(0, 1)]
 
     def get_initial_state(self) -> list[Tensor]:
+        """
+        Get initial state for the LSTM.
+        """
         return [
             torch.zeros(self.lstm.num_layers, self.lstm.hidden_size),
             torch.zeros(self.lstm.num_layers, self.lstm.hidden_size),

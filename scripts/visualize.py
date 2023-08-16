@@ -4,8 +4,10 @@ import numpy as np
 
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.utils.typing import AgentID
-from train import algorithm_config, get_checkpoint_dir, get_policy_mapping_fn
 from typing import Any, Callable, Iterable
+
+from train import algorithm_config
+from utils import find_checkpoint_dir, get_policy_mapping_fn
 
 
 
@@ -133,7 +135,7 @@ if __name__ == '__main__':
         num_gpus=0,
     )
     algorithm = config.build()
-    checkpoint = get_checkpoint_dir(args.load_dir)
+    checkpoint = find_checkpoint_dir(args.load_dir)
     policy_mapping_fn = lambda agent_id, *args, **kwargs: f'policy_{agent_id}'
     if checkpoint:
         print(f"Loading checkpoint from {checkpoint}")
