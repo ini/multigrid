@@ -37,8 +37,20 @@ class CentralizedCriticCallbacks(DefaultCallbacks):
     """
     Callbacks for training with a centralized critic.
 
-    Requires custom model with a `value_function()` method that takes in
-    an optional `value_input` argument.
+    To use, set the 'callbacks' key in the algorithm config to this class.
+
+    Requires a custom model with a modified `value_function()` method
+    that takes in an optional `value_input` argument.
+
+    Example
+    -------
+    >>> config.callbacks(CentralizedCriticCallbacks)
+    >>> config.training(
+    ...     model={
+    ...         'custom_model': CustomModel,
+    ...         'custom_model_config': {'value_input_space': get_critic_input_space(env))
+    ...     }
+    ... )
     """
 
     def on_postprocess_trajectory(

@@ -58,6 +58,19 @@ class CustomModel(TorchModelV2, nn.Module):
 
     For configuration options (i.e. ``model_config``),
     see https://docs.ray.io/en/latest/rllib/rllib-models.html.
+
+    Example
+    -------
+    Use a 2-layer MLP with 64 hidden units and tanh activations:
+
+    >>> config.training(
+    ...     model={
+    ...         'custom_model': CustomModel,
+    ...         'custom_model_config': dict(model_kwargs),
+    ...         'fcnet_hiddens': [64, 64],
+    ...         'fcnet_activation': 'tanh',
+    ...     }
+    ... )
     """
 
     def __init__(
@@ -172,6 +185,24 @@ class CustomLSTMModel(CustomModel):
 
     For configuration options (i.e. ``model_config``),
     see https://docs.ray.io/en/latest/rllib/rllib-models.html.
+
+    Example
+    -------
+    Use an CNN-LSTM model with 3 convolutional layers and 1 LSTM layer:
+
+    >>> config.training(
+    ...     model={
+    ...         'custom_model': CustomModel,
+    ...         'custom_model_config': dict(model_kwargs),
+    ...         'conv_filters': [
+                    [16, [3, 3], 1],
+                    [32, [3, 3], 1],
+                    [64, [3, 3], 1],
+                ],
+    ...         'lstm_cell_size': 64,
+    ...         'max_seq_len': 4,
+    ...     }
+    ... )
     """
 
     def __init__(self, *args, **kwargs):
