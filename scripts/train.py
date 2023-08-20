@@ -2,36 +2,36 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import ray
+import torch
 import multigrid.rllib
 
-from gymnasium import spaces
-from pprint import pprint
 from ray import tune
 from ray.rllib.algorithms import Algorithm, AlgorithmConfig
 from ray.rllib.utils.from_config import NotProvided
 from ray.tune.registry import get_trainable_cls
+from typing import Any
 
 from centralized_critic import CentralizedCriticCallbacks, get_critic_input_space
 from models import CustomModel, CustomLSTMModel
-from utils import can_use_gpu, find_checkpoint_dir, get_policy_mapping_fn
+from utils import find_checkpoint_dir, get_policy_mapping_fn
 
 
 
-def model_config(
-    lstm: bool = False,
-    value_input_space: spaces.Space = None,
-    custom_model_config: dict = {}):
+def model_config(lstm: bool = False, **model_kwargs) -> dict[str, Any]:
     """
     Return a model configuration dictionary for RLlib.
+
+    Parameters
+    ----------
+    lstm : bool
+        Whether to use an LSTM model
     """
     return {
         'custom_model': CustomLSTMModel if lstm else CustomModel,
-        'custom_model_config': {
-            'value_input_space': value_input_space,
-            **custom_model_config,
-        },
+        'custom_model_config': model_kwargs,
         'conv_filters': [
             [16, [3, 3], 1],
             [16, [1, 1], 1],
@@ -41,9 +41,10 @@ def model_config(
             [64, [1, 1], 1],
         ],
         'fcnet_hiddens': [64, 64],
+        'fcnet_activation': 'tanh',
         'post_fcnet_hiddens': [],
         'lstm_cell_size': 64,
-        'max_seq_len': 64,
+        'max_seq_len': 8,
     }
 
 def algorithm_config(
@@ -75,7 +76,7 @@ def algorithm_config(
             policies={f'policy_{i}' for i in range(num_agents)},
             policy_mapping_fn=get_policy_mapping_fn(None, num_agents),
         )
-        .resources(num_gpus=num_gpus if can_use_gpu() else 0)
+        .resources(num_gpus=num_gpus if torch.cuda.is_available() else 0)
         .rl_module(_enable_rl_module_api=False) # disable RLModule API
         .rollouts(num_rollout_workers=num_workers)
         .training(
@@ -99,7 +100,7 @@ def train(
     """
     Train an RLlib algorithm.
     """
-    ray.init(num_cpus=(config.num_rollout_workers + 1))
+    ray.init(num_cpus=min(os.cpu_count(), config.num_rollout_workers + 1))
     tune.run(
         algo,
         stop=stop_conditions,
@@ -161,7 +162,6 @@ if __name__ == "__main__":
     print(f"Running with following CLI options: {args}")
     print('\n', '-' * 64, '\n', "Training with following configuration:", '\n', '-' * 64)
     print()
-    pprint(config.to_dict())
 
     stop_conditions = {'timesteps_total': args.num_timesteps}
     train(args.algo, config, stop_conditions, args.save_dir, args.load_dir)

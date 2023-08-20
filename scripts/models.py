@@ -18,7 +18,7 @@ from typing import Any
 ### Helper Functions
 
 def to_sample_batch(
-    input_dict: SampleBatch | dict[str, TensorType],
+    input_dict: SampleBatch | dict,
     state: list[TensorType] = [],
     seq_lens: TensorType | None = None,
     **kwargs) -> SampleBatch:
@@ -34,17 +34,15 @@ def to_sample_batch(
     seq_lens : TensorType or None
         1-D tensor holding input sequence lengths
     """
-    batch = SampleBatch(input_dict)
-    batch.update(input_dict)
-    batch.update(kwargs)
+    batch = SampleBatch(input_dict, **kwargs)
 
     # Process states
     for i in range(len(state)):
-        input_dict[f'state_in_{i}'] = state[i]
+        batch[f'state_in_{i}'] = state[i]
 
     # Process sequence lengths
     if seq_lens is not None:
-        input_dict[SampleBatch.SEQ_LENS] = seq_lens
+        batch[SampleBatch.SEQ_LENS] = seq_lens
 
     return batch
 
@@ -99,7 +97,7 @@ class CustomModel(TorchModelV2, nn.Module):
         base_model_cls : type[TorchModelV2], optional
             Base model class to wrap around (e.g. ComplexInputNetwork)
         value_input_space : spaces.Space, optional
-            Space for value function inputs (if different from `obs_space`)
+            Space for value function inputs (e.g. for centralized critic)
         """
         nn.Module.__init__(self)
         TorchModelV2.__init__(
