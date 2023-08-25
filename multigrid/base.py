@@ -399,6 +399,9 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
 
         # Update agent states, grid states, and reward from actions
         for i in order:
+            if i not in actions:
+                continue
+
             agent, action = self.agents[i], actions[i]
 
             if agent.state.terminated:
