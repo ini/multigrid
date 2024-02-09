@@ -148,7 +148,8 @@ class CustomModel(TorchModelV2, nn.Module):
         # return dummy outputs (to be overwritten in postprocessing)
         if self.value_model.obs_space is not self.obs_space and value_input is None:
             batch_size = self._value_input['obs_flat'].shape[0]
-            return torch.zeros(batch_size) # dummy output
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            return torch.zeros(batch_size, device=device) # dummy output
 
         # Use custom value input if provided
         if value_input is not None:

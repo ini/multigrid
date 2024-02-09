@@ -77,10 +77,11 @@ def algorithm_config(
             policy_mapping_fn=get_policy_mapping_fn(None, num_agents),
         )
         .resources(num_gpus=num_gpus if torch.cuda.is_available() else 0)
-        .rl_module(_enable_rl_module_api=False) # disable RLModule API
+        #.rl_module(_enable_rl_module_api=False) # for older RLlib versions
+        .experimental(_enable_new_api_stack=False)
         .rollouts(num_rollout_workers=num_workers)
         .training(
-            _enable_learner_api=False, # disable RLModule API
+            #_enable_learner_api=False, # for older RLlib versions
             model=model_config(lstm=lstm, value_input_space=value_input_space),
             lr=(lr or NotProvided),
         )
