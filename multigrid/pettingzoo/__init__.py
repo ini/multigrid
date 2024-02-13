@@ -23,6 +23,8 @@ Wrap an environment class with :func:`.to_pettingzoo_env()`:
     >>> env = PZEnv(agents=2, render_mode='human')
 """
 
+from __future__ import annotations
+
 import gymnasium as gym
 
 from gymnasium import spaces
@@ -45,6 +47,7 @@ class PettingZooWrapper(ParallelEnv):
         self.step = self.env.step
         self.render = self.env.render
         self.close = self.env.close
+        self.metadata = {}
 
     @property
     def agents(self) -> list[AgentID]:
@@ -63,6 +66,10 @@ class PettingZooWrapper(ParallelEnv):
     @property
     def action_spaces(self) -> dict[AgentID, spaces.Space]:
         return dict(self.env.action_space)
+
+    @property
+    def render_mode(self) -> str | None:
+        return self.env.render_mode
 
     def observation_space(self, agent_id: AgentID) -> spaces.Space:
         return self.env.observation_space[agent_id]

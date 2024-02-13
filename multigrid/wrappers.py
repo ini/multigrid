@@ -58,6 +58,46 @@ class FullyObsWrapper(ObservationWrapper):
         return obs
 
 
+class ImgObsWrapper(ObservationWrapper):
+    """
+    Use the image as the only observation output for each agent.
+
+    Examples
+    --------
+    >>> import gymnasium as gym
+    >>> import multigrid.envs
+    >>> env = gym.make('MultiGrid-Empty-8x8-v0')
+    >>> obs, _ = env.reset()
+    >>> obs[0].keys()
+    dict_keys(['image', 'direction', 'mission'])
+
+    >>> from multigrid.wrappers import ImgObsWrapper
+    >>> env = ImgObsWrapper(env)
+    >>> obs, _ = env.reset()
+    >>> obs.shape
+    (7, 7, 3)
+    """
+
+    def __init__(self, env: MultiGridEnv):
+        """
+        """
+        super().__init__(env)
+
+        # Update agent observation spaces
+        for agent in self.env.agents:
+            agent.observation_space = agent.observation_space['image']
+            agent.observation_space.dtype = np.uint8
+
+    def observation(self, obs: dict[AgentID, ObsType]) -> dict[AgentID, ObsType]:
+        """
+        :meta private:
+        """
+        for agent_id in obs:
+            obs[agent_id] = obs[agent_id]['image'].astype(np.uint8)
+
+        return obs
+
+
 class OneHotObsWrapper(ObservationWrapper):
     """
     Wrapper to get a one-hot encoding of a partially observable

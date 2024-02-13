@@ -8,7 +8,6 @@ import pygame.freetype
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import cached_property
 from gymnasium import spaces
 from itertools import repeat
 from numpy.typing import NDArray as ndarray
@@ -207,7 +206,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         self.success_termination_mode = success_termination_mode
         self.failure_termination_mode = failure_termination_mode
 
-    @cached_property
+    @property
     def observation_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint observation space of all agents.
@@ -217,7 +216,7 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
             for agent in self.agents
         })
 
-    @cached_property
+    @property
     def action_space(self) -> spaces.Dict[AgentID, spaces.Space]:
         """
         Return the joint action space of all agents.
@@ -272,7 +271,9 @@ class MultiGridEnv(gym.Env, RandomMixin, ABC):
         # Reset agents
         self.mission_space.seed(seed)
         self.mission = self.mission_space.sample()
+        self.agent_states = AgentState(self.num_agents)
         for agent in self.agents:
+            agent.state = self.agent_states[agent.index]
             agent.reset(mission=self.mission)
 
         # Generate a new random grid at the start of each episode
