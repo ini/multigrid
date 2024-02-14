@@ -277,10 +277,10 @@ class Grid:
             highlight_mask = np.zeros(shape=(self.width, self.height), dtype=bool)
 
         # Get agent locations
-        location_to_agent = defaultdict(
-            type(None),
-            {tuple(agent.pos): agent for agent in agents}
-        )
+        # For overlapping agents, non-terminated agents get priority
+        location_to_agent = defaultdict(type(None))
+        for agent in sorted(agents, key=lambda a: not a.terminated):
+            location_to_agent[tuple(agent.pos)] = agent
 
         # Initialize pixel array
         width_px = self.width * tile_size
