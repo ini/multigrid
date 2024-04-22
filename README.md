@@ -64,10 +64,10 @@ Documentation for this package can be found at [ini.io/docs/multigrid](https://i
 To cite this project please use:
 
 ```
-@software{multigrid,
-  author = {Oguntola, Ini},
-  title = {Fast Multi-Agent Gridworld Environments for Gymnasium},
-  url = {https://github.com/ini/multigrid},
-  year = {2023},
+@article{oguntola2023theory,
+  title={Theory of mind as intrinsic motivation for multi-agent reinforcement learning},
+  author={Oguntola, Ini and Campbell, Joseph and Stepputtis, Simon and Sycara, Katia},
+  journal={arXiv preprint arXiv:2307.01158},
+  year={2023}
 }
 ```
