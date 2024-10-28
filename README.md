@@ -10,7 +10,7 @@ The **MultiGrid** library provides contains a collection of fast multi-agent dis
 
 The environments are designed to be fast and easily customizable. Compared to minigrid, the underlying gridworld logic is **significantly optimized**, with environment simulation 10x to 20x faster by our benchmarks.
 
-Documentation for this library can be found at [ini.io/docs/multigrid](https://ini.io/docs/multigrid).
+Documentation for this library can be found at [ini.github.io/docs/multigrid](https://ini.github.io/docs/multigrid).
 
 ## Installation
 
@@ -26,7 +26,7 @@ This package requires Python 3.9 or later.
 
 ## Environments
 
-The `multigrid.envs` package provides implementations of several multi-agent environments. [You can find the full list here](https://ini.io/docs/multigrid/multigrid/multigrid.envs).
+The `multigrid.envs` package provides implementations of several multi-agent environments. [You can find the full list here](https://ini.github.io/docs/multigrid/multigrid/multigrid.envs).
 
 ## API
 
@@ -48,8 +48,8 @@ env.close()
 ```
 
 More information about using MultiGrid directly with other APIs:
-* [PettingZoo](https://ini.io/docs/multigrid/multigrid/multigrid.pettingzoo)
-* [RLlib](https://ini.io/docs/multigrid/multigrid/multigrid.rllib)
+* [PettingZoo](https://ini.github.io/docs/multigrid/multigrid/multigrid.pettingzoo)
+* [RLlib](https://ini.github.io/docs/multigrid/multigrid/multigrid.rllib)
 
 ## Training Agents
 
@@ -57,7 +57,7 @@ See the [scripts folder](./scripts) for an example training with RLlib.
 
 ## Documentation
 
-Documentation for this package can be found at [ini.io/docs/multigrid](https://ini.io/docs/multigrid).
+Documentation for this package can be found at [ini.github.io/docs/multigrid](https://ini.github.io/docs/multigrid).
 
 ## Citation
 
