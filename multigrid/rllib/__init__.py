@@ -41,27 +41,32 @@ from ..wrappers import OneHotObsWrapper
 
 
 
-class RLlibWrapper(gym.Wrapper, MultiAgentEnv):
+class RLlibWrapper(MultiAgentEnv):
     """
     Wrapper for a ``MultiGridEnv`` environment that implements the
     RLlib ``MultiAgentEnv`` interface.
     """
 
     def __init__(self, env: MultiGridEnv):
-        self._obs_space_in_preferred_format = True
-        self._action_space_in_preferred_format = True
-        gym.Wrapper.__init__(self, env)
-        MultiAgentEnv.__init__(self)
+        super().__init__()
+        self.env = env
+        self.agents = list(range(len(env.unwrapped.agents)))
+        self.possible_agents = self.agents[:]
 
-    def get_agent_ids(self):
-        return {agent.index for agent in self.agents}
+    def reset(self, *args, **kwargs):
+        return self.env.reset(*args, **kwargs)
 
     def step(self, *args, **kwargs):
-        obs, rewards, terminations, truncations, infos = super().step(*args, **kwargs)
+        obs, rewards, terminations, truncations, infos = self.env.step(*args, **kwargs)
         terminations['__all__'] = all(terminations.values())
         truncations['__all__'] = all(truncations.values())
         return obs, rewards, terminations, truncations, infos
 
+    def get_observation_space(self, agent_index: int):
+        return self.env.unwrapped.agents[agent_index].observation_space
+
+    def get_action_space(self, agent_index: int):
+        return self.env.unwrapped.agents[agent_index].action_space
 
 
 def to_rllib_env(

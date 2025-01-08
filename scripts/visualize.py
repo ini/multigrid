@@ -2,62 +2,17 @@ import argparse
 import json
 import numpy as np
 
-from ray.rllib.algorithms import Algorithm
 from ray.rllib.utils.typing import AgentID
-from typing import Any, Callable, Iterable
+from ray.rllib.utils.torch_utils import convert_to_torch_tensor
+from typing import Callable
 
-from train import algorithm_config
-from utils import find_checkpoint_dir, get_policy_mapping_fn
+from train import get_algorithm_config, find_checkpoint_dir, get_policy_mapping_fn
+from ray.rllib.core.rl_module import RLModule
 
 
-
-def get_actions(
-    agent_ids: Iterable[AgentID],
-    algorithm: Algorithm,
-    policy_mapping_fn: Callable[[AgentID], str],
-    observations: dict[AgentID, Any],
-    states: dict[AgentID, Any]) -> tuple[dict[AgentID, Any], dict[AgentID, Any]]:
-    """
-    Get actions for the given agents.
-
-    Parameters
-    ----------
-    agent_ids : Iterable[AgentID]
-        Agent IDs for which to get actions
-    algorithm : Algorithm
-        RLlib algorithm instance with trained policies
-    policy_mapping_fn : Callable(AgentID) -> str
-        Function mapping agent IDs to policy IDs
-    observations : dict[AgentID, Any]
-        Observations for each agent
-    states : dict[AgentID, Any]
-        States for each agent
-
-    Returns
-    -------
-    actions : dict[AgentID, Any]
-        Actions for each agent
-    states : dict[AgentID, Any]
-        Updated states for each agent
-    """
-    actions = {}
-    for agent_id in agent_ids:
-        if states[agent_id]:
-            actions[agent_id], states[agent_id], _ = algorithm.compute_single_action(
-                observations[agent_id],
-                states[agent_id],
-                policy_id=policy_mapping_fn(agent_id)
-            )
-        else:
-            actions[agent_id] = algorithm.compute_single_action(
-                observations[agent_id],
-                policy_id=policy_mapping_fn(agent_id)
-            )
-
-    return actions, states
 
 def visualize(
-    algorithm: Algorithm,
+    modules: dict[str, RLModule],
     policy_mapping_fn: Callable[[AgentID], str],
     num_episodes: int = 10) -> list[np.ndarray]:
     """
@@ -76,24 +31,40 @@ def visualize(
     env = algorithm.env_creator(algorithm.config.env_config)
 
     for episode in range(num_episodes):
-        print('\n', '-' * 32, '\n', 'Episode', episode, '\n', '-' * 32)
+        print()
+        print('-' * 32, '\n', 'Episode', episode, '\n', '-' * 32)
 
-        episode_rewards = {agent_id: 0.0 for agent_id in env.get_agent_ids()}
+        episode_rewards = {agent_id: 0.0 for agent_id in env.possible_agents}
         terminations, truncations = {'__all__': False}, {'__all__': False}
         observations, infos = env.reset()
+
+        # Get initial states for each agent
         states = {
-            agent_id: algorithm.get_policy(policy_mapping_fn(agent_id)).get_initial_state()
-            for agent_id in env.get_agent_ids()
+            agent_id: modules[policy_mapping_fn(agent_id)].get_initial_state()
+            for agent_id in env.agents
         }
+
         while not terminations['__all__'] and not truncations['__all__']:
-            frames.append(env.get_frame())
-            actions, states = get_actions(
-                env.get_agent_ids(), algorithm, policy_mapping_fn, observations, states)
+            # Store current frame
+            frames.append(env.env.unwrapped.get_frame())
+
+            # Compute actions for each agent
+            actions = {}
+            observations = convert_to_torch_tensor(observations)
+            for agent_id in env.agents:
+                agent_module = modules[policy_mapping_fn(agent_id)]
+                out = agent_module.forward_inference({'obs': observations[agent_id]})
+                logits = out['action_dist_inputs']
+                action_dist_class = agent_module.get_inference_action_dist_cls()
+                action_dist = action_dist_class.from_logits(logits)
+                actions[agent_id] = action_dist.sample().item()
+
+            # Take actions in environment and accumulate rewards
             observations, rewards, terminations, truncations, infos = env.step(actions)
             for agent_id in rewards:
                 episode_rewards[agent_id] += rewards[agent_id]
 
-        frames.append(env.get_frame())
+        frames.append(env.env.unwrapped.get_frame())
         print('Rewards:', episode_rewards)
 
     env.close()
@@ -129,7 +100,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     args.env_config.update(render_mode='human')
-    config = algorithm_config(
+    config = get_algorithm_config(
         **vars(args),
         num_workers=0,
         num_gpus=0,
@@ -137,12 +108,14 @@ if __name__ == '__main__':
     algorithm = config.build()
     checkpoint = find_checkpoint_dir(args.load_dir)
     policy_mapping_fn = lambda agent_id, *args, **kwargs: f'policy_{agent_id}'
+
     if checkpoint:
         print(f"Loading checkpoint from {checkpoint}")
-        algorithm.restore(checkpoint)
+        path = checkpoint / 'learner_group' / 'learner' / 'rl_module/'
+        modules = RLModule.from_checkpoint(path)
         policy_mapping_fn = get_policy_mapping_fn(checkpoint, args.num_agents)
 
-    frames = visualize(algorithm, policy_mapping_fn, num_episodes=args.num_episodes)
+    frames = visualize(modules, policy_mapping_fn, num_episodes=args.num_episodes)
     if args.gif:
         from array2gif import write_gif
         filename = args.gif if args.gif.endswith('.gif') else f'{args.gif}.gif'
